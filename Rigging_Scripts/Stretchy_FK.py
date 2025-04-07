@@ -10,13 +10,38 @@ bl_info = {
 }
 
 import bpy
+import mathutils
+import struct
+
+# =============== CLASS TO CREATE STRETCHY FK RIG =============
+class VIEW3D_OT_StretchFK(bpy.types.Operator):
+    """ Creates the stretchy FK system"""
+    bl_idname = "object.select_operator"
+    bl_label = "Stretchy FK Operator"
 
 
-#=============== CLASS TO CREATE STRETCHY FK RIG =============
-class VIEW3D_OT_StretchFK(bpy.types.Armature):
 
-    def draw(self, context):
-        pass
+    def execute(self, context):
+        print("------------- NEW ATTEMPT ------------------")
+
+
+        armature = bpy.context.object
+        bones_down_the_chain = context.active_bone.children_recursive
+
+
+        print(f"the number of bones in this chain are: '{len(bones_down_the_chain)}'")
+
+        for bone in bones_down_the_chain:
+            bpy.ops.armature.select_hierarchy(extend=True, direction="CHILD")
+            # if bones are connected, we disconnect them here, but keep them parented
+            bone.use_connect = False
+
+            
+        bpy.ops.armature.duplicate()
+        bpy.ops.transform.resize(value= ( 0.5, 0.5, 0.5))
+
+        
+        return{'FINISHED'}
 
 
 #=============== PANEL TO ACCESS RIG BUTTONS =============
@@ -28,46 +53,49 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
     bl_category = "Custom Rigs"
     
 
-    
 
     def draw(self, context):
-        def check_edit_mode():
-    # """Checks if the active object is in Edit Mode and prints the status."""
 
-            obj = bpy.context.active_object
-            if obj is None:
-                print("No object selected.")
-                return False
+        selectedObject = bpy.context.active_object
 
-            if obj.mode == 'EDIT':
-                print(f"Object '{obj.name}' is in Edit Mode.")
+        def check_edit_mode_and_armature():
+        # checking if active object is in edit mode
+
+            if selectedObject is None:
+                return ("no object selected" , False )
+
+            if selectedObject.mode == 'EDIT' and selectedObject.type == 'ARMATURE':
+                # print(f"Object '{selectedObject.name}' is in {selectedObject.mode} of type '{selectedObject.type}'.")
                 return True
+            if len(bpy.context.active_bone.children_recursive) > 0:
+                return
             else:
-                print(f"Object '{obj.name}' is in: {obj.mode} mode.")
-                return False
-        # self.layout.operator(context.active_object,
-        #                               text="Stretchy FK",
-        #                               icon='GROUP_BONE'
-        #                               )
+                return (f"Object '{selectedObject.name}' is in {selectedObject.mode} of type '{selectedObject.type}'.", 
+                        False
+                        )
 
+
+        #Create columns for menu 
         column = self.layout.column()
-        if context.active_object is None:
-            column.label(text='-no active object-')
-        else:
-            column.prop(context.active_object, "hide_viewport")
-
-        if check_edit_mode():
-            column.prop(context.active_object, "hide_viewport")
+        if check_edit_mode_and_armature():
+            column.operator("object.select_operator", 
+            text="select hierarchy"
+        )
         else:
             column.label(text='-not in edit mode-')
 
-        # layout.operator("wm.open_mainfile")
-        # layout.operator("wm.save_as_mainfile")
 
 
 def register():
-    bpy.utils.register_class(VIEW3D_PT_CustomRigs)
+    bpy.utils.register_class(VIEW3D_PT_CustomRigs),
+    bpy.utils.register_class(VIEW3D_OT_StretchFK)
 
 
 def unregister():
-    bpy.utils.unregister_class(VIEW3D_PT_CustomRigs)
+    bpy.utils.unregister_class(VIEW3D_PT_CustomRigs),
+    bpy.utils.unregister_class(VIEW3D_OT_StretchFK)
+
+if __name__ == "__main__":
+    register()
+    # You can run your operator or interact with the panel here...
+    unregister()
