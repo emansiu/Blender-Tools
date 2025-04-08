@@ -10,41 +10,80 @@ bl_info = {
 }
 
 import bpy
-import mathutils
-import struct
 
-# =============== CLASS TO CREATE STRETCHY FK RIG =============
+def rename_duplicated_bone(bone_to_rename):
+    # ----RENAMING ----
+    # replace any ORG's with MCH
+    if "ORG" in bone_to_rename.name:
+        bone_to_rename.name = bone_to_rename.name.replace("ORG","MCH")
+
+    # add "tweak" to the appropriate location (not simply suffix - need to retain integrigy of .L or )
+    if ".L" in bone_to_rename.name:
+        index = bone_to_rename.name.find(".L")
+        changed_bone_name = bone_to_rename.name[:index] + "_tweak" + bone_to_rename.name[index:]
+        bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
+    else:
+        bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,bone_to_rename.name+"_tweak.L")
+
+    if ".001" in bone_to_rename.name:
+        index = bone_to_rename.name.find(".001")
+        changed_bone_name = bone_to_rename.name[:index]
+        bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
+
+# =================================== CLASS TO CREATE STRETCHY FK RIG ================================
 class VIEW3D_OT_StretchFK(bpy.types.Operator):
     """ Creates the stretchy FK system"""
-    bl_idname = "object.select_operator"
+    bl_idname = "object.stretchyfk"
     bl_label = "Stretchy FK Operator"
 
 
 
+
     def execute(self, context):
-        print("------------- NEW ATTEMPT ------------------")
-
-
+        print("============== NEW EXECUTION =================")
         armature = bpy.context.object
         bones_down_the_chain = context.active_bone.children_recursive
 
+        first_bone = context.active_bone
+        first_bone.use_connect = False
+        original_bones = [context.active_bone.name]
 
-        print(f"the number of bones in this chain are: '{len(bones_down_the_chain)}'")
 
         for bone in bones_down_the_chain:
-            bpy.ops.armature.select_hierarchy(extend=True, direction="CHILD")
-            # if bones are connected, we disconnect them here, but keep them parented
             bone.use_connect = False
-
+            bpy.ops.armature.select_hierarchy(extend=True, direction="CHILD")
+            original_bones.append(bone.name)
+            # --- if bones are connected, we disconnect them here, but keep them parented
             
+
+        # with all bones selected, duplicate and resize 
+        # [!NOTICE!] --- when this operation is done it will select all the duplicated bones
         bpy.ops.armature.duplicate()
         bpy.ops.transform.resize(value= ( 0.5, 0.5, 0.5))
+
+        duplicated_bones = bpy.context.selected_bones
+        # Renaming duplicated bones, then parent originals to these new bones.
+        for index, bone in enumerate(duplicated_bones):
+            bone.use_connect = False
+            print(f"index: '{index}' gives us bone: '{bone.name}'")
+
+            rename_duplicated_bone(bone)
+            # --- ASSIGNING NEW PARENTS ----
+            print('-----  ORIGINAL BONES ------')
+            print(original_bones[index])
+            print('----- CURRENT DUPLICATED BONE ------')
+            print(bone.name)
+            armature.data.edit_bones[original_bones[index]].parent = armature.data.edit_bones[bone.name]
+
+
+            
 
         
         return{'FINISHED'}
 
 
-#=============== PANEL TO ACCESS RIG BUTTONS =============
+
+#================================ PANEL TO ACCESS RIG BUTTONS ==========================================
 class VIEW3D_PT_CustomRigs(bpy.types.Panel):
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
@@ -78,8 +117,8 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
         #Create columns for menu 
         column = self.layout.column()
         if check_edit_mode_and_armature():
-            column.operator("object.select_operator", 
-            text="select hierarchy"
+            column.operator("object.stretchyfk", 
+            text="Make Stretchy FK Rig"
         )
         else:
             column.label(text='-not in edit mode-')
