@@ -22,6 +22,15 @@ def select_bone(bone):
 def select_mesh_by_name(mesh_name):
     bpy.data.objects[mesh_name].select_set(True)
 
+def assign_to_icon_collection(mesh_obj):
+    icon_collection = bpy.data.collections.get("Armature_Icons")
+    if icon_collection is None:
+        return
+    # remove from old collection, link (or assign) to icon collections
+    mesh_obj.users_collection[0].objects.unlink(mesh_obj)
+    # mesh_obj.hide_viewport = True
+    icon_collection.objects.link(mesh_obj)
+
 def rename_org_to_tweak(bone_to_rename):
     # ----RENAMING ----
     # replace any ORG's with MCH
@@ -77,18 +86,7 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
     bl_idname = "object.stretchyfk"
     bl_label = "Stretchy FK Operator"
 
-    def create_icons(self):
-        #fk circle icon
-        fk_circle_icon = bpy.ops.curve.primitive_bezier_circle_add(radius=0.5)
-        tweak_icosphere_icon = bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=0.5, enter_editmode=True)
-        bpy.ops.mesh.delete(type='ONLY_FACE')
-        # print(tweak_icosphere_icon)
-        # print(tweak_icosphere_icon.name)  
-        # DESELECT_ALL()
-        # select_mesh_by_name(tweak_icosphere_icon.name)
-        # bpy.ops.object.mode_set(mode='EDIT')
-
-    def create_collection_and_icons(self):
+    def create_collection(self):
         collection_name = "Armature_Icons"
 
         if collection_name in bpy.data.collections:
@@ -98,14 +96,28 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             new_collection = bpy.data.collections.new(collection_name)
             bpy.context.scene.collection.children.link(new_collection)
 
+    def create_icons(self):
+
+        # -- creating fk circle icon and assigning to icon collection
+        bpy.ops.curve.primitive_bezier_circle_add(radius=0.5)
+        bpy.context.active_object.name = "fk_circle_icon"
+        # assign to new collection remove from old
+        assign_to_icon_collection(bpy.context.active_object)
+
+        # -- creating tweak icosphere icon and assigning to icon collection
+        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=0.5, enter_editmode=True)
+        bpy.context.active_object.name = "tweak_icosphere_icon"
+        bpy.ops.mesh.delete(type='ONLY_FACE')
+        assign_to_icon_collection(bpy.context.active_object)
+
+        bpy.ops.object.mode_set(mode='OBJECT')
+
 
     def execute(self, context):
 
-        # self.create_collection_and_icons()
-        self.create_icons()
 
 
-        """
+
 
         print("============== NEW STRETCHY EXECUTION =================")
         armature = bpy.context.object
@@ -184,10 +196,13 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             constraint = bone_constraint_owner.constraints.new("STRETCH_TO")
             constraint.target = armature
             constraint.subtarget = bone_constraint_target.name
+
+        #---- create icons ---
+        self.create_collection()
+        self.create_icons()
                 
         
         
-        """
         return{'FINISHED'}
 
 
@@ -246,5 +261,4 @@ if __name__ == "__main__":
     register()
     # You can run your operator or interact with the panel here...
     unregister()
-
 
