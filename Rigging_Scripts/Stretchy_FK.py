@@ -10,9 +10,23 @@ bl_info = {
 }
 
 import bpy
+def get_current_mode():
+    return bpy.context.object.mode
+
+def swith_to_mode(mode_to_switch_to:str):
+    """takes OBJECT, EDIT, OR POSE values"""
+    bpy.ops.object.mode_set(mode=mode_to_switch_to)
 
 def DESELECT_ALL():
-    bpy.ops.armature.select_all(action='DESELECT')
+    match get_current_mode():
+        case 'EDIT':
+            bpy.ops.armature.select_all(action='DESELECT')
+        case 'OBJECT':
+            bpy.ops.object.select_all(action="DESELECT")
+        case 'POSE':
+            bpy.ops.pose.select_all(action="DESELECT")
+        case _:
+            print('we are in some other mode not covered in this script')
 
 def select_bone(bone):
     bone.select = True
@@ -197,9 +211,11 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             constraint.target = armature
             constraint.subtarget = bone_constraint_target.name
 
-        #---- create icons ---
+        #---- create icons and move to collection---
         self.create_collection()
         self.create_icons()
+
+        DESELECT_ALL()
                 
         
         
