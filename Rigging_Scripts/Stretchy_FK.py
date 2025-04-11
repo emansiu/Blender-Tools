@@ -79,7 +79,7 @@ def rename_org_to_tweak(bone_to_rename):
     # add "tweak" to the appropriate location (not simply suffix - need to retain integrigy of .L or )
     if ".L" in bone_to_rename.name:
         index = bone_to_rename.name.find(".L")
-        changed_bone_name = bone_to_rename.name[:index] + "_tweak" + bone_to_rename.name[index:]
+        changed_bone_name = bone_to_rename.name[:index] + "_tweak.L"
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
     else:
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,bone_to_rename.name+"_tweak.L")
@@ -90,6 +90,7 @@ def rename_org_to_tweak(bone_to_rename):
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
 
 def rename_tweak_tip(bone_to_rename):
+    print('========================RENAMING TIP FUNCTION GETTING CALLED ===================')
     # ----RENAMING ----
     # replace any ORG's with MCH
     if "ORG" in bone_to_rename.name:
@@ -97,15 +98,16 @@ def rename_tweak_tip(bone_to_rename):
 
     # add "tweak" to the appropriate location (not simply suffix - need to retain integrigy of .L or )
     if ".L" in bone_to_rename.name:
+        print('========================FOUND .L REPLACING IT THE TIP CORRECTLY HOPEFULLY ===================')
         index = bone_to_rename.name.find(".L")
-        changed_bone_name = bone_to_rename.name[:index] + "_tweak_tip"
+        changed_bone_name = bone_to_rename.name[:index] + "_tweak_tip.L"
+        print(changed_bone_name)
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
     else:
-        bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,bone_to_rename.name+"_tweak_tip")
-
-    if ".001" in bone_to_rename.name:
+        print('========================DID NOT FIND .L, RENAMING TO TWEAK_TIP ===================')
+        # if no .L, then it will be ending in .001
         index = bone_to_rename.name.find(".001")
-        changed_bone_name = bone_to_rename.name[:index]
+        changed_bone_name = bone_to_rename.name[:index] + "_tweak_tip"
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
 
 def rename_org_to_fk(bone_to_rename):
