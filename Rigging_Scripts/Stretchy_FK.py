@@ -13,14 +13,16 @@ import bpy
 def get_current_mode():
     return bpy.context.object.mode
 
-def swith_to_mode(mode_to_switch_to:str):
+def swith_to_mode(mode_to_switch_to):
     """takes OBJECT, EDIT, OR POSE values"""
     bpy.ops.object.mode_set(mode=mode_to_switch_to)
 
 def DESELECT_ALL():
+    """ Deselects ALL. WARNING!: when deselecting all in object mode you lose context of pose and cannot switch to pose mode until you select an armature"""
     match get_current_mode():
         case 'EDIT':
-            bpy.ops.armature.select_all(action='DESELECT')
+            if bpy.context.active_object.type == "ARMATURE":
+                bpy.ops.armature.select_all(action='DESELECT')
         case 'OBJECT':
             bpy.ops.object.select_all(action="DESELECT")
         case 'POSE':
@@ -124,8 +126,6 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
         bpy.ops.mesh.delete(type='ONLY_FACE')
         assign_to_icon_collection(bpy.context.active_object)
 
-        bpy.ops.object.mode_set(mode='OBJECT')
-
 
     def execute(self, context):
 
@@ -205,7 +205,6 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             else:
                 bone_constraint_target = context.object.pose.bones.get(tip_tweak_bone.name)
 
-            print(f"constraining target: '{bone_constraint_target.name}' to owner: '{bone_constraint_owner.name}'")
 
             constraint = bone_constraint_owner.constraints.new("STRETCH_TO")
             constraint.target = armature
@@ -216,6 +215,30 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
         self.create_icons()
 
         DESELECT_ALL()
+        swith_to_mode("OBJECT")
+        DESELECT_ALL()
+        # select and activate armature
+        armature.select_set(True)
+        bpy.context.view_layer.objects.active = armature
+        swith_to_mode("POSE")
+
+        # --- assign icon shapes to specific components of rig ------
+        for index, bone in enumerate(original_bones):
+
+            context.object.pose.bones[tweak_bones[index].name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
+            context.object.pose.bones[tweak_bones[index].name].use_custom_shape_bone_size = False
+            context.object.pose.bones[tweak_bones[index].name].custom_shape_scale_xyz = (0.2,0.2,0.2)
+
+            context.object.pose.bones[fk_bones[index].name].custom_shape = bpy.data.objects.get("fk_circle_icon")
+            # below is rotating 90 in x rotation but in radians
+            context.object.pose.bones[fk_bones[index].name].custom_shape_rotation_euler[0] = 1.5707964
+            context.object.pose.bones[fk_bones[index].name].use_custom_shape_bone_size = False
+            context.object.pose.bones[fk_bones[index].name].custom_shape_scale_xyz = (0.6,0.6,0.6)
+
+        # give icon to final tweak bone
+        context.object.pose.bones[tip_tweak_bone.name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
+        context.object.pose.bones[tip_tweak_bone.name].use_custom_shape_bone_size = False
+        context.object.pose.bones[tip_tweak_bone.name].custom_shape_scale_xyz = (0.2,0.2,0.2)
                 
         
         
@@ -235,22 +258,30 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
 
     def draw(self, context):
 
-        selectedObject = bpy.context.active_object
+        selected_object = context.active_object
+        selected_bone = context.active_bone
 
         def check_edit_mode_and_armature():
-        # checking if active object is in edit mode
+            """checking what is selected, and if a bone, is it a single bone or a chain. Lastly checks if we're in edit mode"""
+            
 
-            if selectedObject is None:
-                return ("no object selected" , False )
+            if selected_object is None:
+                print("no object selected")
+                return False
+            if selected_bone is None:
+                print("no bone selected")
+                return False
 
-            if selectedObject.mode == 'EDIT' and selectedObject.type == 'ARMATURE':
-                return True
-            if len(bpy.context.active_bone.children_recursive) > 0:
-                return
+            if selected_object.mode == 'EDIT' and selected_object.type == 'ARMATURE':
+                if len(selected_bone.children_recursive) > 0:
+                    return True
+                else:
+                    print("there is only 1 bone in this chain")
+                    return False
+            
             else:
-                return (f"Object '{selectedObject.name}' is in {selectedObject.mode} of type '{selectedObject.type}'.", 
-                        False
-                        )
+                print("Check edit mode function for menu has something unexpected")
+                return False
 
 
         #Create columns for menu 
