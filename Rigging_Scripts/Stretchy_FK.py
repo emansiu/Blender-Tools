@@ -312,7 +312,7 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
 
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
-    bl_label = "Simple Custom Menu"
+    bl_label = "Custom Rigging Tools"
     # bl_idname = "OBJECT_MT_simple_custom_menu"
     bl_category = "Custom Rigs"
     
