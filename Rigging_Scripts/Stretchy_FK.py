@@ -13,24 +13,24 @@ import bpy
 
 # ------ Global Variables --------------------------------------------------------------------------
 name_of_collection_for_icons = "Icons"
-# --- get proper scaling for icons ----
-scene_scale_unit = bpy.context.scene.unit_settings.scale_length
-scene_unit_length = bpy.context.scene.unit_settings.length_unit
-scene_unit_length_quantified:float | None = None
+# # --- get proper scaling for icons ----
+# scene_scale_unit = bpy.context.scene.unit_settings.scale_length
+# scene_unit_length = bpy.context.scene.unit_settings.length_unit
+# scene_unit_length_quantified:float | None = None
 
-match scene_unit_length:
-    case "METERS":
-        scene_unit_length_quantified = 1.0
-    case "CENTIMETERS":
-        scene_unit_length_quantified = 0.01
-    case "MILLIMETERS":
-        scene_unit_length_quantified = 0.001
-    case "KILOMETERS":
-        scene_unit_length_quantified = 1000.0
-    case "INCHES":
-        scene_unit_length_quantified = 39.3701
-    case _:
-        print("scene unit is not one we have accounted for in code for this tool")
+# match scene_unit_length:
+#     case "METERS":
+#         scene_unit_length_quantified = 1.0
+#     case "CENTIMETERS":
+#         scene_unit_length_quantified = 0.01
+#     case "MILLIMETERS":
+#         scene_unit_length_quantified = 0.001
+#     case "KILOMETERS":
+#         scene_unit_length_quantified = 1000.0
+#     case "INCHES":
+#         scene_unit_length_quantified = 39.3701
+#     case _:
+#         print("scene unit is not one we have accounted for in code for this tool")
 # --------------------------------------------------------------------------------------------------
 
 def get_current_mode():
@@ -261,9 +261,9 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             context.object.pose.bones[tweak_bones[index].name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
             context.object.pose.bones[tweak_bones[index].name].use_custom_shape_bone_size = False
             context.object.pose.bones[tweak_bones[index].name].custom_shape_scale_xyz = (
-                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified
+                tweaker_shape_size,
+                tweaker_shape_size,
+                tweaker_shape_size
             )
 
 
@@ -272,18 +272,18 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
             context.object.pose.bones[fk_bones[index].name].custom_shape_rotation_euler[0] = 1.5707964
             context.object.pose.bones[fk_bones[index].name].use_custom_shape_bone_size = False
             context.object.pose.bones[fk_bones[index].name].custom_shape_scale_xyz = (
-                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified
+                fk_shape_size,
+                fk_shape_size,
+                fk_shape_size
             )
 
         # give icon to final tweak bone
         context.object.pose.bones[tip_tweak_bone.name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
         context.object.pose.bones[tip_tweak_bone.name].use_custom_shape_bone_size = False
         context.object.pose.bones[tip_tweak_bone.name].custom_shape_scale_xyz = (
-            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
-            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified
+            tweaker_shape_size,
+            tweaker_shape_size,
+            tweaker_shape_size
         )
 
                 
@@ -312,7 +312,7 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
 
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
-    bl_label = "Custom Rigging Tools"
+    bl_label = "Custom Riggin Tools"
     # bl_idname = "OBJECT_MT_simple_custom_menu"
     bl_category = "Custom Rigs"
     
