@@ -10,6 +10,29 @@ bl_info = {
 }
 
 import bpy
+
+# ------ Global Variables --------------------------------------------------------------------------
+name_of_collection_for_icons = "Icons"
+# --- get proper scaling for icons ----
+scene_scale_unit = bpy.context.scene.unit_settings.scale_length
+scene_unit_length = bpy.context.scene.unit_settings.length_unit
+scene_unit_length_quantified:float | None = None
+
+match scene_unit_length:
+    case "METERS":
+        scene_unit_length_quantified = 1.0
+    case "CENTIMETERS":
+        scene_unit_length_quantified = 0.01
+    case "MILLIMETERS":
+        scene_unit_length_quantified = 0.001
+    case "KILOMETERS":
+        scene_unit_length_quantified = 1000.0
+    case "INCHES":
+        scene_unit_length_quantified = 39.3701
+    case _:
+        print("scene unit is not one we have accounted for in code for this tool")
+# --------------------------------------------------------------------------------------------------
+
 def get_current_mode():
     return bpy.context.object.mode
 
@@ -39,7 +62,7 @@ def select_mesh_by_name(mesh_name):
     bpy.data.objects[mesh_name].select_set(True)
 
 def assign_to_icon_collection(mesh_obj):
-    icon_collection = bpy.data.collections.get("Armature_Icons")
+    icon_collection = bpy.data.collections.get(name_of_collection_for_icons)
     if icon_collection is None:
         return
     # remove from old collection, link (or assign) to icon collections
@@ -102,8 +125,9 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
     bl_idname = "object.stretchyfk"
     bl_label = "Stretchy FK Operator"
 
+
     def create_collection(self):
-        collection_name = "Armature_Icons"
+        collection_name = name_of_collection_for_icons
 
         if collection_name in bpy.data.collections:
             print("this collection already exists")
@@ -126,14 +150,15 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
         bpy.ops.mesh.delete(type='ONLY_FACE')
         assign_to_icon_collection(bpy.context.active_object)
 
+        return ["fk_circle_icon","tweak_icosphere_icon"]
+
 
     def execute(self, context):
 
-
-
-
-
         print("============== NEW STRETCHY EXECUTION =================")
+        # --- for everything to work, pivot point transformations need to be set to "individual origins". We do that now.
+        bpy.context.scene.tool_settings.transform_pivot_point = "INDIVIDUAL_ORIGINS"
+
         armature = bpy.context.object
         bones_down_the_chain = context.active_bone.children_recursive
 
@@ -212,35 +237,69 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
 
         #---- create icons and move to collection---
         self.create_collection()
-        self.create_icons()
+        icon_names = self.create_icons()
 
         DESELECT_ALL()
         swith_to_mode("OBJECT")
         DESELECT_ALL()
         # select and activate armature
         armature.select_set(True)
-        bpy.context.view_layer.objects.active = armature
+        context.view_layer.objects.active = armature
         swith_to_mode("POSE")
 
-        # --- assign icon shapes to specific components of rig ------
-        for index, bone in enumerate(original_bones):
+        
+        
 
+
+        # --- assign icon shapes to specific components of rig ------
+        tweaker_shape_size = 3.0
+        fk_shape_size = 8.0
+        for index, bone in enumerate(original_bones):
+            
             context.object.pose.bones[tweak_bones[index].name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
             context.object.pose.bones[tweak_bones[index].name].use_custom_shape_bone_size = False
-            context.object.pose.bones[tweak_bones[index].name].custom_shape_scale_xyz = (0.2,0.2,0.2)
+            context.object.pose.bones[tweak_bones[index].name].custom_shape_scale_xyz = (
+                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+                (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified
+            )
+
 
             context.object.pose.bones[fk_bones[index].name].custom_shape = bpy.data.objects.get("fk_circle_icon")
             # below is rotating 90 in x rotation but in radians
             context.object.pose.bones[fk_bones[index].name].custom_shape_rotation_euler[0] = 1.5707964
             context.object.pose.bones[fk_bones[index].name].use_custom_shape_bone_size = False
-            context.object.pose.bones[fk_bones[index].name].custom_shape_scale_xyz = (0.6,0.6,0.6)
+            context.object.pose.bones[fk_bones[index].name].custom_shape_scale_xyz = (
+                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+                (fk_shape_size/scene_scale_unit)*scene_unit_length_quantified
+            )
 
         # give icon to final tweak bone
         context.object.pose.bones[tip_tweak_bone.name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
         context.object.pose.bones[tip_tweak_bone.name].use_custom_shape_bone_size = False
-        context.object.pose.bones[tip_tweak_bone.name].custom_shape_scale_xyz = (0.2,0.2,0.2)
+        context.object.pose.bones[tip_tweak_bone.name].custom_shape_scale_xyz = (
+            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified,
+            (tweaker_shape_size/scene_scale_unit)*scene_unit_length_quantified
+        )
+
                 
+        # finally, hide shape icons
+        DESELECT_ALL()
+        swith_to_mode("OBJECT")
+        for icon in icon_names:
+            icon_object = bpy.data.objects.get(icon)
+            icon_object.select_set(True)
+            context.view_layer.objects.active = icon_object
+            icon_object.hide_set(True)
         
+        # End in pose mode
+        DESELECT_ALL()
+        # select and activate armature
+        armature.select_set(True)
+        bpy.context.view_layer.objects.active = armature
+        swith_to_mode("POSE")
         
         return{'FINISHED'}
 
@@ -248,6 +307,7 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
 
 #================================ PANEL TO ACCESS RIG BUTTONS ==========================================
 class VIEW3D_PT_CustomRigs(bpy.types.Panel):
+
     bl_space_type = 'VIEW_3D'
     bl_region_type = "UI"
     bl_label = "Simple Custom Menu"
@@ -291,7 +351,7 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
             text="Make Stretchy FK Rig"
         )
         else:
-            column.label(text='-not in edit mode-')
+            column.label(text='- select bone chain in edit mode -')
 
 
 
