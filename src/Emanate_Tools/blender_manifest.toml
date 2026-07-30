@@ -1,8 +1,8 @@
 schema_version = "1.0.0"
 
-id = "emanuel_tools"
+id = "Emanate_Studios_Tools"
 version = "1.0.0"
-name = "Emanuel Tools"
+name = "Emanate Studios by Emanuel Siu"
 tagline = "Personal pipeline utilities"
 maintainer = "Emanuel <you@example.com>"
 type = "add-on"

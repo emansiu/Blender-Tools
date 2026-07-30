@@ -6,3 +6,6 @@ blender --command extension build --source-dir src/Emanate_Tools --output-dir ex
 
 use new build to make index.json
 blender --command extension server-generate --repo-dir=extensions
+
+index.json lives at:
+https://emansiu.github.io/Blender-Tools/extensions/index.json
