@@ -4,6 +4,22 @@
   "data": [
     {
       "schema_version": "1.0.0",
+      "id": "Emanate_Studios_Tools",
+      "name": "Emanate Studios by Emanuel Siu",
+      "tagline": "Personal pipeline utilities",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Emanuel <you@example.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "archive_url": "./Emanate_Studios_Tools-1.0.0.zip",
+      "archive_size": 4563,
+      "archive_hash": "sha256:b8e6a53bc2f94cea21693ae694def96d0cca16b64efd8fc8b1d0be30a4570920"
+    },
+    {
+      "schema_version": "1.0.0",
       "id": "emanuel_tools",
       "name": "Emanuel Tools",
       "tagline": "Personal pipeline utilities",
