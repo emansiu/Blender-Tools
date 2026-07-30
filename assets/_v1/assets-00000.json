@@ -1,0 +1,56 @@
+{
+  "asset_count": 2,
+  "file_count": 1,
+  "assets": [
+    {
+      "name": "Blue_Mat",
+      "id_type": "MATERIAL",
+      "files": [
+        "blue_mat_test.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "blue_mat_test_thumbnails/Material/blue_mat.webp",
+        "hash": "SHA256:985b0bcf3c6aaae18e2bf1b0d818873a72dca9cfabac5040679635d7f54eb918"
+      }
+    },
+    {
+      "name": "box_test_asset",
+      "id_type": "OBJECT",
+      "files": [
+        "blue_mat_test.blend"
+      ],
+      "bl_versions": {
+        "min": "5.2"
+      },
+      "thumbnail": {
+        "url": "blue_mat_test_thumbnails/Object/box_test_asset.webp",
+        "hash": "SHA256:74afde50df903e0aa2ca4e8e12598709260e196ce768711ad4e5646caae8bbed"
+      },
+      "meta": {
+        "properties": [
+          {
+            "name": "dimensions",
+            "type": "IDP_ARRAY",
+            "value": [
+              2.0,
+              2.0,
+              2.0
+            ],
+            "itemtype": "IDP_FLOAT"
+          }
+        ]
+      }
+    }
+  ],
+  "files": [
+    {
+      "path": "blue_mat_test.blend",
+      "size_in_bytes": 125780,
+      "hash": "SHA256:f8df7fb19b6ca39f2b90236f0b5d00135c56982bc46bb3d108f22f244644d86f",
+      "blender_version": "5.2.44"
+    }
+  ]
+}

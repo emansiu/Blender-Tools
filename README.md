@@ -9,3 +9,6 @@ blender --command extension server-generate --repo-dir=extensions
 
 index.json lives at:
 https://emansiu.github.io/Blender-Tools/extensions/index.json
+
+generate asset folders, jsons and meta:
+blender -b --factory-startup --command asset_listing generate assets
