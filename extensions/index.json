@@ -1,0 +1,22 @@
+{
+  "version": "v1",
+  "blocklist": [],
+  "data": [
+    {
+      "schema_version": "1.0.0",
+      "id": "emanuel_tools",
+      "name": "Emanuel Tools",
+      "tagline": "Personal pipeline utilities",
+      "version": "1.0.0",
+      "type": "add-on",
+      "maintainer": "Emanuel <you@example.com>",
+      "license": [
+        "SPDX:GPL-3.0-or-later"
+      ],
+      "blender_version_min": "4.2.0",
+      "archive_url": "./emanuel_tools-1.0.0.zip",
+      "archive_size": 4542,
+      "archive_hash": "sha256:5885470996c607f77c147946a44fc99b315ea9fb27e79f5d9d879e13bdd6d200"
+    }
+  ]
+}
