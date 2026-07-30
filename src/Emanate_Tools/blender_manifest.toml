@@ -1,0 +1,11 @@
+schema_version = "1.0.0"
+
+id = "emanuel_tools"
+version = "1.0.0"
+name = "Emanuel Tools"
+tagline = "Personal pipeline utilities"
+maintainer = "Emanuel <you@example.com>"
+type = "add-on"
+
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
