@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 id = "Emanate_Studios_Tools"
 version = "1.0.0"
 name = "Emanate Studios by Emanuel Siu"
-tagline = "Personal pipeline utilities"
+tagline = "Blender Tools by Emanuel Siu"
 maintainer = "Emanuel <you@example.com>"
 type = "add-on"
 
