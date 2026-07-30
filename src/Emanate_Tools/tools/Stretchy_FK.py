@@ -10,6 +10,14 @@ bl_info = {
 }
 
 import bpy
+from .. import naming_unity as naming
+
+NAMES = naming.register_tool(
+    "stretchy_fk",
+    label="Stretchy FK",
+    owner=__name__,
+    description="Creates a stretchy FK chain from the selected root bone",
+)
 
 # ------ Global Variables --------------------------------------------------------------------------
 name_of_collection_for_icons = "Icons"
@@ -122,10 +130,12 @@ def rename_org_to_fk(bone_to_rename):
         bone_to_rename.name = bone_to_rename.name.replace(bone_to_rename.name,changed_bone_name)
 
 # =================================== CLASS TO CREATE STRETCHY FK RIG ================================
-class VIEW3D_OT_StretchFK(bpy.types.Operator):
+class EMANATE_OT_stretchy_fk(bpy.types.Operator):
     """ Creates the stretchy FK system"""
-    bl_idname = "object.stretchyfk"
-    bl_label = "Stretchy FK Operator"
+    bl_idname = NAMES.operator_idname
+    bl_label = NAMES.label
+    bl_description = NAMES.description
+    bl_options = {'REGISTER', 'UNDO'}
 
 
     def create_collection(self):
@@ -308,14 +318,16 @@ class VIEW3D_OT_StretchFK(bpy.types.Operator):
 
 
 #================================ PANEL TO ACCESS RIG BUTTONS ==========================================
-class VIEW3D_PT_CustomRigs(bpy.types.Panel):
+class EMANATE_PT_stretchy_fk(bpy.types.Panel):
 
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = "UI"
-    bl_label = "Custom Riggin Tools"
-    # bl_idname = "OBJECT_MT_simple_custom_menu"
-    bl_category = "Custom Rigs"
-    
+    bl_idname = NAMES.panel_idname
+    bl_label = NAMES.label
+    bl_parent_id = naming.ROOT_PANEL_IDNAME
+    bl_space_type = naming.SPACE_TYPE
+    bl_region_type = naming.REGION_TYPE
+    bl_options = {'DEFAULT_CLOSED'}
+    bl_order = NAMES.order
+
 
 
     def draw(self, context):
@@ -349,7 +361,7 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
         #Create columns for menu 
         column = self.layout.column()
         if check_edit_mode_and_armature():
-            column.operator("object.stretchyfk", 
+            column.operator(NAMES.operator_idname,
             text="Make Stretchy FK Rig"
         )
         else:
@@ -357,17 +369,16 @@ class VIEW3D_PT_CustomRigs(bpy.types.Panel):
 
 
 
+_classes = (EMANATE_OT_stretchy_fk, EMANATE_PT_stretchy_fk)
+
+
 def register():
-    bpy.utils.register_class(VIEW3D_PT_CustomRigs),
-    bpy.utils.register_class(VIEW3D_OT_StretchFK)
+    naming.check_classes(_classes, NAMES)
+    for cls in _classes:
+        bpy.utils.register_class(cls)
 
 
 def unregister():
-    bpy.utils.unregister_class(VIEW3D_PT_CustomRigs),
-    bpy.utils.unregister_class(VIEW3D_OT_StretchFK)
-
-if __name__ == "__main__":
-    register()
-    # You can run your operator or interact with the panel here...
-    unregister()
+    for cls in reversed(_classes):
+        bpy.utils.unregister_class(cls)
 

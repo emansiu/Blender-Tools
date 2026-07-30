@@ -10,6 +10,7 @@ NAMES = naming.register_tool(
 
 
 class EMANATE_OT_uv_checker(bpy.types.Operator):
+
     bl_idname = NAMES.operator_idname
     bl_label = NAMES.label
     bl_description = NAMES.description

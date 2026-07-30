@@ -4,14 +4,15 @@ import pkgutil
 import importlib
 
 from . import tools
+from . import naming_unity as naming
 
 
-class EMANATE_STUDIOS_PT_panel(bpy.types.Panel):
-    bl_label = "EMANATE STUDIOS Tools"
-    bl_idname = "EMANATE_STUDIOS_PT_panel"
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = "EMANATE STUDIOS"
+class EMANATE_PT_root(bpy.types.Panel):
+    bl_label = naming.ROOT_PANEL_LABEL
+    bl_idname = naming.ROOT_PANEL_IDNAME
+    bl_space_type = naming.SPACE_TYPE
+    bl_region_type = naming.REGION_TYPE
+    bl_category = naming.CATEGORY
 
     def draw(self, context):
         pass
@@ -32,7 +33,7 @@ def _load_tool_modules():
 
 
 def register():
-    bpy.utils.register_class(EMANATE_STUDIOS_PT_panel)
+    bpy.utils.register_class(EMANATE_PT_root)
     _modules[:] = _load_tool_modules()
     for mod in _modules:
         mod.register()
@@ -42,4 +43,4 @@ def unregister():
     for mod in reversed(_modules):
         mod.unregister()
     _modules.clear()
-    bpy.utils.unregister_class(EMANATE_STUDIOS_PT_panel)
+    bpy.utils.unregister_class(EMANATE_PT_root)
