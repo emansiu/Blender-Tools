@@ -15,6 +15,7 @@ TARGET_LENGTH_UNIT = 'CENTIMETERS'
 TARGET_GRID_SCALE = 0.01
 TARGET_RENDER_ENGINE = 'CYCLES'
 TARGET_CYCLES_DEVICE = 'GPU'
+TARGET_PIVOT_POINT = 'INDIVIDUAL_ORIGINS'
 
 # scale_length is stored as a 32-bit float, so it never compares equal to the
 # Python literal 0.01 even immediately after being set. Compare with slack.
@@ -40,6 +41,24 @@ def fix_scene_units(scene):
     if units.length_unit != TARGET_LENGTH_UNIT:
         changed.append(f"length unit {units.length_unit} -> {TARGET_LENGTH_UNIT}")
         units.length_unit = TARGET_LENGTH_UNIT
+
+    return changed
+
+
+def fix_pivot_point(scene):
+    """Set the transform pivot to individual origins.
+
+    The stretchy FK tool depends on this being set before it runs, so getting
+    it right up front is the whole point of initializing.
+    """
+    changed = []
+    tool_settings = scene.tool_settings
+
+    if tool_settings.transform_pivot_point != TARGET_PIVOT_POINT:
+        changed.append(
+            f"pivot point {tool_settings.transform_pivot_point} -> {TARGET_PIVOT_POINT}"
+        )
+        tool_settings.transform_pivot_point = TARGET_PIVOT_POINT
 
     return changed
 
@@ -123,6 +142,7 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
     def execute(self, context):
         changed = []
         changed += fix_scene_units(context.scene)
+        changed += fix_pivot_point(context.scene)
         changed += fix_viewport_overlays()
         changed += fix_render_settings(context.scene)
 
