@@ -3,9 +3,16 @@ from .. import naming_unity as naming
 
 NAMES = naming.register_tool(
     "pre_rig_initialize",
-    label="pre rigging initialization",
+    label="Initialize Pre-Rigging Settings",
     owner=__name__,
     description="checks settings for armature objects and scene settings to make sure we are working in an environment ready for rigs that can be exported to Unreal Engine",
+)
+
+NAMES_BASE_DEF_SKELETON = naming.register_tool(
+    "make_base_def_skeleton",
+    label="Make Base DEF Skeleton",
+    owner=__name__,
+    description="Not yet implemented",
 )
 
 # ------ Scene settings a rig destined for Unreal Engine expects -------------
@@ -20,6 +27,14 @@ TARGET_PIVOT_POINT = 'INDIVIDUAL_ORIGINS'
 # scale_length is stored as a 32-bit float, so it never compares equal to the
 # Python literal 0.01 even immediately after being set. Compare with slack.
 _SCALE_TOLERANCE = 1e-6
+# ---------------------------------------------------------------------------
+
+# ------ Not yet implemented -- reserved for the Unreal unit-match checkbox --
+MATCH_UNREAL_UNITS_PROP = naming.prop_name("match_unreal_units")
+
+
+def match_unreal_units_update(self, context):
+    pass
 # ---------------------------------------------------------------------------
 
 
@@ -132,19 +147,22 @@ def gpu_backend_is_configured():
     return getattr(addon.preferences, "compute_device_type", 'NONE') != 'NONE'
 
 
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
 
     bl_idname = NAMES.operator_idname
-    bl_label = NAMES.label
+    bl_label = "Set Up Scene" # This is the label that will be displayed in the button
     bl_description = NAMES.description
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        changed = []
-        changed += fix_scene_units(context.scene)
+        changed = []    
         changed += fix_pivot_point(context.scene)
-        changed += fix_viewport_overlays()
         changed += fix_render_settings(context.scene)
+
+        if getattr(context.scene, MATCH_UNREAL_UNITS_PROP):
+            changed += fix_scene_units(context.scene)
+            changed += fix_viewport_overlays()
 
         # Warn either way -- the setting can already be GPU from a previous run
         # and still not actually be rendering on the GPU.
@@ -168,6 +186,18 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
         return {'FINISHED'}
 
 
+# ========= NOT YET IMPLEMENTED =========
+class EMANATE_OT_make_base_def_skeleton(bpy.types.Operator):
+
+    bl_idname = NAMES_BASE_DEF_SKELETON.operator_idname
+    bl_label = NAMES_BASE_DEF_SKELETON.label
+    bl_description = NAMES_BASE_DEF_SKELETON.description
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        return {'FINISHED'}
+
+# ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
     bl_idname = NAMES.panel_idname
     bl_label = NAMES.label
@@ -178,18 +208,36 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
     bl_order = NAMES.order
 
     def draw(self, context):
-        self.layout.operator(NAMES.operator_idname)
+        layout = self.layout
+        layout.prop(context.scene, MATCH_UNREAL_UNITS_PROP)
+        layout.operator(NAMES.operator_idname)
+        layout.operator(NAMES_BASE_DEF_SKELETON.operator_idname)
 
 
-_classes = (EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize)
+_classes = (
+    EMANATE_OT_pre_rig_initialize,
+    EMANATE_OT_make_base_def_skeleton,
+    EMANATE_PT_pre_rig_initialize,
+)
 
 
 def register():
-    naming.check_classes(_classes, NAMES)
+    naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
+    naming.check_classes((EMANATE_OT_make_base_def_skeleton,), NAMES_BASE_DEF_SKELETON)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
+    #------ add the checkbox to the scene properties so it can be accessed by the operator ------
+    setattr(bpy.types.Scene, MATCH_UNREAL_UNITS_PROP, bpy.props.BoolProperty(
+        name="Change Blender Units to Match Unreal",
+        description="Unit System remains metric. Blender scale is set to 0.01 and length unit is set to centimeters. Unreal as of 2025 will multiply rigs up by 100x, so this compensates for that. It is a toggle right now because this may not be an issue anymore in newer versions of blender and unreal",
+        default=False,
+        update=match_unreal_units_update,
+    ))
+
 
 def unregister():
+    delattr(bpy.types.Scene, MATCH_UNREAL_UNITS_PROP)
+
     for cls in reversed(_classes):
         bpy.utils.unregister_class(cls)
