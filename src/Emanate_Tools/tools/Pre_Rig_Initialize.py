@@ -8,9 +8,9 @@ NAMES = naming.register_tool(
     description="checks settings for armature objects and scene settings to make sure we are working in an environment ready for rigs that can be exported to Unreal Engine",
 )
 
-NAMES_BASE_DEF_SKELETON = naming.register_tool(
-    "make_base_def_skeleton",
-    label="Make Base DEF Skeleton",
+NAMES_DEF_SKELETON = naming.register_tool(
+    "create_deformation_skeleton",
+    label="Make DEF[ormation] Skeleton",
     owner=__name__,
     description="Not yet implemented",
 )
@@ -146,8 +146,34 @@ def gpu_backend_is_configured():
         return False
     return getattr(addon.preferences, "compute_device_type", 'NONE') != 'NONE'
 
+def create_deformation_skeleton(context):
+    """Make a deformation skeleton. Returns a list of what changed."""
+    """Create the base armature with a single Root bone, pointing -X... """   
+    armature_data = bpy.data.armatures.new("Armature")
+    armature_obj = bpy.data.objects.new("Armature", armature_data)
+    armature_obj.name = "Character Armature"
+    armature_data.name = "Character Armature"
 
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE BUTTON IS CLICKED =========
+    armature_obj.show_in_front = True
+    armature_obj.display_type = 'WIRE'
+    armature_data.show_axes = True
+    armature_data.show_names = True
+    context.collection.objects.link(armature_obj)
+
+    context.view_layer.objects.active = armature_obj
+    bpy.ops.object.mode_set(mode='EDIT')
+
+    root = armature_data.edit_bones.new("Root")
+    root.head = (0, 0, 0)
+    root.tail = (0, 1, 0)
+    # rotate -90 on X — bones don't have a rotation prop in edit mode,        
+    # so this has to go through bpy.ops.transform.rotate on the selected bone 
+    # or by directly rewriting root.head/tail/roll.
+
+    # bpy.ops.object.mode_set(mode='OBJECT')
+    return armature_obj
+
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Set Up Scene" BUTTON IS CLICKED =========
 class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
 
     bl_idname = NAMES.operator_idname
@@ -187,14 +213,15 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
 
 
 # ========= NOT YET IMPLEMENTED =========
-class EMANATE_OT_make_base_def_skeleton(bpy.types.Operator):
+class EMANATE_OT_make_def_skeleton(bpy.types.Operator):
 
-    bl_idname = NAMES_BASE_DEF_SKELETON.operator_idname
-    bl_label = NAMES_BASE_DEF_SKELETON.label
-    bl_description = NAMES_BASE_DEF_SKELETON.description
+    bl_idname = NAMES_DEF_SKELETON.operator_idname
+    bl_label = NAMES_DEF_SKELETON.label
+    bl_description = NAMES_DEF_SKELETON.description
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        create_deformation_skeleton(context)
         return {'FINISHED'}
 
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
@@ -211,19 +238,19 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
         layout = self.layout
         layout.prop(context.scene, MATCH_UNREAL_UNITS_PROP)
         layout.operator(NAMES.operator_idname)
-        layout.operator(NAMES_BASE_DEF_SKELETON.operator_idname)
+        layout.operator(NAMES_DEF_SKELETON.operator_idname)
 
 
 _classes = (
     EMANATE_OT_pre_rig_initialize,
-    EMANATE_OT_make_base_def_skeleton,
+    EMANATE_OT_make_def_skeleton,
     EMANATE_PT_pre_rig_initialize,
 )
 
 
 def register():
     naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
-    naming.check_classes((EMANATE_OT_make_base_def_skeleton,), NAMES_BASE_DEF_SKELETON)
+    naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
