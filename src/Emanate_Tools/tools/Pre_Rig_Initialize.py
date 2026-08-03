@@ -163,12 +163,55 @@ def create_deformation_skeleton(context):
     context.view_layer.objects.active = armature_obj
     bpy.ops.object.mode_set(mode='EDIT')
 
+    # ------- START OF ROOT CREATION -------
     root = armature_data.edit_bones.new("Root")
     root.head = (0, 0, 0)
     root.tail = (0, 1, 0)
-    # rotate -90 on X — bones don't have a rotation prop in edit mode,        
-    # so this has to go through bpy.ops.transform.rotate on the selected bone 
-    # or by directly rewriting root.head/tail/roll.
+    # ------- START OF SPINE CREATION -------
+    DEF_Hips = armature_data.edit_bones.new("DEF_Hips")
+    DEF_Hips.head = (0, 0, 0.85)
+    DEF_Hips.tail = (0, 0, 0.97)
+    DEF_Hips.parent = root
+    DEF_Hips.use_connect = False
+    # --- spine 01 ---
+    DEF_Spine_01 = armature_data.edit_bones.new("DEF_Spine_01")
+    DEF_Spine_01.head = (0, 0, 0.97)
+    DEF_Spine_01.tail = (0, 0, 1.1)
+    DEF_Spine_01.parent = DEF_Hips
+    DEF_Spine_01.use_connect = False
+    # --- spine 02 ---
+    DEF_Spine_02 = armature_data.edit_bones.new("DEF_Spine_02")
+    DEF_Spine_02.head = (0, 0, 1.1)
+    DEF_Spine_02.tail = (0, 0, 1.2)
+    DEF_Spine_02.parent = DEF_Spine_01
+    DEF_Spine_02.use_connect = False
+    # --- chest ---
+    DEF_Chest = armature_data.edit_bones.new("DEF_Chest")
+    DEF_Chest.head = (0, 0, 1.2)
+    DEF_Chest.tail = (0, 0, 1.3)
+    DEF_Chest.parent = DEF_Spine_02
+    DEF_Chest.use_connect = False
+    # --- neck 01---
+    DEF_Neck_01 = armature_data.edit_bones.new("DEF_Neck_01")
+    DEF_Neck_01.head = (0, 0, 1.3)
+    DEF_Neck_01.tail = (0, 0, 1.4)
+    DEF_Neck_01.parent = DEF_Chest
+    DEF_Neck_01.use_connect = False
+    # --- neck 02 ---
+    DEF_Neck_02 = armature_data.edit_bones.new("DEF_Neck_02")
+    DEF_Neck_02.head = (0, 0, 1.4)
+    DEF_Neck_02.tail = (0, 0, 1.5)
+    DEF_Neck_02.parent = DEF_Neck_01
+    DEF_Neck_02.use_connect = False
+    # --- head ---
+    DEF_Head = armature_data.edit_bones.new("DEF_Head")
+    DEF_Head.head = (0, 0, 1.5)
+    DEF_Head.tail = (0, 0, 1.7)
+    DEF_Head.parent = DEF_Neck_02
+    DEF_Head.use_connect = False
+    
+
+    # ------- END OF BONE CREATION -------
 
     # bpy.ops.object.mode_set(mode='OBJECT')
     return armature_obj
