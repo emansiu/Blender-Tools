@@ -12,7 +12,14 @@ NAMES_DEF_SKELETON = naming.register_tool(
     "create_deformation_skeleton",
     label="Make DEF[ormation] Skeleton",
     owner=__name__,
-    description="Not yet implemented",
+    description="Builds the deformation skeleton -- root, spine and left arm chain -- then mirrors the left side onto the right",
+)
+
+NAMES_DEF_MIRROR = naming.register_tool(
+    "mirror_deformation_skeleton",
+    label="Mirror .L to .R over X",
+    owner=__name__,
+    description="Mirrors anything ending in .L onto the right side",
 )
 
 # ------ Scene settings a rig destined for Unreal Engine expects -------------
@@ -167,6 +174,7 @@ def create_deformation_skeleton(context):
     root = armature_data.edit_bones.new("Root")
     root.head = (0, 0, 0)
     root.tail = (0, 1, 0)
+
     # ------- START OF SPINE CREATION -------
     DEF_Hips = armature_data.edit_bones.new("DEF_Hips")
     DEF_Hips.head = (0, 0, 0.85)
@@ -209,12 +217,89 @@ def create_deformation_skeleton(context):
     DEF_Head.tail = (0, 0, 1.7)
     DEF_Head.parent = DEF_Neck_02
     DEF_Head.use_connect = False
-    
+
+    # ------- START OF LEFT ARM CREATION -------
+    # --- Left Shoulder ---
+    DEF_Shoulder_left = armature_data.edit_bones.new("DEF_Shoulder.L")
+    DEF_Shoulder_left.head = (0.04, 0, 1.25)
+    DEF_Shoulder_left.tail = (0.2, 0, 1.25)
+    DEF_Shoulder_left.parent = DEF_Chest
+    DEF_Shoulder_left.use_connect = False
+    # --- Left Arm
+    DEF_Arm_left = armature_data.edit_bones.new("DEF_Arm.L")
+    DEF_Arm_left.head = (0.21, 0, 1.25)
+    DEF_Arm_left.tail = (0.37, 0, 1.25)
+    DEF_Arm_left.parent = DEF_Shoulder_left
+    DEF_Arm_left.use_connect = False
+    # --- Left Forearm 01 ---
+    DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
+    DEF_Forearm_01_left.head = (0.37, 0, 1.25)
+    DEF_Forearm_01_left.tail = (0.53, 0, 1.25)
+    DEF_Forearm_01_left.parent = DEF_Arm_left
+    DEF_Forearm_01_left.use_connect = True
+    # --- Left Forearm 02 ---
+    DEF_Forearm_02_left = armature_data.edit_bones.new("DEF_Forearm_02.L")
+    DEF_Forearm_02_left.head = (0.53, 0, 1.25)
+    DEF_Forearm_02_left.tail = (0.69, 0, 1.25)
+    DEF_Forearm_02_left.parent = DEF_Forearm_01_left
+    DEF_Forearm_02_left.use_connect = True
+    # --- Left Hand ---
+    DEF_Hand_Left = armature_data.edit_bones.new("DEF_Hand.L")
+    DEF_Hand_Left.head = (0.69, 0, 1.25)
+    DEF_Hand_Left.tail = (0.85, 0, 1.25)
+    DEF_Hand_Left.parent = DEF_Forearm_02_left
+    DEF_Hand_Left.use_connect = False
 
     # ------- END OF BONE CREATION -------
 
     # bpy.ops.object.mode_set(mode='OBJECT')
     return armature_obj
+
+
+def mirror_deformation_skeleton(context, armature_obj=None):
+    """Mirror every ".L" bone onto the right side. Returns a list of what changed.
+
+    symmetrize does the whole job: the ".L" -> ".R" rename, negating X on
+    head/tail/roll, and re-parenting each new bone to its mirrored parent --
+    falling back to the original parent when that parent has no mirror, which
+    is what lands DEF_Shoulder.R back on DEF_Chest instead of on itself.
+
+    Pass armature_obj when chaining straight off create_deformation_skeleton;
+    leave it out to mirror whatever armature is currently active.
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != 'ARMATURE':
+        return changed
+
+    # edit_bones is only populated in edit mode, so we have to be in it whether
+    # or not the caller already was.
+    if armature_obj.mode != 'EDIT':
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode='EDIT')
+
+    edit_bones = armature_obj.data.edit_bones
+    selected = 0
+    for bone in edit_bones:
+        is_left = bone.name.endswith(".L")
+        bone.select = bone.select_head = bone.select_tail = is_left
+        selected += is_left
+
+    # symmetrize warns into the status bar if it is handed an empty selection.
+    if not selected:
+        return changed
+
+    before = len(edit_bones)
+    bpy.ops.armature.symmetrize(direction='POSITIVE_X')
+    created = len(armature_obj.data.edit_bones) - before
+
+    if created:
+        changed.append(f"mirrored {created} bone{'s' if created > 1 else ''} to the right side")
+
+    return changed
+
 
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Set Up Scene" BUTTON IS CLICKED =========
 class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
@@ -255,7 +340,7 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
         return {'FINISHED'}
 
 
-# ========= NOT YET IMPLEMENTED =========
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Make DEF Skeleton" BUTTON IS CLICKED =========
 class EMANATE_OT_make_def_skeleton(bpy.types.Operator):
 
     bl_idname = NAMES_DEF_SKELETON.operator_idname
@@ -264,7 +349,49 @@ class EMANATE_OT_make_def_skeleton(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
-        create_deformation_skeleton(context)
+        armature_obj = create_deformation_skeleton(context)
+
+
+
+        self.report({'INFO'}, f"Built {armature_obj.name}")
+        return {'FINISHED'}
+
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Mirror .L to .R" BUTTON IS CLICKED =========
+class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
+
+    bl_idname = NAMES_DEF_MIRROR.operator_idname
+    bl_label = NAMES_DEF_MIRROR.label
+    bl_description = NAMES_DEF_MIRROR.description
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # Greys the button out unless there is an armature to act on, so the user
+    # gets a disabled button instead of an error after the fact.
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == 'ARMATURE'
+
+    def execute(self, context):
+        # context.object is the active object -- the one the header and the
+        # properties editor are pointing at, which is what the user thinks of
+        # as "the selected armature".
+        armature_obj = context.object
+
+        # poll() covers the button, but an operator can still be called from a
+        # script or the search menu, where poll is not guaranteed to have run.
+        if armature_obj is None or armature_obj.type != 'ARMATURE':
+            self.report({'ERROR'}, "Select an armature first")
+            return {'CANCELLED'}
+
+        changed = mirror_deformation_skeleton(context, armature_obj)
+
+        if not changed:
+            self.report({'WARNING'}, f"{armature_obj.name} has no .L bones to mirror")
+            return {'CANCELLED'}
+
+        for change in changed:
+            print(f"[def-mirror] {change}")
+
+        self.report({'INFO'}, f"{armature_obj.name}: {'; '.join(changed)}")
         return {'FINISHED'}
 
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
@@ -282,11 +409,13 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
         layout.prop(context.scene, MATCH_UNREAL_UNITS_PROP)
         layout.operator(NAMES.operator_idname)
         layout.operator(NAMES_DEF_SKELETON.operator_idname)
+        layout.operator(NAMES_DEF_MIRROR.operator_idname)
 
 
 _classes = (
     EMANATE_OT_pre_rig_initialize,
     EMANATE_OT_make_def_skeleton,
+    EMANATE_OT_mirror_def_skeleton,
     EMANATE_PT_pre_rig_initialize,
 )
 
@@ -294,6 +423,7 @@ _classes = (
 def register():
     naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
+    naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
