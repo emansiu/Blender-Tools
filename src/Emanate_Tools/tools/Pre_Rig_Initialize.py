@@ -1,3 +1,5 @@
+import math
+
 import bpy
 
 from .. import naming_unity as naming
@@ -177,7 +179,7 @@ def create_deformation_skeleton(context):
     # ------- START OF ROOT CREATION -------
     root = armature_data.edit_bones.new("Root")
     root.head = (0, 0, 0)
-    root.tail = (0, 1, 0)
+    root.tail = (0, 0.5, 0)
 
     # ------- START OF SPINE CREATION -------
     DEF_Hips = armature_data.edit_bones.new("DEF_Hips")
@@ -234,30 +236,177 @@ def create_deformation_skeleton(context):
     DEF_Arm_left.head = (0.21, 0, 1.25)
     DEF_Arm_left.tail = (0.37, 0, 1.25)
     DEF_Arm_left.parent = DEF_Shoulder_left
+    DEF_Arm_left.roll = math.pi 
     DEF_Arm_left.use_connect = False
     # --- Left Forearm 01 ---
     DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
     DEF_Forearm_01_left.head = (0.37, 0, 1.25)
     DEF_Forearm_01_left.tail = (0.53, 0, 1.25)
     DEF_Forearm_01_left.parent = DEF_Arm_left
+    DEF_Forearm_01_left.roll = math.pi
     DEF_Forearm_01_left.use_connect = True
     # --- Left Forearm 02 ---
     DEF_Forearm_02_left = armature_data.edit_bones.new("DEF_Forearm_02.L")
     DEF_Forearm_02_left.head = (0.53, 0, 1.25)
     DEF_Forearm_02_left.tail = (0.69, 0, 1.25)
     DEF_Forearm_02_left.parent = DEF_Forearm_01_left
+    DEF_Forearm_02_left.roll = math.pi
     DEF_Forearm_02_left.use_connect = True
     # --- Left Hand ---
     DEF_Hand_Left = armature_data.edit_bones.new("DEF_Hand.L")
     DEF_Hand_Left.head = (0.69, 0, 1.25)
     DEF_Hand_Left.tail = (0.85, 0, 1.25)
     DEF_Hand_Left.parent = DEF_Forearm_02_left
+    DEF_Hand_Left.roll = math.pi
     DEF_Hand_Left.use_connect = False
+
+    # --- Left Thumb 01------------------------------------------------------------
+    DEF_Thumb_01_Left = armature_data.edit_bones.new("DEF_Thumb_01.L")
+    DEF_Thumb_01_Left.head = (0.85, -0.04, 1.25)
+    DEF_Thumb_01_Left.tail = (0.87, -0.04, 1.25)
+    DEF_Thumb_01_Left.parent = DEF_Hand_Left
+    DEF_Thumb_01_Left.use_connect = False
+    # --- Left Thumb 02---
+    DEF_Thumb_02_Left = armature_data.edit_bones.new("DEF_Thumb_02.L")
+    DEF_Thumb_02_Left.head = (0.87, -0.04, 1.25)
+    DEF_Thumb_02_Left.tail = (0.89, -0.04, 1.25)
+    DEF_Thumb_02_Left.parent = DEF_Thumb_01_Left
+    DEF_Thumb_02_Left.use_connect = True
+    # --- Left Thumb 03---
+    DEF_Thumb_03_Left = armature_data.edit_bones.new("DEF_Thumb_03.L")
+    DEF_Thumb_03_Left.head = (0.89, -0.04, 1.25)
+    DEF_Thumb_03_Left.tail = (0.91, -0.04, 1.25)
+    DEF_Thumb_03_Left.parent = DEF_Thumb_02_Left
+    DEF_Thumb_03_Left.use_connect = True
+
+    # --- Left IndexFinger 01------------------------------------------------------------
+    DEF_IndexFinger_01_Left = armature_data.edit_bones.new("DEF_IndexFinger_01.L")
+    DEF_IndexFinger_01_Left.head = (0.88, -0.02, 1.25)
+    DEF_IndexFinger_01_Left.tail = (0.90, -0.02, 1.25)
+    DEF_IndexFinger_01_Left.parent = DEF_Hand_Left
+    DEF_IndexFinger_01_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_01_Left.use_connect = False
+    # --- Left IndexFinger 02---
+    DEF_IndexFinger_02_Left = armature_data.edit_bones.new("DEF_IndexFinger_02.L")
+    DEF_IndexFinger_02_Left.head = (0.90, -0.02, 1.25)
+    DEF_IndexFinger_02_Left.tail = (0.92, -0.02, 1.25)
+    DEF_IndexFinger_02_Left.parent = DEF_IndexFinger_01_Left
+    DEF_IndexFinger_02_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_02_Left.use_connect = True
+    # --- Left IndexFinger 03---
+    DEF_IndexFinger_03_Left = armature_data.edit_bones.new("DEF_IndexFinger_03.L")
+    DEF_IndexFinger_03_Left.head = (0.92, -0.02, 1.25)
+    DEF_IndexFinger_03_Left.tail = (0.94, -0.02, 1.25)
+    DEF_IndexFinger_03_Left.parent = DEF_IndexFinger_02_Left
+    DEF_IndexFinger_03_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_03_Left.use_connect = True
+
+    # --- Left MiddleFinger 01---------------------------------------------------------
+    DEF_MiddleFinger_01_Left = armature_data.edit_bones.new("DEF_MiddleFinger_01.L")
+    DEF_MiddleFinger_01_Left.head = (0.88, 0.00, 1.25)
+    DEF_MiddleFinger_01_Left.tail = (0.90, 0.00, 1.25)
+    DEF_MiddleFinger_01_Left.parent = DEF_Hand_Left
+    DEF_MiddleFinger_01_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_01_Left.use_connect = False
+    # --- Left MiddleFinger 02---
+    DEF_MiddleFinger_02_Left = armature_data.edit_bones.new("DEF_MiddleFinger_02.L")
+    DEF_MiddleFinger_02_Left.head = (0.90, 0.00, 1.25)
+    DEF_MiddleFinger_02_Left.tail = (0.92, 0.00, 1.25)
+    DEF_MiddleFinger_02_Left.parent = DEF_MiddleFinger_01_Left
+    DEF_MiddleFinger_02_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_02_Left.use_connect = True
+    # --- Left MiddleFinger 03---
+    DEF_MiddleFinger_03_Left = armature_data.edit_bones.new("DEF_MiddleFinger_03.L")
+    DEF_MiddleFinger_03_Left.head = (0.92, 0.00, 1.25)
+    DEF_MiddleFinger_03_Left.tail = (0.94, 0.00, 1.25)
+    DEF_MiddleFinger_03_Left.parent = DEF_MiddleFinger_02_Left
+    DEF_MiddleFinger_03_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_03_Left.use_connect = True
+
+    # --- Left RingFinger 01---------------------------------------------------------
+    DEF_RingFinger_01_Left = armature_data.edit_bones.new("DEF_RingFinger_01.L")
+    DEF_RingFinger_01_Left.head = (0.88, 0.02, 1.25)
+    DEF_RingFinger_01_Left.tail = (0.90, 0.02, 1.25)
+    DEF_RingFinger_01_Left.parent = DEF_Hand_Left
+    DEF_RingFinger_01_Left.roll = -(math.pi/2)
+    DEF_RingFinger_01_Left.use_connect = False
+    # --- Left RingFinger 02---
+    DEF_RingFinger_02_Left = armature_data.edit_bones.new("DEF_RingFinger_02.L")
+    DEF_RingFinger_02_Left.head = (0.90, 0.02, 1.25)
+    DEF_RingFinger_02_Left.tail = (0.92, 0.02, 1.25)
+    DEF_RingFinger_02_Left.parent = DEF_RingFinger_01_Left
+    DEF_RingFinger_02_Left.roll = -(math.pi/2)
+    DEF_RingFinger_02_Left.use_connect = True
+    # --- Left RingFinger 03---
+    DEF_RingFinger_03_Left = armature_data.edit_bones.new("DEF_RingFinger_03.L")
+    DEF_RingFinger_03_Left.head = (0.92, 0.02, 1.25)
+    DEF_RingFinger_03_Left.tail = (0.94, 0.02, 1.25)
+    DEF_RingFinger_03_Left.parent = DEF_RingFinger_02_Left
+    DEF_RingFinger_03_Left.roll = -(math.pi/2)
+    DEF_RingFinger_03_Left.use_connect = True
+
+    # --- Left PinkyFinger 01---------------------------------------------------------
+    DEF_PinkyFinger_01_Left = armature_data.edit_bones.new("DEF_PinkyFinger_01.L")
+    DEF_PinkyFinger_01_Left.head = (0.88, 0.04, 1.25)
+    DEF_PinkyFinger_01_Left.tail = (0.90, 0.04, 1.25)
+    DEF_PinkyFinger_01_Left.parent = DEF_Hand_Left
+    DEF_PinkyFinger_01_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_01_Left.use_connect = False
+    # --- Left PinkyFinger 02---
+    DEF_PinkyFinger_02_Left = armature_data.edit_bones.new("DEF_PinkyFinger_02.L")
+    DEF_PinkyFinger_02_Left.head = (0.90, 0.04, 1.25)
+    DEF_PinkyFinger_02_Left.tail = (0.92, 0.04, 1.25)
+    DEF_PinkyFinger_02_Left.parent = DEF_PinkyFinger_01_Left
+    DEF_PinkyFinger_02_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_02_Left.use_connect = True
+    # --- Left PinkyFinger 03---
+    DEF_PinkyFinger_03_Left = armature_data.edit_bones.new("DEF_PinkyFinger_03.L")
+    DEF_PinkyFinger_03_Left.head = (0.92, 0.04, 1.25)
+    DEF_PinkyFinger_03_Left.tail = (0.94, 0.04, 1.25)
+    DEF_PinkyFinger_03_Left.parent = DEF_PinkyFinger_02_Left
+    DEF_PinkyFinger_03_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_03_Left.use_connect = True
+
+    # --- Left Thigh---------------------------------------------------------
+    DEF_Thigh_Left = armature_data.edit_bones.new("DEF_Thigh.L")
+    DEF_Thigh_Left.head = (0.09, 0.00, 0.87)
+    DEF_Thigh_Left.tail = (0.09, 0.00, 0.56)
+    DEF_Thigh_Left.parent = DEF_Hips
+    DEF_Thigh_Left.roll = math.pi / 2
+    DEF_Thigh_Left.use_connect = False
+
+    # --- Left Shin---------------------------------------------------------
+    DEF_Shin_Left = armature_data.edit_bones.new("DEF_Shin.L")
+    DEF_Shin_Left.head = (0.09, 0.00, 0.56)
+    DEF_Shin_Left.tail = (0.09, 0.00, 0.15)
+    DEF_Shin_Left.parent = DEF_Thigh_Left
+    DEF_Shin_Left.roll = math.pi / 2
+    DEF_Shin_Left.use_connect = True
+
+    # --- Left Foot---------------------------------------------------------
+    DEF_Foot_Left = armature_data.edit_bones.new("DEF_Foot.L")
+    DEF_Foot_Left.head = (0.09, 0.00, 0.15)
+    DEF_Foot_Left.tail = (0.09, -0.20, 0.03)
+    DEF_Foot_Left.parent = DEF_Shin_Left
+    DEF_Foot_Left.roll = math.pi / 2
+    DEF_Foot_Left.use_connect = True
+
+    # --- Left Toe---------------------------------------------------------
+    DEF_Toe_Left = armature_data.edit_bones.new("DEF_Toe.L")
+    DEF_Toe_Left.head = (0.09, 0.20, 0.03)
+    DEF_Toe_Left.tail = (0.09, -0.31, 0.03)
+    DEF_Toe_Left.parent = DEF_Foot_Left
+    DEF_Toe_Left.roll = -(math.pi / 2)
+    DEF_Toe_Left.use_connect = True
+    
 
     # ------- END OF BONE CREATION -------
 
     # bpy.ops.object.mode_set(mode='OBJECT')
     return armature_obj
+
+def generate_leg_ik_fk_rig(context):
+    pass
 
 
 def mirror_deformation_skeleton(context, armature_obj=None):
