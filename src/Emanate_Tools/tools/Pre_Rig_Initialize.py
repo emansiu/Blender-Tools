@@ -1,4 +1,5 @@
 import bpy
+
 from .. import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -23,13 +24,13 @@ NAMES_DEF_MIRROR = naming.register_tool(
 )
 
 # ------ Scene settings a rig destined for Unreal Engine expects -------------
-TARGET_UNIT_SYSTEM = 'METRIC'
+TARGET_UNIT_SYSTEM = "METRIC"
 TARGET_SCALE_LENGTH = 0.01
-TARGET_LENGTH_UNIT = 'CENTIMETERS'
+TARGET_LENGTH_UNIT = "CENTIMETERS"
 TARGET_GRID_SCALE = 0.01
-TARGET_RENDER_ENGINE = 'CYCLES'
-TARGET_CYCLES_DEVICE = 'GPU'
-TARGET_PIVOT_POINT = 'INDIVIDUAL_ORIGINS'
+TARGET_RENDER_ENGINE = "CYCLES"
+TARGET_CYCLES_DEVICE = "GPU"
+TARGET_PIVOT_POINT = "INDIVIDUAL_ORIGINS"
 
 # scale_length is stored as a 32-bit float, so it never compares equal to the
 # Python literal 0.01 even immediately after being set. Compare with slack.
@@ -42,6 +43,8 @@ MATCH_UNREAL_UNITS_PROP = naming.prop_name("match_unreal_units")
 
 def match_unreal_units_update(self, context):
     pass
+
+
 # ---------------------------------------------------------------------------
 
 
@@ -98,12 +101,12 @@ def fix_viewport_overlays():
 
     for screen in bpy.data.screens:
         for area in screen.areas:
-            if area.type != 'VIEW_3D':
+            if area.type != "VIEW_3D":
                 continue
             for space in area.spaces:
                 # An area keeps spaces from every type it has previously been,
                 # so filter rather than trusting spaces.active.
-                if space.type != 'VIEW_3D':
+                if space.type != "VIEW_3D":
                     continue
                 if abs(space.overlay.grid_scale - TARGET_GRID_SCALE) > _SCALE_TOLERANCE:
                     if old_scale is None:
@@ -151,24 +154,25 @@ def gpu_backend_is_configured():
     addon = bpy.context.preferences.addons.get("cycles")
     if addon is None:
         return False
-    return getattr(addon.preferences, "compute_device_type", 'NONE') != 'NONE'
+    return getattr(addon.preferences, "compute_device_type", "NONE") != "NONE"
+
 
 def create_deformation_skeleton(context):
     """Make a deformation skeleton. Returns a list of what changed."""
-    """Create the base armature with a single Root bone, pointing -X... """   
+    """Create the base armature with a single Root bone, pointing -X... """
     armature_data = bpy.data.armatures.new("Armature")
     armature_obj = bpy.data.objects.new("Armature", armature_data)
     armature_obj.name = "Character Armature"
     armature_data.name = "Character Armature"
 
     armature_obj.show_in_front = True
-    armature_obj.display_type = 'WIRE'
+    armature_obj.display_type = "WIRE"
     armature_data.show_axes = True
     armature_data.show_names = True
     context.collection.objects.link(armature_obj)
 
     context.view_layer.objects.active = armature_obj
-    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.object.mode_set(mode="EDIT")
 
     # ------- START OF ROOT CREATION -------
     root = armature_data.edit_bones.new("Root")
@@ -271,14 +275,14 @@ def mirror_deformation_skeleton(context, armature_obj=None):
 
     if armature_obj is None:
         armature_obj = context.object
-    if armature_obj is None or armature_obj.type != 'ARMATURE':
+    if armature_obj is None or armature_obj.type != "ARMATURE":
         return changed
 
     # edit_bones is only populated in edit mode, so we have to be in it whether
     # or not the caller already was.
-    if armature_obj.mode != 'EDIT':
+    if armature_obj.mode != "EDIT":
         context.view_layer.objects.active = armature_obj
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.mode_set(mode="EDIT")
 
     edit_bones = armature_obj.data.edit_bones
     selected = 0
@@ -292,25 +296,26 @@ def mirror_deformation_skeleton(context, armature_obj=None):
         return changed
 
     before = len(edit_bones)
-    bpy.ops.armature.symmetrize(direction='POSITIVE_X')
+    bpy.ops.armature.symmetrize(direction="POSITIVE_X")
     created = len(armature_obj.data.edit_bones) - before
 
     if created:
-        changed.append(f"mirrored {created} bone{'s' if created > 1 else ''} to the right side")
+        changed.append(
+            f"mirrored {created} bone{'s' if created > 1 else ''} to the right side"
+        )
 
     return changed
 
 
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Set Up Scene" BUTTON IS CLICKED =========
 class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
-
     bl_idname = NAMES.operator_idname
-    bl_label = "Set Up Scene" # This is the label that will be displayed in the button
+    bl_label = "Set Up Scene"  # This is the label that will be displayed in the button
     bl_description = NAMES.description
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
-        changed = []    
+        changed = []
         changed += fix_pivot_point(context.scene)
         changed += fix_render_settings(context.scene)
 
@@ -322,53 +327,50 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
         # and still not actually be rendering on the GPU.
         if not gpu_backend_is_configured():
             self.report(
-                {'WARNING'},
+                {"WARNING"},
                 "No GPU backend selected in Preferences > System; "
-                "Cycles will fall back to CPU"
+                "Cycles will fall back to CPU",
             )
 
         if not changed:
-            self.report({'INFO'}, "Scene already initialized")
-            return {'FINISHED'}
+            self.report({"INFO"}, "Scene already initialized")
+            return {"FINISHED"}
 
         # Print every change to the console first, then one summary in the
         # status bar -- report() only keeps the last message it is given.
         for change in changed:
             print(f"[pre-rig] {change}")
 
-        self.report({'INFO'}, f"Fixed: {'; '.join(changed)}")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"Fixed: {'; '.join(changed)}")
+        return {"FINISHED"}
 
 
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Make DEF Skeleton" BUTTON IS CLICKED =========
 class EMANATE_OT_make_def_skeleton(bpy.types.Operator):
-
     bl_idname = NAMES_DEF_SKELETON.operator_idname
     bl_label = NAMES_DEF_SKELETON.label
     bl_description = NAMES_DEF_SKELETON.description
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     def execute(self, context):
         armature_obj = create_deformation_skeleton(context)
 
+        self.report({"INFO"}, f"Built {armature_obj.name}")
+        return {"FINISHED"}
 
-
-        self.report({'INFO'}, f"Built {armature_obj.name}")
-        return {'FINISHED'}
 
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Mirror .L to .R" BUTTON IS CLICKED =========
 class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
-
     bl_idname = NAMES_DEF_MIRROR.operator_idname
     bl_label = NAMES_DEF_MIRROR.label
     bl_description = NAMES_DEF_MIRROR.description
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     # Greys the button out unless there is an armature to act on, so the user
     # gets a disabled button instead of an error after the fact.
     @classmethod
     def poll(cls, context):
-        return context.object is not None and context.object.type == 'ARMATURE'
+        return context.object is not None and context.object.type == "ARMATURE"
 
     def execute(self, context):
         # context.object is the active object -- the one the header and the
@@ -378,21 +380,22 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
 
         # poll() covers the button, but an operator can still be called from a
         # script or the search menu, where poll is not guaranteed to have run.
-        if armature_obj is None or armature_obj.type != 'ARMATURE':
-            self.report({'ERROR'}, "Select an armature first")
-            return {'CANCELLED'}
+        if armature_obj is None or armature_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Select an armature first")
+            return {"CANCELLED"}
 
         changed = mirror_deformation_skeleton(context, armature_obj)
 
         if not changed:
-            self.report({'WARNING'}, f"{armature_obj.name} has no .L bones to mirror")
-            return {'CANCELLED'}
+            self.report({"WARNING"}, f"{armature_obj.name} has no .L bones to mirror")
+            return {"CANCELLED"}
 
         for change in changed:
             print(f"[def-mirror] {change}")
 
-        self.report({'INFO'}, f"{armature_obj.name}: {'; '.join(changed)}")
-        return {'FINISHED'}
+        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        return {"FINISHED"}
+
 
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
@@ -401,7 +404,7 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
     bl_parent_id = naming.ROOT_PANEL_IDNAME
     bl_space_type = naming.SPACE_TYPE
     bl_region_type = naming.REGION_TYPE
-    bl_options = {'DEFAULT_CLOSED'}
+    bl_options = {"DEFAULT_CLOSED"}
     bl_order = NAMES.order
 
     def draw(self, context):
@@ -421,19 +424,25 @@ _classes = (
 
 
 def register():
-    naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
+    naming.check_classes(
+        (EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES
+    )
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
-    #------ add the checkbox to the scene properties so it can be accessed by the operator ------
-    setattr(bpy.types.Scene, MATCH_UNREAL_UNITS_PROP, bpy.props.BoolProperty(
-        name="Change Blender Units to Match Unreal",
-        description="Unit System remains metric. Blender scale is set to 0.01 and length unit is set to centimeters. Unreal as of 2025 will multiply rigs up by 100x, so this compensates for that. It is a toggle right now because this may not be an issue anymore in newer versions of blender and unreal",
-        default=False,
-        update=match_unreal_units_update,
-    ))
+    # ------ add the checkbox to the scene properties so it can be accessed by the operator ------
+    setattr(
+        bpy.types.Scene,
+        MATCH_UNREAL_UNITS_PROP,
+        bpy.props.BoolProperty(
+            name="Change Blender Units to Match Unreal",
+            description="Unit System remains metric. Blender scale is set to 0.01 and length unit is set to centimeters. Unreal as of 2025 will multiply rigs up by 100x, so this compensates for that. It is a toggle right now because this may not be an issue anymore in newer versions of blender and unreal",
+            default=False,
+            update=match_unreal_units_update,
+        ),
+    )
 
 
 def unregister():

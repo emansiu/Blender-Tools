@@ -1,2 +1,7 @@
 __pycache__/
 *.pyc
+
+# Editor-only virtualenv -- holds the Blender API stubs so the language server
+# can resolve `import bpy`. The add-on itself runs on Blender's own Python.
+.venv/
+.vscode/
