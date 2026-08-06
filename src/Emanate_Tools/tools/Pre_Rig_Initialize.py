@@ -423,7 +423,7 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     changed = []
 
     if armature_obj is None:
-        armature_obj = context.object
+        armature_obj = context.object 
     if armature_obj is None or armature_obj.type != "ARMATURE":
         return changed
 
@@ -440,17 +440,17 @@ def mirror_deformation_skeleton(context, armature_obj=None):
         bone.select = bone.select_head = bone.select_tail = is_left
         selected += is_left
 
-    # symmetrize warns into the status bar if it is handed an empty selection.
-    if not selected:
+    # return empty changed [] if there are no .L bones
+    if selected == 0:
         return changed
 
-    before = len(edit_bones)
+    bone_count_before_symetrize = len(edit_bones)
     bpy.ops.armature.symmetrize(direction="POSITIVE_X")
-    created = len(armature_obj.data.edit_bones) - before
+    bones_created = len(armature_obj.data.edit_bones) - bone_count_before_symetrize
 
-    if created:
+    if bones_created:
         changed.append(
-            f"mirrored {created} bone{'s' if created > 1 else ''} to the right side"
+            f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side"
         )
 
     return changed
