@@ -376,14 +376,14 @@ def create_deformation_skeleton(context):
     # --- Left Thigh---------------------------------------------------------
     DEF_Thigh_Left = armature_data.edit_bones.new("DEF_Thigh.L")
     DEF_Thigh_Left.head = (0.09, 0.00, 0.87)
-    DEF_Thigh_Left.tail = (0.09, 0.00, 0.56)
+    DEF_Thigh_Left.tail = (0.09, -0.05, 0.56)
     DEF_Thigh_Left.parent = DEF_Hips
     DEF_Thigh_Left.roll = math.pi / 2
     DEF_Thigh_Left.use_connect = False
 
     # --- Left Shin---------------------------------------------------------
     DEF_Shin_Left = armature_data.edit_bones.new("DEF_Shin.L")
-    DEF_Shin_Left.head = (0.09, 0.00, 0.56)
+    DEF_Shin_Left.head = (0.09, -0.05, 0.56)
     DEF_Shin_Left.tail = (0.09, 0.00, 0.15)
     DEF_Shin_Left.parent = DEF_Thigh_Left
     DEF_Shin_Left.roll = math.pi / 2
@@ -431,41 +431,175 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ORG_Hips is built by the org-bone generator tool from DEF_Hips, so it
     # has to be looked up by name here rather than created in this function.
+    # We re-retrieve the ORG bones we need here
     ORG_Hips = edit_bones.get("ORG_Hips")
-    if ORG_Hips is None:
+    ORG_Thigh_Left = edit_bones.get("ORG_Thigh.L")
+    ORG_Shin_Left = edit_bones.get("ORG_Shin.L")
+    ORG_Foot_Left = edit_bones.get("ORG_Foot.L")
+    ORG_Toe_Left = edit_bones.get("ORG_Toe.L")
+    # `is None` binds to a single operand, so it has to be tested per bone --
+    # chaining them with `or` would only check the last one.
+    if any(
+        bone is None
+        for bone in (ORG_Hips, ORG_Thigh_Left, ORG_Shin_Left, ORG_Foot_Left, ORG_Toe_Left)
+    ):
         return changed
+    
 
+    # ============================= MCH CHAIN ==============================================
     # --- Left Thigh---------------------------------------------------------
-    MCH_Thigh_Left = edit_bones.new("MCH_Thigh.L")
-    MCH_Thigh_Left.head = (0.09, 0.00, 0.87)
-    MCH_Thigh_Left.tail = (0.09, 0.00, 0.56)
-    MCH_Thigh_Left.parent = ORG_Hips
-    MCH_Thigh_Left.roll = math.pi / 2
-    MCH_Thigh_Left.use_connect = False
+    MCH_SWITCH_Thigh_Left = edit_bones.new("MCH_SWITCH_Thigh.L")
+    MCH_SWITCH_Thigh_Left.head = (0.09, 0.00, 0.87)
+    MCH_SWITCH_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    MCH_SWITCH_Thigh_Left.parent = ORG_Hips
+    MCH_SWITCH_Thigh_Left.roll = math.pi / 2
+    MCH_SWITCH_Thigh_Left.use_connect = False
 
     # --- Left Shin---------------------------------------------------------
-    MCH_Shin_Left = edit_bones.new("MCH_Shin.L")
-    MCH_Shin_Left.head = (0.09, 0.00, 0.56)
-    MCH_Shin_Left.tail = (0.09, 0.00, 0.15)
-    MCH_Shin_Left.parent = MCH_Thigh_Left
-    MCH_Shin_Left.roll = math.pi / 2
-    MCH_Shin_Left.use_connect = True
+    MCH_SWITCH_Shin_Left = edit_bones.new("MCH_SWITCH_Shin.L")
+    MCH_SWITCH_Shin_Left.head = (0.09, -0.05, 0.56)
+    MCH_SWITCH_Shin_Left.tail = (0.09, 0.00, 0.15)
+    MCH_SWITCH_Shin_Left.parent = MCH_SWITCH_Thigh_Left
+    MCH_SWITCH_Shin_Left.roll = math.pi / 2
+    MCH_SWITCH_Shin_Left.use_connect = True
 
     # --- Left Foot---------------------------------------------------------
-    MCH_Foot_Left = edit_bones.new("MCH_Foot.L")
-    MCH_Foot_Left.head = (0.09, 0.00, 0.15)
-    MCH_Foot_Left.tail = (0.09, -0.20, 0.03)
-    MCH_Foot_Left.parent = MCH_Shin_Left
-    MCH_Foot_Left.roll = math.pi / 2
-    MCH_Foot_Left.use_connect = True
+    MCH_SWITCH_Foot_Left = edit_bones.new("MCH_SWITCH_Foot.L")
+    MCH_SWITCH_Foot_Left.head = (0.09, 0.00, 0.15)
+    MCH_SWITCH_Foot_Left.tail = (0.09, -0.20, 0.03)
+    MCH_SWITCH_Foot_Left.parent = MCH_SWITCH_Shin_Left
+    MCH_SWITCH_Foot_Left.roll = math.pi / 2
+    MCH_SWITCH_Foot_Left.use_connect = True
 
     # --- Left Toe---------------------------------------------------------
-    MCH_Toe_Left = edit_bones.new("MCH_Toe.L")
-    MCH_Toe_Left.head = (0.09, 0.20, 0.03)
-    MCH_Toe_Left.tail = (0.09, -0.31, 0.03)
-    MCH_Toe_Left.parent = MCH_Foot_Left
-    MCH_Toe_Left.roll = -(math.pi / 2)
-    MCH_Toe_Left.use_connect = True
+    MCH_SWITCH_Toe_Left = edit_bones.new("MCH_SWITCH_Toe.L")
+    MCH_SWITCH_Toe_Left.head = (0.09, -0.20, 0.03)
+    MCH_SWITCH_Toe_Left.tail = (0.09, -0.31, 0.03)
+    MCH_SWITCH_Toe_Left.parent = MCH_SWITCH_Foot_Left
+    MCH_SWITCH_Toe_Left.roll = -(math.pi / 2)
+    MCH_SWITCH_Toe_Left.use_connect = True
+
+    # ============================= TWEAK CHAIN ==============================================
+    # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
+    MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Thigh_Tweak_Scale_Compensation.L")
+    MCH_Thigh_Tweak_Scale_Compensation_Left.head = (0.09, 0.00, 0.87)
+    MCH_Thigh_Tweak_Scale_Compensation_Left.tail = (0.09, -0.05, 0.56)
+    MCH_Thigh_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Thigh_Left
+    MCH_Thigh_Tweak_Scale_Compensation_Left.roll = math.pi / 2
+    MCH_Thigh_Tweak_Scale_Compensation_Left.use_connect = False
+    MCH_Thigh_Tweak_Scale_Compensation_Left.length *= 0.25
+
+        # --- Left Thigh Tweak---------------------------------------------------------
+    Thigh_Tweak_Left = edit_bones.new("Thigh_Tweak.L")
+    Thigh_Tweak_Left.head = (0.09, 0.00, 0.87)
+    Thigh_Tweak_Left.tail = (0.09, -0.05, 0.56)
+    Thigh_Tweak_Left.parent = MCH_Thigh_Tweak_Scale_Compensation_Left
+    Thigh_Tweak_Left.roll = math.pi / 2
+    Thigh_Tweak_Left.use_connect = False
+    Thigh_Tweak_Left.length *= 0.5
+
+    # --- Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
+    MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Shin_Tweak_Scale_Compensation.L")
+    MCH_Shin_Tweak_Scale_Compensation_Left.head = (0.09, -0.05, 0.56)
+    MCH_Shin_Tweak_Scale_Compensation_Left.tail = (0.09, 0.00, 0.15)
+    MCH_Shin_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Shin_Left
+    MCH_Shin_Tweak_Scale_Compensation_Left.roll = math.pi / 2
+    MCH_Shin_Tweak_Scale_Compensation_Left.use_connect = False
+    MCH_Shin_Tweak_Scale_Compensation_Left.length *= 0.25
+
+    # --- Left Shin Tweak---------------------------------------------------------
+    Shin_Tweak_Left = edit_bones.new("Shin_Tweak.L")
+    Shin_Tweak_Left.head = (0.09, -0.05, 0.56)
+    Shin_Tweak_Left.tail = (0.09, 0.00, 0.15)
+    Shin_Tweak_Left.parent = MCH_Shin_Tweak_Scale_Compensation_Left
+    Shin_Tweak_Left.roll = math.pi / 2
+    Shin_Tweak_Left.use_connect = False
+    Shin_Tweak_Left.length *= 0.5
+
+    # --- Left Foot Tweak---------------------------------------------------------
+    Foot_Tweak_Left = edit_bones.new("Foot_Tweak.L")
+    Foot_Tweak_Left.head = (0.09, 0.00, 0.15)
+    Foot_Tweak_Left.tail = (0.09, -0.20, 0.03)
+    Foot_Tweak_Left.parent = MCH_SWITCH_Foot_Left
+    Foot_Tweak_Left.roll = math.pi / 2
+    Foot_Tweak_Left.use_connect = False
+    Foot_Tweak_Left.length *= 0.5
+
+    # --- Left Toe Tweak ---------------------------------------------------------
+    Toe_Tweak_Left = edit_bones.new("Toe_Tweak.L")
+    Toe_Tweak_Left.head = (0.09, -0.20, 0.03)
+    Toe_Tweak_Left.tail = (0.09, -0.31, 0.03)
+    Toe_Tweak_Left.parent = MCH_SWITCH_Toe_Left
+    Toe_Tweak_Left.roll = -(math.pi / 2)
+    Toe_Tweak_Left.use_connect = False
+    Toe_Tweak_Left.length *= 0.5
+
+    # --- Left Toe TIP Tweak ---------------------------------------------------------
+    Toe_Tip_Tweak_Left = edit_bones.new("Toe_Tip_Tweak.L")
+    Toe_Tip_Tweak_Left.head = (0.09, -0.31, 0.03)
+    Toe_Tip_Tweak_Left.tail = (0.09, -0.38, 0.03)
+    Toe_Tip_Tweak_Left.parent = MCH_SWITCH_Toe_Left
+    Toe_Tip_Tweak_Left.roll = -(math.pi / 2)
+    Toe_Tip_Tweak_Left.use_connect = False
+
+    # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
+    # use_connect welds a child's head onto its parent's tail. The ORG bones
+    # inherit it from the DEF chain (shin/foot/toe are all connected), so
+    # reparenting them would snap each head up to the half-length tweak tail.
+    # Clearing it first keeps the offset -- parenting alone never moves a bone.
+    ORG_Thigh_Left.use_connect = False
+    ORG_Thigh_Left.parent = Thigh_Tweak_Left
+    ORG_Shin_Left.use_connect = False
+    ORG_Shin_Left.parent = Shin_Tweak_Left
+    ORG_Foot_Left.use_connect = False
+    ORG_Foot_Left.parent = Foot_Tweak_Left
+    ORG_Toe_Left.use_connect = False
+    ORG_Toe_Left.parent = Toe_Tweak_Left
+
+
+    # ============================= CONSTRAINTS ==============================================
+    # Constraints hang off pose bones, and everything built above only shows up
+    # in armature_obj.pose.bones once edit mode is left -- so the switch has to
+    # happen here, after the whole chain exists.
+    bpy.ops.object.mode_set(mode="POSE")
+
+    # Root comes from the DEF skeleton, not from this function, so it can be
+    # missing if the tools are run out of order.
+    if armature_obj.data.bones.get("Root") is None:
+        changed.append("Issue: Cannot find ROOT bone, this rig is not ready; cancelling request")
+        return changed
+
+    # Every bone below has to be re-fetched from pose.bones by name. The
+    # EditBone variables built further up are dangling pointers now -- leaving
+    # edit mode frees the edit-bone structs, and touching one crashes Blender
+    # outright rather than raising. Constraints only exist on pose bones anyway.
+    pose_bones = armature_obj.pose.bones
+
+    # --- scale constraints ----
+    copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
+    copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
+    # ----- stretch to constraints ------
+
+    stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
+    stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
+    stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
+    stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
+
+    # Chaining is fine here -- every constraint points at the same armature.
+    # subtarget is the part that cannot be chained: it differs per constraint.
+    copy_thigh_scale.target = copy_shin_scale.target = armature_obj
+    stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = armature_obj
+
+    copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
+    stretch_toe.subtarget = "Toe_Tip_Tweak.L"
+    stretch_foot.subtarget = "Toe_Tweak.L"
+    stretch_shin.subtarget = "Foot_Tweak.L"
+    stretch_thigh.subtarget = "Shin_Tweak.L"
+
+    changed.append("copy scale on the thigh/shin compensation bones -> Root")
+    changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
+
+    
 
     changed.append("MCH legs added")
 
