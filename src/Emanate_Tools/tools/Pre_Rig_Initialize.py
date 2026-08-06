@@ -24,6 +24,12 @@ NAMES_DEF_MIRROR = naming.register_tool(
     owner=__name__,
     description="Mirrors anything ending in .L onto the right side",
 )
+NAMES_MAKE_RIG = naming.register_tool(
+    "generate_rigs_for_body",
+    label="Generate Rig",
+    owner=__name__,
+    description="Creates flexible rig with switchable fk/ik arms and legs.",
+)
 
 # ------ Scene settings a rig destined for Unreal Engine expects -------------
 TARGET_UNIT_SYSTEM = "METRIC"
@@ -405,8 +411,65 @@ def create_deformation_skeleton(context):
     # bpy.ops.object.mode_set(mode='OBJECT')
     return armature_obj
 
-def generate_leg_ik_fk_rig(context):
-    pass
+def generate_leg_ik_fk_rig(context, armature_obj=None):
+
+    changed = []
+
+    # Recapture the armature
+    if armature_obj is None:
+        armature_obj = context.object 
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    # edit_bones is only populated in edit mode, so we have to be in it whether
+    # or not the caller already was.
+    if armature_obj.mode != "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="EDIT")
+
+    edit_bones = armature_obj.data.edit_bones
+
+    # ORG_Hips is built by the org-bone generator tool from DEF_Hips, so it
+    # has to be looked up by name here rather than created in this function.
+    ORG_Hips = edit_bones.get("ORG_Hips")
+    if ORG_Hips is None:
+        return changed
+
+    # --- Left Thigh---------------------------------------------------------
+    MCH_Thigh_Left = edit_bones.new("MCH_Thigh.L")
+    MCH_Thigh_Left.head = (0.09, 0.00, 0.87)
+    MCH_Thigh_Left.tail = (0.09, 0.00, 0.56)
+    MCH_Thigh_Left.parent = ORG_Hips
+    MCH_Thigh_Left.roll = math.pi / 2
+    MCH_Thigh_Left.use_connect = False
+
+    # --- Left Shin---------------------------------------------------------
+    MCH_Shin_Left = edit_bones.new("MCH_Shin.L")
+    MCH_Shin_Left.head = (0.09, 0.00, 0.56)
+    MCH_Shin_Left.tail = (0.09, 0.00, 0.15)
+    MCH_Shin_Left.parent = MCH_Thigh_Left
+    MCH_Shin_Left.roll = math.pi / 2
+    MCH_Shin_Left.use_connect = True
+
+    # --- Left Foot---------------------------------------------------------
+    MCH_Foot_Left = edit_bones.new("MCH_Foot.L")
+    MCH_Foot_Left.head = (0.09, 0.00, 0.15)
+    MCH_Foot_Left.tail = (0.09, -0.20, 0.03)
+    MCH_Foot_Left.parent = MCH_Shin_Left
+    MCH_Foot_Left.roll = math.pi / 2
+    MCH_Foot_Left.use_connect = True
+
+    # --- Left Toe---------------------------------------------------------
+    MCH_Toe_Left = edit_bones.new("MCH_Toe.L")
+    MCH_Toe_Left.head = (0.09, 0.20, 0.03)
+    MCH_Toe_Left.tail = (0.09, -0.31, 0.03)
+    MCH_Toe_Left.parent = MCH_Foot_Left
+    MCH_Toe_Left.roll = -(math.pi / 2)
+    MCH_Toe_Left.use_connect = True
+
+    changed.append("MCH legs added")
+
+    return changed
 
 
 def mirror_deformation_skeleton(context, armature_obj=None):
@@ -545,6 +608,43 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
         self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
         return {"FINISHED"}
 
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate " BUTTON IS CLICKED =========                                     
+class EMANATE_OT_generate_rig(bpy.types.Operator):
+    bl_idname = NAMES_MAKE_RIG.operator_idname                       
+    bl_label = NAMES_MAKE_RIG.label
+    bl_description = NAMES_MAKE_RIG.description                      
+    bl_options = {"REGISTER", "UNDO"}                                
+
+    @classmethod
+    def poll(cls, context):                                          
+        return context.object is not None and context.object.type == "ARMATURE"                                                    
+                                                                        
+    def execute(self, context):
+        armature_obj = context.object
+
+        # poll() covers the button, but an operator can still be called from a
+        # script or the search menu, where poll is not guaranteed to have run.
+        if armature_obj is None or armature_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Select an armature first")
+            return {"CANCELLED"}
+
+        changed = generate_leg_ik_fk_rig(context, armature_obj)
+
+        if not changed:
+            self.report(
+                {"WARNING"},
+                f"{armature_obj.name} has no ORG_Hips bone -- run the ORG bone "
+                f"generator first",
+            )
+            return {"CANCELLED"}
+
+        for change in changed:
+            print(f"[generate-rig] {change}")
+
+        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        return {"FINISHED"}
+                                                                         
+             
 
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
@@ -562,22 +662,23 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
         layout.operator(NAMES.operator_idname)
         layout.operator(NAMES_DEF_SKELETON.operator_idname)
         layout.operator(NAMES_DEF_MIRROR.operator_idname)
+        layout.operator(NAMES_MAKE_RIG.operator_idname)
 
 
 _classes = (
     EMANATE_OT_pre_rig_initialize,
     EMANATE_OT_make_def_skeleton,
     EMANATE_OT_mirror_def_skeleton,
+    EMANATE_OT_generate_rig,
     EMANATE_PT_pre_rig_initialize,
 )
 
 
 def register():
-    naming.check_classes(
-        (EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES
-    )
+    naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
+    naming.check_classes((EMANATE_OT_generate_rig,), NAMES_MAKE_RIG)  
     for cls in _classes:
         bpy.utils.register_class(cls)
 
