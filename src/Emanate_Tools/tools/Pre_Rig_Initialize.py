@@ -4,6 +4,7 @@ import bpy
 from mathutils import Vector
 
 from .. import naming_unity as naming
+from .. import widgets
 
 NAMES = naming.register_tool(
     "pre_rig_initialize",
@@ -451,7 +452,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ):
         return changed
 
-    # ============================= MCH CHAIN ==============================================
+    # ============================= MCH CHAIN ============================================================================================================
     # --- Left Leg Socket---------------------------------------------------------
     MCH_Leg_Socket_Left = edit_bones.new("MCH_Leg_Socket.L")
     MCH_Leg_Socket_Left.head = (0.09, 0.00, 0.87)
@@ -501,7 +502,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Toe_Left.roll = -(math.pi / 2)
     MCH_SWITCH_Toe_Left.use_connect = True
 
-    # ============================= TWEAK CHAIN ==============================================
+    # ============================= TWEAK CHAIN ============================================================================================================
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
     MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new(
         "MCH_Thigh_Tweak_Scale_Compensation.L"
@@ -568,6 +569,72 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Toe_Tip_Tweak_Left.roll = -(math.pi / 2)
     Toe_Tip_Tweak_Left.use_connect = False
 
+    # ============================= FK CHAIN ============================================================================================================================
+        # --- Left Thigh---------------------------------------------------------
+    FK_Thigh_Left = edit_bones.new("FK_Thigh.L")
+    FK_Thigh_Left.head = (0.09, 0.00, 0.87)
+    FK_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    FK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
+    FK_Thigh_Left.roll = math.pi / 2
+    FK_Thigh_Left.use_connect = False
+
+    # --- Left Shin---------------------------------------------------------
+    FK_Shin_Left = edit_bones.new("FK_Shin.L")
+    FK_Shin_Left.head = (0.09, -0.05, 0.56)
+    FK_Shin_Left.tail = (0.09, 0.00, 0.15)
+    FK_Shin_Left.parent = FK_Thigh_Left
+    FK_Shin_Left.roll = math.pi / 2
+    FK_Shin_Left.use_connect = False
+
+    # --- Left Foot---------------------------------------------------------
+    FK_Foot_Left = edit_bones.new("FK_Foot.L")
+    FK_Foot_Left.head = (0.09, 0.00, 0.15)
+    FK_Foot_Left.tail = (0.09, -0.20, 0.03)
+    FK_Foot_Left.parent = FK_Shin_Left
+    FK_Foot_Left.roll = math.pi / 2
+    FK_Foot_Left.use_connect = False
+
+    # --- Left Toe---------------------------------------------------------
+    FK_Toe_Left = edit_bones.new("FK_Toe.L")
+    FK_Toe_Left.head = (0.09, -0.20, 0.03)
+    FK_Toe_Left.tail = (0.09, -0.31, 0.03)
+    FK_Toe_Left.parent = FK_Foot_Left
+    FK_Toe_Left.roll = -(math.pi / 2)
+    FK_Toe_Left.use_connect = False
+
+    # ============================= IK CHAIN ============================================================================================================================
+        # --- Left Thigh---------------------------------------------------------
+    IK_Thigh_Left = edit_bones.new("IK_Thigh.L")
+    IK_Thigh_Left.head = (0.09, 0.00, 0.87)
+    IK_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    IK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
+    IK_Thigh_Left.roll = math.pi / 2
+    IK_Thigh_Left.use_connect = False
+
+    # --- Left Shin---------------------------------------------------------
+    IK_Shin_Left = edit_bones.new("IK_Shin.L")
+    IK_Shin_Left.head = (0.09, -0.05, 0.56)
+    IK_Shin_Left.tail = (0.09, 0.00, 0.15)
+    IK_Shin_Left.parent = IK_Thigh_Left
+    IK_Shin_Left.roll = math.pi / 2
+    IK_Shin_Left.use_connect = True
+
+    # --- Left Foot---------------------------------------------------------
+    IK_Foot_Left = edit_bones.new("IK_Foot.L")
+    IK_Foot_Left.head = (0.09, 0.00, 0.15)
+    IK_Foot_Left.tail = (0.09, -0.20, 0.03)
+    # IK_Foot_Left.parent = IK_Shin_Left
+    IK_Foot_Left.roll = math.pi / 2
+    IK_Foot_Left.use_connect = False
+
+    # --- Left Toe---------------------------------------------------------
+    IK_Toe_Left = edit_bones.new("IK_Toe.L")
+    IK_Toe_Left.head = (0.09, -0.20, 0.03)
+    IK_Toe_Left.tail = (0.09, -0.31, 0.03)
+    IK_Toe_Left.parent = IK_Foot_Left
+    IK_Toe_Left.roll = -(math.pi / 2)
+    IK_Toe_Left.use_connect = True
+
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
     # use_connect welds a child's head onto its parent's tail. The ORG bones
     # inherit it from the DEF chain (shin/foot/toe are all connected), so
@@ -602,31 +669,57 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # outright rather than raising. Constraints only exist on pose bones anyway.
     pose_bones = armature_obj.pose.bones
 
-    # --- location constraints ----
+    # --- location constraints -----------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_location = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_LOCATION")
 
-    # --- scale constraints ----
+    # --- scale constraints -----------------------------------------------------------------------------------------
     copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_leg_intermediary_socket_scale = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_SCALE")
 
-    # --- rotation constraints ----
+    # --- rotation constraints -------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
     copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
 
-    # ----- stretch to constraints ------
+    # --- transform constraints -------------------------------------------------------------------------------------
+    # --- FK leg copy transform constraints ---------------------------------
+    copy_FK_thigh_transform = pose_bones["MCH_SWITCH_Thigh.L"].constraints.new("COPY_TRANSFORMS")
+    copy_FK_thigh_transform.name = "FK_Copy_Transform"
+    copy_FK_shin_transform = pose_bones["MCH_SWITCH_Shin.L"].constraints.new("COPY_TRANSFORMS")
+    copy_FK_shin_transform.name = "FK_Copy_Transform"
+    copy_FK_foot_transform = pose_bones["MCH_SWITCH_Foot.L"].constraints.new("COPY_TRANSFORMS")
+    copy_FK_foot_transform.name = "FK_Copy_Transform"
+    copy_FK_toe_transform = pose_bones["MCH_SWITCH_Toe.L"].constraints.new("COPY_TRANSFORMS")
+    copy_FK_toe_transform.name = "FK_Copy_Transform"
+    # --- IK leg copy transform constraints ---------------------------------
+    copy_IK_thigh_transform = pose_bones["MCH_SWITCH_Thigh.L"].constraints.new("COPY_TRANSFORMS")
+    copy_IK_thigh_transform.name = "IK_Transform_Influence"
+    copy_IK_shin_transform = pose_bones["MCH_SWITCH_Shin.L"].constraints.new("COPY_TRANSFORMS")
+    copy_IK_shin_transform.name = "IK_Transform_Influence"
+    copy_IK_foot_transform = pose_bones["MCH_SWITCH_Foot.L"].constraints.new("COPY_TRANSFORMS")
+    copy_IK_foot_transform.name = "IK_Transform_Influence"
+    copy_IK_toe_transform = pose_bones["MCH_SWITCH_Toe.L"].constraints.new("COPY_TRANSFORMS")
+    copy_IK_toe_transform.name = "IK_Transform_Influence"
+
+    # --- IK - proper inverse kinematic constraints for the IK leg ---------------------------------
+    shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
+    shin_IK.chain_count = 2
+
+    # ----- stretch to constraints -------------------------------------------------------------------------------------
 
     stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
     stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
     stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
     stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
 
+    # -------------------------------- ASSIGNING TARGETS AND SUBTARGETS -------------------------------------------------------------------------------------
     # Chaining is fine here -- every constraint points at the same armature.
     # subtarget is the part that cannot be chained: it differs per constraint.
     copy_thigh_scale.target = copy_shin_scale.target = armature_obj
     stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
     copy_leg_intermediary_socket_location.target = copy_leg_intermediary_socket_scale.target = copy_leg_intermediary_socket_rotation.target = armature_obj
-
+    copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = copy_IK_thigh_transform.target = copy_IK_shin_transform.target = copy_IK_foot_transform.target = copy_IK_toe_transform.target = armature_obj
+    shin_IK.target = armature_obj
 
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
@@ -636,6 +729,21 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
+
+    copy_FK_thigh_transform.subtarget = "FK_Thigh.L"
+    copy_FK_shin_transform.subtarget = "FK_Shin.L"
+    copy_FK_foot_transform.subtarget = "FK_Foot.L"
+    copy_FK_toe_transform.subtarget = "FK_Toe.L"
+
+    copy_IK_thigh_transform.subtarget = "IK_Thigh.L"
+    copy_IK_shin_transform.subtarget = "IK_Shin.L"
+    copy_IK_foot_transform.subtarget = "IK_Foot.L"
+    copy_IK_toe_transform.subtarget = "IK_Toe.L"
+
+    shin_IK.subtarget = "IK_Foot.L"
+
+    # -------------------------------  WIDGETS -------------------------------------------------------------------------------
+    widgets.assign_widget(pose_bones["IK_Foot.L"], "WGT_Cube", scale=0.5)
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
