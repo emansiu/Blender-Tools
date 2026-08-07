@@ -1,6 +1,7 @@
 import math
 
 import bpy
+from mathutils import Vector
 
 from .. import naming_unity as naming
 
@@ -113,9 +114,6 @@ def fix_viewport_overlays():
                 continue
             for space in area.spaces:
                 # An area keeps spaces from every type it has previously been,
-                # so filter rather than trusting spaces.active.
-                if space.type != "VIEW_3D":
-                    continue
                 if abs(space.overlay.grid_scale - TARGET_GRID_SCALE) > _SCALE_TOLERANCE:
                     if old_scale is None:
                         old_scale = space.overlay.grid_scale
@@ -242,7 +240,7 @@ def create_deformation_skeleton(context):
     DEF_Arm_left.head = (0.21, 0, 1.25)
     DEF_Arm_left.tail = (0.37, 0, 1.25)
     DEF_Arm_left.parent = DEF_Shoulder_left
-    DEF_Arm_left.roll = math.pi 
+    DEF_Arm_left.roll = math.pi
     DEF_Arm_left.use_connect = False
     # --- Left Forearm 01 ---
     DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
@@ -290,21 +288,21 @@ def create_deformation_skeleton(context):
     DEF_IndexFinger_01_Left.head = (0.88, -0.02, 1.25)
     DEF_IndexFinger_01_Left.tail = (0.90, -0.02, 1.25)
     DEF_IndexFinger_01_Left.parent = DEF_Hand_Left
-    DEF_IndexFinger_01_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_01_Left.roll = -(math.pi / 2)
     DEF_IndexFinger_01_Left.use_connect = False
     # --- Left IndexFinger 02---
     DEF_IndexFinger_02_Left = armature_data.edit_bones.new("DEF_IndexFinger_02.L")
     DEF_IndexFinger_02_Left.head = (0.90, -0.02, 1.25)
     DEF_IndexFinger_02_Left.tail = (0.92, -0.02, 1.25)
     DEF_IndexFinger_02_Left.parent = DEF_IndexFinger_01_Left
-    DEF_IndexFinger_02_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_02_Left.roll = -(math.pi / 2)
     DEF_IndexFinger_02_Left.use_connect = True
     # --- Left IndexFinger 03---
     DEF_IndexFinger_03_Left = armature_data.edit_bones.new("DEF_IndexFinger_03.L")
     DEF_IndexFinger_03_Left.head = (0.92, -0.02, 1.25)
     DEF_IndexFinger_03_Left.tail = (0.94, -0.02, 1.25)
     DEF_IndexFinger_03_Left.parent = DEF_IndexFinger_02_Left
-    DEF_IndexFinger_03_Left.roll = -(math.pi/2)
+    DEF_IndexFinger_03_Left.roll = -(math.pi / 2)
     DEF_IndexFinger_03_Left.use_connect = True
 
     # --- Left MiddleFinger 01---------------------------------------------------------
@@ -312,21 +310,21 @@ def create_deformation_skeleton(context):
     DEF_MiddleFinger_01_Left.head = (0.88, 0.00, 1.25)
     DEF_MiddleFinger_01_Left.tail = (0.90, 0.00, 1.25)
     DEF_MiddleFinger_01_Left.parent = DEF_Hand_Left
-    DEF_MiddleFinger_01_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_01_Left.roll = -(math.pi / 2)
     DEF_MiddleFinger_01_Left.use_connect = False
     # --- Left MiddleFinger 02---
     DEF_MiddleFinger_02_Left = armature_data.edit_bones.new("DEF_MiddleFinger_02.L")
     DEF_MiddleFinger_02_Left.head = (0.90, 0.00, 1.25)
     DEF_MiddleFinger_02_Left.tail = (0.92, 0.00, 1.25)
     DEF_MiddleFinger_02_Left.parent = DEF_MiddleFinger_01_Left
-    DEF_MiddleFinger_02_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_02_Left.roll = -(math.pi / 2)
     DEF_MiddleFinger_02_Left.use_connect = True
     # --- Left MiddleFinger 03---
     DEF_MiddleFinger_03_Left = armature_data.edit_bones.new("DEF_MiddleFinger_03.L")
     DEF_MiddleFinger_03_Left.head = (0.92, 0.00, 1.25)
     DEF_MiddleFinger_03_Left.tail = (0.94, 0.00, 1.25)
     DEF_MiddleFinger_03_Left.parent = DEF_MiddleFinger_02_Left
-    DEF_MiddleFinger_03_Left.roll = -(math.pi/2)
+    DEF_MiddleFinger_03_Left.roll = -(math.pi / 2)
     DEF_MiddleFinger_03_Left.use_connect = True
 
     # --- Left RingFinger 01---------------------------------------------------------
@@ -334,21 +332,21 @@ def create_deformation_skeleton(context):
     DEF_RingFinger_01_Left.head = (0.88, 0.02, 1.25)
     DEF_RingFinger_01_Left.tail = (0.90, 0.02, 1.25)
     DEF_RingFinger_01_Left.parent = DEF_Hand_Left
-    DEF_RingFinger_01_Left.roll = -(math.pi/2)
+    DEF_RingFinger_01_Left.roll = -(math.pi / 2)
     DEF_RingFinger_01_Left.use_connect = False
     # --- Left RingFinger 02---
     DEF_RingFinger_02_Left = armature_data.edit_bones.new("DEF_RingFinger_02.L")
     DEF_RingFinger_02_Left.head = (0.90, 0.02, 1.25)
     DEF_RingFinger_02_Left.tail = (0.92, 0.02, 1.25)
     DEF_RingFinger_02_Left.parent = DEF_RingFinger_01_Left
-    DEF_RingFinger_02_Left.roll = -(math.pi/2)
+    DEF_RingFinger_02_Left.roll = -(math.pi / 2)
     DEF_RingFinger_02_Left.use_connect = True
     # --- Left RingFinger 03---
     DEF_RingFinger_03_Left = armature_data.edit_bones.new("DEF_RingFinger_03.L")
     DEF_RingFinger_03_Left.head = (0.92, 0.02, 1.25)
     DEF_RingFinger_03_Left.tail = (0.94, 0.02, 1.25)
     DEF_RingFinger_03_Left.parent = DEF_RingFinger_02_Left
-    DEF_RingFinger_03_Left.roll = -(math.pi/2)
+    DEF_RingFinger_03_Left.roll = -(math.pi / 2)
     DEF_RingFinger_03_Left.use_connect = True
 
     # --- Left PinkyFinger 01---------------------------------------------------------
@@ -356,21 +354,21 @@ def create_deformation_skeleton(context):
     DEF_PinkyFinger_01_Left.head = (0.88, 0.04, 1.25)
     DEF_PinkyFinger_01_Left.tail = (0.90, 0.04, 1.25)
     DEF_PinkyFinger_01_Left.parent = DEF_Hand_Left
-    DEF_PinkyFinger_01_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_01_Left.roll = -(math.pi / 2)
     DEF_PinkyFinger_01_Left.use_connect = False
     # --- Left PinkyFinger 02---
     DEF_PinkyFinger_02_Left = armature_data.edit_bones.new("DEF_PinkyFinger_02.L")
     DEF_PinkyFinger_02_Left.head = (0.90, 0.04, 1.25)
     DEF_PinkyFinger_02_Left.tail = (0.92, 0.04, 1.25)
     DEF_PinkyFinger_02_Left.parent = DEF_PinkyFinger_01_Left
-    DEF_PinkyFinger_02_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_02_Left.roll = -(math.pi / 2)
     DEF_PinkyFinger_02_Left.use_connect = True
     # --- Left PinkyFinger 03---
     DEF_PinkyFinger_03_Left = armature_data.edit_bones.new("DEF_PinkyFinger_03.L")
     DEF_PinkyFinger_03_Left.head = (0.92, 0.04, 1.25)
     DEF_PinkyFinger_03_Left.tail = (0.94, 0.04, 1.25)
     DEF_PinkyFinger_03_Left.parent = DEF_PinkyFinger_02_Left
-    DEF_PinkyFinger_03_Left.roll = -(math.pi/2)
+    DEF_PinkyFinger_03_Left.roll = -(math.pi / 2)
     DEF_PinkyFinger_03_Left.use_connect = True
 
     # --- Left Thigh---------------------------------------------------------
@@ -404,12 +402,12 @@ def create_deformation_skeleton(context):
     DEF_Toe_Left.parent = DEF_Foot_Left
     DEF_Toe_Left.roll = -(math.pi / 2)
     DEF_Toe_Left.use_connect = True
-    
 
     # ------- END OF BONE CREATION -------
 
     # bpy.ops.object.mode_set(mode='OBJECT')
     return armature_obj
+
 
 def generate_leg_ik_fk_rig(context, armature_obj=None):
 
@@ -417,7 +415,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # Recapture the armature
     if armature_obj is None:
-        armature_obj = context.object 
+        armature_obj = context.object
     if armature_obj is None or armature_obj.type != "ARMATURE":
         return changed
 
@@ -437,21 +435,45 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Shin_Left = edit_bones.get("ORG_Shin.L")
     ORG_Foot_Left = edit_bones.get("ORG_Foot.L")
     ORG_Toe_Left = edit_bones.get("ORG_Toe.L")
+    Root = edit_bones.get("Root")
     # `is None` binds to a single operand, so it has to be tested per bone --
     # chaining them with `or` would only check the last one.
     if any(
         bone is None
-        for bone in (ORG_Hips, ORG_Thigh_Left, ORG_Shin_Left, ORG_Foot_Left, ORG_Toe_Left)
+        for bone in (
+            ORG_Hips,
+            ORG_Thigh_Left,
+            ORG_Shin_Left,
+            ORG_Foot_Left,
+            ORG_Toe_Left,
+            Root,
+        )
     ):
         return changed
-    
 
     # ============================= MCH CHAIN ==============================================
+    # --- Left Leg Socket---------------------------------------------------------
+    MCH_Leg_Socket_Left = edit_bones.new("MCH_Leg_Socket.L")
+    MCH_Leg_Socket_Left.head = (0.09, 0.00, 0.87)
+    MCH_Leg_Socket_Left.tail = (0.09, 0.06, 0.87)
+    MCH_Leg_Socket_Left.parent = ORG_Hips
+    # align_roll is more intentional than leaving roll to default or zero in case the rig is moved somehow in the future
+    MCH_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
+    MCH_Leg_Socket_Left.use_connect = False
+
+    # --- Left Leg Intermediary Socket---------------------------------------------------------
+    MCH_INT_Leg_Socket_Left = edit_bones.new("MCH_INT_Leg_Socket.L")
+    MCH_INT_Leg_Socket_Left.head = (0.09, 0.00, 0.87)
+    MCH_INT_Leg_Socket_Left.tail = (0.09, 0.03, 0.87)
+    MCH_INT_Leg_Socket_Left.parent = Root
+    MCH_INT_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
+    MCH_INT_Leg_Socket_Left.use_connect = False
+
     # --- Left Thigh---------------------------------------------------------
     MCH_SWITCH_Thigh_Left = edit_bones.new("MCH_SWITCH_Thigh.L")
     MCH_SWITCH_Thigh_Left.head = (0.09, 0.00, 0.87)
     MCH_SWITCH_Thigh_Left.tail = (0.09, -0.05, 0.56)
-    MCH_SWITCH_Thigh_Left.parent = ORG_Hips
+    MCH_SWITCH_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
     MCH_SWITCH_Thigh_Left.roll = math.pi / 2
     MCH_SWITCH_Thigh_Left.use_connect = False
 
@@ -481,7 +503,9 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ============================= TWEAK CHAIN ==============================================
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
-    MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Thigh_Tweak_Scale_Compensation.L")
+    MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new(
+        "MCH_Thigh_Tweak_Scale_Compensation.L"
+    )
     MCH_Thigh_Tweak_Scale_Compensation_Left.head = (0.09, 0.00, 0.87)
     MCH_Thigh_Tweak_Scale_Compensation_Left.tail = (0.09, -0.05, 0.56)
     MCH_Thigh_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Thigh_Left
@@ -489,7 +513,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Thigh_Tweak_Scale_Compensation_Left.use_connect = False
     MCH_Thigh_Tweak_Scale_Compensation_Left.length *= 0.25
 
-        # --- Left Thigh Tweak---------------------------------------------------------
+    # --- Left Thigh Tweak---------------------------------------------------------
     Thigh_Tweak_Left = edit_bones.new("Thigh_Tweak.L")
     Thigh_Tweak_Left.head = (0.09, 0.00, 0.87)
     Thigh_Tweak_Left.tail = (0.09, -0.05, 0.56)
@@ -499,7 +523,9 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Thigh_Tweak_Left.length *= 0.5
 
     # --- Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
-    MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Shin_Tweak_Scale_Compensation.L")
+    MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new(
+        "MCH_Shin_Tweak_Scale_Compensation.L"
+    )
     MCH_Shin_Tweak_Scale_Compensation_Left.head = (0.09, -0.05, 0.56)
     MCH_Shin_Tweak_Scale_Compensation_Left.tail = (0.09, 0.00, 0.15)
     MCH_Shin_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Shin_Left
@@ -556,7 +582,6 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Toe_Left.use_connect = False
     ORG_Toe_Left.parent = Toe_Tweak_Left
 
-
     # ============================= CONSTRAINTS ==============================================
     # Constraints hang off pose bones, and everything built above only shows up
     # in armature_obj.pose.bones once edit mode is left -- so the switch has to
@@ -566,7 +591,9 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # Root comes from the DEF skeleton, not from this function, so it can be
     # missing if the tools are run out of order.
     if armature_obj.data.bones.get("Root") is None:
-        changed.append("Issue: Cannot find ROOT bone, this rig is not ready; cancelling request")
+        changed.append(
+            "Issue: Cannot find ROOT bone, this rig is not ready; cancelling request"
+        )
         return changed
 
     # Every bone below has to be re-fetched from pose.bones by name. The
@@ -575,9 +602,18 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # outright rather than raising. Constraints only exist on pose bones anyway.
     pose_bones = armature_obj.pose.bones
 
+    # --- location constraints ----
+    copy_leg_intermediary_socket_location = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_LOCATION")
+
     # --- scale constraints ----
     copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
+    copy_leg_intermediary_socket_scale = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_SCALE")
+
+    # --- rotation constraints ----
+    copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
+    copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
+
     # ----- stretch to constraints ------
 
     stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
@@ -588,8 +624,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # Chaining is fine here -- every constraint points at the same armature.
     # subtarget is the part that cannot be chained: it differs per constraint.
     copy_thigh_scale.target = copy_shin_scale.target = armature_obj
-    stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = armature_obj
+    stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
+    copy_leg_intermediary_socket_location.target = copy_leg_intermediary_socket_scale.target = copy_leg_intermediary_socket_rotation.target = armature_obj
 
+
+    copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
+    copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
+    copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
     copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
     stretch_toe.subtarget = "Toe_Tip_Tweak.L"
     stretch_foot.subtarget = "Toe_Tweak.L"
@@ -598,8 +639,6 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
-
-    
 
     changed.append("MCH legs added")
 
@@ -620,7 +659,7 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     changed = []
 
     if armature_obj is None:
-        armature_obj = context.object 
+        armature_obj = context.object
     if armature_obj is None or armature_obj.type != "ARMATURE":
         return changed
 
@@ -742,17 +781,18 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
         self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
         return {"FINISHED"}
 
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate " BUTTON IS CLICKED =========                                     
+
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate " BUTTON IS CLICKED =========
 class EMANATE_OT_generate_rig(bpy.types.Operator):
-    bl_idname = NAMES_MAKE_RIG.operator_idname                       
+    bl_idname = NAMES_MAKE_RIG.operator_idname
     bl_label = NAMES_MAKE_RIG.label
-    bl_description = NAMES_MAKE_RIG.description                      
-    bl_options = {"REGISTER", "UNDO"}                                
+    bl_description = NAMES_MAKE_RIG.description
+    bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
-    def poll(cls, context):                                          
-        return context.object is not None and context.object.type == "ARMATURE"                                                    
-                                                                        
+    def poll(cls, context):
+        return context.object is not None and context.object.type == "ARMATURE"
+
     def execute(self, context):
         armature_obj = context.object
 
@@ -777,8 +817,7 @@ class EMANATE_OT_generate_rig(bpy.types.Operator):
 
         self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
         return {"FINISHED"}
-                                                                         
-             
+
 
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
@@ -809,10 +848,12 @@ _classes = (
 
 
 def register():
-    naming.check_classes((EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES)
+    naming.check_classes(
+        (EMANATE_OT_pre_rig_initialize, EMANATE_PT_pre_rig_initialize), NAMES
+    )
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
-    naming.check_classes((EMANATE_OT_generate_rig,), NAMES_MAKE_RIG)  
+    naming.check_classes((EMANATE_OT_generate_rig,), NAMES_MAKE_RIG)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
