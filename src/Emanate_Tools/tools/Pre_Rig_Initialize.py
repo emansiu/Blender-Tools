@@ -452,11 +452,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ):
         return changed
 
+
+
     # ============================= MCH CHAIN ============================================================================================================
     # --- Left Leg Socket---------------------------------------------------------
     MCH_Leg_Socket_Left = edit_bones.new("MCH_Leg_Socket.L")
-    MCH_Leg_Socket_Left.head = (0.09, 0.00, 0.87)
-    MCH_Leg_Socket_Left.tail = (0.09, 0.06, 0.87)
+    MCH_Leg_Socket_Left.head = ORG_Thigh_Left.head
+    MCH_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.06,0.0))
     MCH_Leg_Socket_Left.parent = ORG_Hips
     # align_roll is more intentional than leaving roll to default or zero in case the rig is moved somehow in the future
     MCH_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
@@ -464,42 +466,42 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --- Left Leg Intermediary Socket---------------------------------------------------------
     MCH_INT_Leg_Socket_Left = edit_bones.new("MCH_INT_Leg_Socket.L")
-    MCH_INT_Leg_Socket_Left.head = (0.09, 0.00, 0.87)
-    MCH_INT_Leg_Socket_Left.tail = (0.09, 0.03, 0.87)
+    MCH_INT_Leg_Socket_Left.head = ORG_Thigh_Left.head
+    MCH_INT_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.03,0.0))
     MCH_INT_Leg_Socket_Left.parent = Root
     MCH_INT_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
     MCH_INT_Leg_Socket_Left.use_connect = False
 
     # --- Left Thigh---------------------------------------------------------
     MCH_SWITCH_Thigh_Left = edit_bones.new("MCH_SWITCH_Thigh.L")
-    MCH_SWITCH_Thigh_Left.head = (0.09, 0.00, 0.87)
-    MCH_SWITCH_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    MCH_SWITCH_Thigh_Left.head = ORG_Thigh_Left.head
+    MCH_SWITCH_Thigh_Left.tail = ORG_Thigh_Left.tail
     MCH_SWITCH_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    MCH_SWITCH_Thigh_Left.roll = math.pi / 2
+    MCH_SWITCH_Thigh_Left.roll = ORG_Thigh_Left.roll
     MCH_SWITCH_Thigh_Left.use_connect = False
 
     # --- Left Shin---------------------------------------------------------
     MCH_SWITCH_Shin_Left = edit_bones.new("MCH_SWITCH_Shin.L")
-    MCH_SWITCH_Shin_Left.head = (0.09, -0.05, 0.56)
-    MCH_SWITCH_Shin_Left.tail = (0.09, 0.00, 0.15)
+    MCH_SWITCH_Shin_Left.head = ORG_Shin_Left.head
+    MCH_SWITCH_Shin_Left.tail = ORG_Shin_Left.tail
     MCH_SWITCH_Shin_Left.parent = MCH_SWITCH_Thigh_Left
-    MCH_SWITCH_Shin_Left.roll = math.pi / 2
+    MCH_SWITCH_Shin_Left.roll = ORG_Shin_Left.roll
     MCH_SWITCH_Shin_Left.use_connect = True
 
     # --- Left Foot---------------------------------------------------------
     MCH_SWITCH_Foot_Left = edit_bones.new("MCH_SWITCH_Foot.L")
-    MCH_SWITCH_Foot_Left.head = (0.09, 0.00, 0.15)
-    MCH_SWITCH_Foot_Left.tail = (0.09, -0.20, 0.03)
+    MCH_SWITCH_Foot_Left.head = ORG_Foot_Left.head
+    MCH_SWITCH_Foot_Left.tail = ORG_Foot_Left.tail
     MCH_SWITCH_Foot_Left.parent = MCH_SWITCH_Shin_Left
-    MCH_SWITCH_Foot_Left.roll = math.pi / 2
+    MCH_SWITCH_Foot_Left.roll = ORG_Foot_Left.roll 
     MCH_SWITCH_Foot_Left.use_connect = True
 
     # --- Left Toe---------------------------------------------------------
     MCH_SWITCH_Toe_Left = edit_bones.new("MCH_SWITCH_Toe.L")
-    MCH_SWITCH_Toe_Left.head = (0.09, -0.20, 0.03)
-    MCH_SWITCH_Toe_Left.tail = (0.09, -0.31, 0.03)
+    MCH_SWITCH_Toe_Left.head = ORG_Toe_Left.head
+    MCH_SWITCH_Toe_Left.tail = ORG_Toe_Left.tail
     MCH_SWITCH_Toe_Left.parent = MCH_SWITCH_Foot_Left
-    MCH_SWITCH_Toe_Left.roll = -(math.pi / 2)
+    MCH_SWITCH_Toe_Left.roll = ORG_Toe_Left.roll 
     MCH_SWITCH_Toe_Left.use_connect = True
 
     # ============================= TWEAK CHAIN ============================================================================================================
@@ -507,19 +509,19 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new(
         "MCH_Thigh_Tweak_Scale_Compensation.L"
     )
-    MCH_Thigh_Tweak_Scale_Compensation_Left.head = (0.09, 0.00, 0.87)
-    MCH_Thigh_Tweak_Scale_Compensation_Left.tail = (0.09, -0.05, 0.56)
+    MCH_Thigh_Tweak_Scale_Compensation_Left.head = ORG_Thigh_Left.head
+    MCH_Thigh_Tweak_Scale_Compensation_Left.tail = ORG_Thigh_Left.tail
     MCH_Thigh_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Thigh_Left
-    MCH_Thigh_Tweak_Scale_Compensation_Left.roll = math.pi / 2
+    MCH_Thigh_Tweak_Scale_Compensation_Left.roll = ORG_Thigh_Left.roll 
     MCH_Thigh_Tweak_Scale_Compensation_Left.use_connect = False
     MCH_Thigh_Tweak_Scale_Compensation_Left.length *= 0.25
 
     # --- Left Thigh Tweak---------------------------------------------------------
     Thigh_Tweak_Left = edit_bones.new("Thigh_Tweak.L")
-    Thigh_Tweak_Left.head = (0.09, 0.00, 0.87)
-    Thigh_Tweak_Left.tail = (0.09, -0.05, 0.56)
+    Thigh_Tweak_Left.head = ORG_Thigh_Left.head
+    Thigh_Tweak_Left.tail = ORG_Thigh_Left.tail
     Thigh_Tweak_Left.parent = MCH_Thigh_Tweak_Scale_Compensation_Left
-    Thigh_Tweak_Left.roll = math.pi / 2
+    Thigh_Tweak_Left.roll = ORG_Thigh_Left.roll 
     Thigh_Tweak_Left.use_connect = False
     Thigh_Tweak_Left.length *= 0.5
 
@@ -527,112 +529,112 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new(
         "MCH_Shin_Tweak_Scale_Compensation.L"
     )
-    MCH_Shin_Tweak_Scale_Compensation_Left.head = (0.09, -0.05, 0.56)
-    MCH_Shin_Tweak_Scale_Compensation_Left.tail = (0.09, 0.00, 0.15)
+    MCH_Shin_Tweak_Scale_Compensation_Left.head = ORG_Shin_Left.head
+    MCH_Shin_Tweak_Scale_Compensation_Left.tail = ORG_Shin_Left.tail
     MCH_Shin_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Shin_Left
-    MCH_Shin_Tweak_Scale_Compensation_Left.roll = math.pi / 2
+    MCH_Shin_Tweak_Scale_Compensation_Left.roll = ORG_Shin_Left.roll 
     MCH_Shin_Tweak_Scale_Compensation_Left.use_connect = False
     MCH_Shin_Tweak_Scale_Compensation_Left.length *= 0.25
 
     # --- Left Shin Tweak---------------------------------------------------------
     Shin_Tweak_Left = edit_bones.new("Shin_Tweak.L")
-    Shin_Tweak_Left.head = (0.09, -0.05, 0.56)
-    Shin_Tweak_Left.tail = (0.09, 0.00, 0.15)
+    Shin_Tweak_Left.head = ORG_Shin_Left.head
+    Shin_Tweak_Left.tail = ORG_Shin_Left.tail
     Shin_Tweak_Left.parent = MCH_Shin_Tweak_Scale_Compensation_Left
-    Shin_Tweak_Left.roll = math.pi / 2
+    Shin_Tweak_Left.roll = ORG_Shin_Left.roll 
     Shin_Tweak_Left.use_connect = False
     Shin_Tweak_Left.length *= 0.5
 
     # --- Left Foot Tweak---------------------------------------------------------
     Foot_Tweak_Left = edit_bones.new("Foot_Tweak.L")
-    Foot_Tweak_Left.head = (0.09, 0.00, 0.15)
-    Foot_Tweak_Left.tail = (0.09, -0.20, 0.03)
+    Foot_Tweak_Left.head = ORG_Foot_Left.head
+    Foot_Tweak_Left.tail = ORG_Foot_Left.tail
     Foot_Tweak_Left.parent = MCH_SWITCH_Foot_Left
-    Foot_Tweak_Left.roll = math.pi / 2
+    Foot_Tweak_Left.roll = ORG_Foot_Left.roll 
     Foot_Tweak_Left.use_connect = False
     Foot_Tweak_Left.length *= 0.5
 
     # --- Left Toe Tweak ---------------------------------------------------------
     Toe_Tweak_Left = edit_bones.new("Toe_Tweak.L")
-    Toe_Tweak_Left.head = (0.09, -0.20, 0.03)
-    Toe_Tweak_Left.tail = (0.09, -0.31, 0.03)
+    Toe_Tweak_Left.head = ORG_Toe_Left.head
+    Toe_Tweak_Left.tail = ORG_Toe_Left.tail
     Toe_Tweak_Left.parent = MCH_SWITCH_Toe_Left
-    Toe_Tweak_Left.roll = -(math.pi / 2)
+    Toe_Tweak_Left.roll = ORG_Toe_Left.roll 
     Toe_Tweak_Left.use_connect = False
     Toe_Tweak_Left.length *= 0.5
 
     # --- Left Toe TIP Tweak ---------------------------------------------------------
     Toe_Tip_Tweak_Left = edit_bones.new("Toe_Tip_Tweak.L")
-    Toe_Tip_Tweak_Left.head = (0.09, -0.31, 0.03)
-    Toe_Tip_Tweak_Left.tail = (0.09, -0.38, 0.03)
+    Toe_Tip_Tweak_Left.head = ORG_Toe_Left.tail
+    Toe_Tip_Tweak_Left.tail = ORG_Toe_Left.tail - Vector((0.00, 0.07, 0.0))
     Toe_Tip_Tweak_Left.parent = MCH_SWITCH_Toe_Left
-    Toe_Tip_Tweak_Left.roll = -(math.pi / 2)
+    Toe_Tip_Tweak_Left.roll = ORG_Toe_Left.roll
     Toe_Tip_Tweak_Left.use_connect = False
 
     # ============================= FK CHAIN ============================================================================================================================
-        # --- Left Thigh---------------------------------------------------------
+    # ---FK Left Thigh---------------------------------------------------------
     FK_Thigh_Left = edit_bones.new("FK_Thigh.L")
-    FK_Thigh_Left.head = (0.09, 0.00, 0.87)
-    FK_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    FK_Thigh_Left.head = ORG_Thigh_Left.head
+    FK_Thigh_Left.tail = ORG_Thigh_Left.tail
     FK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    FK_Thigh_Left.roll = math.pi / 2
+    FK_Thigh_Left.roll = ORG_Thigh_Left.roll 
     FK_Thigh_Left.use_connect = False
 
-    # --- Left Shin---------------------------------------------------------
+    # ---FK Left Shin---------------------------------------------------------
     FK_Shin_Left = edit_bones.new("FK_Shin.L")
-    FK_Shin_Left.head = (0.09, -0.05, 0.56)
-    FK_Shin_Left.tail = (0.09, 0.00, 0.15)
+    FK_Shin_Left.head = ORG_Shin_Left.head
+    FK_Shin_Left.tail = ORG_Shin_Left.tail
     FK_Shin_Left.parent = FK_Thigh_Left
-    FK_Shin_Left.roll = math.pi / 2
+    FK_Shin_Left.roll = ORG_Shin_Left.roll
     FK_Shin_Left.use_connect = False
 
-    # --- Left Foot---------------------------------------------------------
+    # ---FK Left Foot---------------------------------------------------------
     FK_Foot_Left = edit_bones.new("FK_Foot.L")
-    FK_Foot_Left.head = (0.09, 0.00, 0.15)
-    FK_Foot_Left.tail = (0.09, -0.20, 0.03)
+    FK_Foot_Left.head = ORG_Foot_Left.head
+    FK_Foot_Left.tail = ORG_Foot_Left.tail
     FK_Foot_Left.parent = FK_Shin_Left
-    FK_Foot_Left.roll = math.pi / 2
+    FK_Foot_Left.roll = ORG_Foot_Left.roll
     FK_Foot_Left.use_connect = False
 
-    # --- Left Toe---------------------------------------------------------
+    # ---FK Left Toe---------------------------------------------------------
     FK_Toe_Left = edit_bones.new("FK_Toe.L")
-    FK_Toe_Left.head = (0.09, -0.20, 0.03)
-    FK_Toe_Left.tail = (0.09, -0.31, 0.03)
+    FK_Toe_Left.head = ORG_Toe_Left.head
+    FK_Toe_Left.tail = ORG_Toe_Left.tail
     FK_Toe_Left.parent = FK_Foot_Left
-    FK_Toe_Left.roll = -(math.pi / 2)
+    FK_Toe_Left.roll =  ORG_Toe_Left.roll 
     FK_Toe_Left.use_connect = False
 
     # ============================= IK CHAIN ============================================================================================================================
-        # --- Left Thigh---------------------------------------------------------
+    # ---IK Left Thigh---------------------------------------------------------
     IK_Thigh_Left = edit_bones.new("IK_Thigh.L")
-    IK_Thigh_Left.head = (0.09, 0.00, 0.87)
-    IK_Thigh_Left.tail = (0.09, -0.05, 0.56)
+    IK_Thigh_Left.head = ORG_Thigh_Left.head
+    IK_Thigh_Left.tail = ORG_Thigh_Left.tail
     IK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    IK_Thigh_Left.roll = math.pi / 2
+    IK_Thigh_Left.roll = ORG_Thigh_Left.roll 
     IK_Thigh_Left.use_connect = False
 
-    # --- Left Shin---------------------------------------------------------
+    # ---IK Left Shin---------------------------------------------------------
     IK_Shin_Left = edit_bones.new("IK_Shin.L")
-    IK_Shin_Left.head = (0.09, -0.05, 0.56)
-    IK_Shin_Left.tail = (0.09, 0.00, 0.15)
+    IK_Shin_Left.head = ORG_Shin_Left.head
+    IK_Shin_Left.tail = ORG_Shin_Left.tail
     IK_Shin_Left.parent = IK_Thigh_Left
-    IK_Shin_Left.roll = math.pi / 2
+    IK_Shin_Left.roll = ORG_Shin_Left.roll 
     IK_Shin_Left.use_connect = True
 
-    # --- Left Foot---------------------------------------------------------
+    # ---IK Left Foot---------------------------------------------------------
     IK_Foot_Left = edit_bones.new("IK_Foot.L")
-    IK_Foot_Left.head = (0.09, 0.00, 0.15)
-    IK_Foot_Left.tail = (0.09, -0.20, 0.03)
-    # IK_Foot_Left.parent = IK_Shin_Left
-    IK_Foot_Left.roll = math.pi / 2
+    IK_Foot_Left.head = ORG_Foot_Left.head
+    IK_Foot_Left.tail = ORG_Foot_Left.tail
+    # IK_Foot_Left.parent = IK_Shin_Left --------- just a note here not to parent so we can target for ik chain
+    IK_Foot_Left.roll = ORG_Foot_Left.roll
     IK_Foot_Left.use_connect = False
 
-    # --- Left Toe---------------------------------------------------------
+    # ---IK Left Toe---------------------------------------------------------
     IK_Toe_Left = edit_bones.new("IK_Toe.L")
-    IK_Toe_Left.head = (0.09, -0.20, 0.03)
-    IK_Toe_Left.tail = (0.09, -0.31, 0.03)
+    IK_Toe_Left.head = ORG_Toe_Left.head
+    IK_Toe_Left.tail = ORG_Toe_Left.tail
     IK_Toe_Left.parent = IK_Foot_Left
-    IK_Toe_Left.roll = -(math.pi / 2)
+    IK_Toe_Left.roll = ORG_Toe_Left.roll 
     IK_Toe_Left.use_connect = True
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
