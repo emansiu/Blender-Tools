@@ -404,6 +404,13 @@ def create_deformation_skeleton(context):
     DEF_Toe_Left.roll = -(math.pi / 2)
     DEF_Toe_Left.use_connect = True
 
+    # ---!!! MCH HEEL - Needs to be positioned at character heel before rigging---------------------------------------------------------
+    MCH_Heel_left = armature_data.edit_bones.new("MCH_Heel.L")
+    MCH_Heel_left.head = (0.09, 0.0, 0.00)
+    MCH_Heel_left.tail = (0.09, 0.0, 0.08)
+    # MCH_Heel_left.roll = -(math.pi / 2)
+    MCH_Heel_left.use_connect = True
+
     # ------- END OF BONE CREATION -------
 
     # bpy.ops.object.mode_set(mode='OBJECT')
@@ -437,6 +444,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Foot_Left = edit_bones.get("ORG_Foot.L")
     ORG_Toe_Left = edit_bones.get("ORG_Toe.L")
     Root = edit_bones.get("Root")
+    MCH_Heel_Left = edit_bones.get("MCH_Heel.L")
     # `is None` binds to a single operand, so it has to be tested per bone --
     # chaining them with `or` would only check the last one.
     if any(
@@ -455,7 +463,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
 
     # ============================= MCH CHAIN ============================================================================================================
-    # --- Left Leg Socket---------------------------------------------------------
+    # ---MCH Left Leg Socket---------------------------------------------------------
     MCH_Leg_Socket_Left = edit_bones.new("MCH_Leg_Socket.L")
     MCH_Leg_Socket_Left.head = ORG_Thigh_Left.head
     MCH_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.06,0.0))
@@ -464,7 +472,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
     MCH_Leg_Socket_Left.use_connect = False
 
-    # --- Left Leg Intermediary Socket---------------------------------------------------------
+    # ---MCH Left Leg Intermediary Socket---------------------------------------------------------
     MCH_INT_Leg_Socket_Left = edit_bones.new("MCH_INT_Leg_Socket.L")
     MCH_INT_Leg_Socket_Left.head = ORG_Thigh_Left.head
     MCH_INT_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.03,0.0))
@@ -472,7 +480,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_INT_Leg_Socket_Left.align_roll(Vector((0.0,0.0,1.0)))
     MCH_INT_Leg_Socket_Left.use_connect = False
 
-    # --- Left Thigh---------------------------------------------------------
+    # ---MCH Left Thigh---------------------------------------------------------
     MCH_SWITCH_Thigh_Left = edit_bones.new("MCH_SWITCH_Thigh.L")
     MCH_SWITCH_Thigh_Left.head = ORG_Thigh_Left.head
     MCH_SWITCH_Thigh_Left.tail = ORG_Thigh_Left.tail
@@ -480,7 +488,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Thigh_Left.roll = ORG_Thigh_Left.roll
     MCH_SWITCH_Thigh_Left.use_connect = False
 
-    # --- Left Shin---------------------------------------------------------
+    # ---MCH Left Shin---------------------------------------------------------
     MCH_SWITCH_Shin_Left = edit_bones.new("MCH_SWITCH_Shin.L")
     MCH_SWITCH_Shin_Left.head = ORG_Shin_Left.head
     MCH_SWITCH_Shin_Left.tail = ORG_Shin_Left.tail
@@ -488,7 +496,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Shin_Left.roll = ORG_Shin_Left.roll
     MCH_SWITCH_Shin_Left.use_connect = True
 
-    # --- Left Foot---------------------------------------------------------
+    # ---MCH Left Foot---------------------------------------------------------
     MCH_SWITCH_Foot_Left = edit_bones.new("MCH_SWITCH_Foot.L")
     MCH_SWITCH_Foot_Left.head = ORG_Foot_Left.head
     MCH_SWITCH_Foot_Left.tail = ORG_Foot_Left.tail
@@ -496,7 +504,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Foot_Left.roll = ORG_Foot_Left.roll 
     MCH_SWITCH_Foot_Left.use_connect = True
 
-    # --- Left Toe---------------------------------------------------------
+    # ---MCH Left Toe---------------------------------------------------------
     MCH_SWITCH_Toe_Left = edit_bones.new("MCH_SWITCH_Toe.L")
     MCH_SWITCH_Toe_Left.head = ORG_Toe_Left.head
     MCH_SWITCH_Toe_Left.tail = ORG_Toe_Left.tail
@@ -504,7 +512,16 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Toe_Left.roll = ORG_Toe_Left.roll 
     MCH_SWITCH_Toe_Left.use_connect = True
 
-    # ============================= TWEAK CHAIN ============================================================================================================
+    # --------- FOOT RIG ------------------
+    # ---MCH Left Toe---------------------------------------------------------
+    MCH_Foot_Roll_Left = edit_bones.new("MCH_Foot_Roll.L")
+    MCH_Foot_Roll_Left.head = ORG_Toe_Left.head
+    MCH_Foot_Roll_Left.tail = MCH_Heel_Left.head
+    MCH_Foot_Roll_Left.parent = MCH_Heel_Left
+    MCH_Foot_Roll_Left.align_roll(Vector((0.0,0.0,1.0))) #--- reminder this recalculate bone roll global z+
+    MCH_Foot_Roll_Left.use_connect = False
+
+    # ============================= MCH TWEAK CHAIN ============================================================================================================
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
     MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new(
         "MCH_Thigh_Tweak_Scale_Compensation.L"
@@ -516,7 +533,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Thigh_Tweak_Scale_Compensation_Left.use_connect = False
     MCH_Thigh_Tweak_Scale_Compensation_Left.length *= 0.25
 
-    # --- Left Thigh Tweak---------------------------------------------------------
+    # ---TWEAK MCH Left Thigh---------------------------------------------------------
     Thigh_Tweak_Left = edit_bones.new("Thigh_Tweak.L")
     Thigh_Tweak_Left.head = ORG_Thigh_Left.head
     Thigh_Tweak_Left.tail = ORG_Thigh_Left.tail
@@ -525,7 +542,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Thigh_Tweak_Left.use_connect = False
     Thigh_Tweak_Left.length *= 0.5
 
-    # --- Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
+    # --- TWEAK MCH Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
     MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new(
         "MCH_Shin_Tweak_Scale_Compensation.L"
     )
@@ -536,7 +553,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Shin_Tweak_Scale_Compensation_Left.use_connect = False
     MCH_Shin_Tweak_Scale_Compensation_Left.length *= 0.25
 
-    # --- Left Shin Tweak---------------------------------------------------------
+    # --- TWEAK MCH Left Shin ---------------------------------------------------------
     Shin_Tweak_Left = edit_bones.new("Shin_Tweak.L")
     Shin_Tweak_Left.head = ORG_Shin_Left.head
     Shin_Tweak_Left.tail = ORG_Shin_Left.tail
@@ -545,7 +562,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Shin_Tweak_Left.use_connect = False
     Shin_Tweak_Left.length *= 0.5
 
-    # --- Left Foot Tweak---------------------------------------------------------
+    # --- TWEAK MCH Left Foot ---------------------------------------------------------
     Foot_Tweak_Left = edit_bones.new("Foot_Tweak.L")
     Foot_Tweak_Left.head = ORG_Foot_Left.head
     Foot_Tweak_Left.tail = ORG_Foot_Left.tail
@@ -554,7 +571,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Foot_Tweak_Left.use_connect = False
     Foot_Tweak_Left.length *= 0.5
 
-    # --- Left Toe Tweak ---------------------------------------------------------
+    # --- TWEAK MCH Left Toe  ---------------------------------------------------------
     Toe_Tweak_Left = edit_bones.new("Toe_Tweak.L")
     Toe_Tweak_Left.head = ORG_Toe_Left.head
     Toe_Tweak_Left.tail = ORG_Toe_Left.tail
@@ -563,7 +580,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Toe_Tweak_Left.use_connect = False
     Toe_Tweak_Left.length *= 0.5
 
-    # --- Left Toe TIP Tweak ---------------------------------------------------------
+    # --- TWEAK MCH Left Toe TIP  ---------------------------------------------------------
     Toe_Tip_Tweak_Left = edit_bones.new("Toe_Tip_Tweak.L")
     Toe_Tip_Tweak_Left.head = ORG_Toe_Left.tail
     Toe_Tip_Tweak_Left.tail = ORG_Toe_Left.tail - Vector((0.00, 0.07, 0.0))
@@ -613,6 +630,23 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Thigh_Left.roll = ORG_Thigh_Left.roll 
     IK_Thigh_Left.use_connect = False
 
+    # ---TEMP IK Pole Target base (fastest way to position pole exactly as we need ---------------------------------------------------------
+    TEMP_Left_Leg_Pole = edit_bones.new("TEMP_Left_Leg_Pole")
+    TEMP_Left_Leg_Pole.head = ORG_Thigh_Left.head + Vector((0.0,-0.4, 0.0))
+    TEMP_Left_Leg_Pole.tail = ORG_Thigh_Left.tail + Vector((0.0,-0.4, 0.0))
+    TEMP_Left_Leg_Pole.roll = ORG_Thigh_Left.roll 
+    TEMP_Left_Leg_Pole.use_connect = False
+
+    # ---IK Pole Target left leg ---------------------------------------------------------
+    IK_Pole_Left = edit_bones.new("IK_Pole.L")
+    IK_Pole_Left.head = TEMP_Left_Leg_Pole.tail 
+    IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0,0.15, 0.0))
+    IK_Pole_Left.align_roll(Vector((0.0,0.0,1.0)))
+    IK_Pole_Left.use_connect = False
+
+    # TEMP_Left_Leg_Pole was only needed to derive the pole position/roll above; discard it now.     
+    edit_bones.remove(TEMP_Left_Leg_Pole)
+
     # ---IK Left Shin---------------------------------------------------------
     IK_Shin_Left = edit_bones.new("IK_Shin.L")
     IK_Shin_Left.head = ORG_Shin_Left.head
@@ -625,7 +659,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Foot_Left = edit_bones.new("IK_Foot.L")
     IK_Foot_Left.head = ORG_Foot_Left.head
     IK_Foot_Left.tail = ORG_Foot_Left.tail
-    # IK_Foot_Left.parent = IK_Shin_Left --------- just a note here not to parent so we can target for ik chain
+    IK_Foot_Left.parent = MCH_Foot_Roll_Left
     IK_Foot_Left.roll = ORG_Foot_Left.roll
     IK_Foot_Left.use_connect = False
 
@@ -721,7 +755,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
     copy_leg_intermediary_socket_location.target = copy_leg_intermediary_socket_scale.target = copy_leg_intermediary_socket_rotation.target = armature_obj
     copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = copy_IK_thigh_transform.target = copy_IK_shin_transform.target = copy_IK_foot_transform.target = copy_IK_toe_transform.target = armature_obj
-    shin_IK.target = armature_obj
+    shin_IK.target = shin_IK.pole_target = armature_obj
 
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
@@ -743,6 +777,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform.subtarget = "IK_Toe.L"
 
     shin_IK.subtarget = "IK_Foot.L"
+    shin_IK.pole_subtarget = "IK_Pole.L"
 
     # -------------------------------  WIDGETS -------------------------------------------------------------------------------
     widgets.assign_widget(pose_bones["IK_Foot.L"], "WGT_Cube", scale=0.5)
