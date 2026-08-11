@@ -535,6 +535,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Foot_Roll_Left.align_roll(Vector((0.0,0.0,1.0))) #--- reminder this recalculate bone roll global z+
     MCH_Foot_Roll_Left.use_connect = False
 
+    # ---MCH Foot Roll - Left ---------------------------------------------------------
+    WGT_Foot_Roll_Left = edit_bones.new("WGT_Foot_Roll.L")
+    WGT_Foot_Roll_Left.head = MCH_Heel_Left.head + Vector((0.0,0.1,0.0))
+    WGT_Foot_Roll_Left.tail = MCH_Heel_Left.tail + Vector((0.0,0.1,0.0))
+    # WGT_Foot_Roll_Left.parent = MCH_Heel_Left
+    WGT_Foot_Roll_Left.use_connect = False
+
     # parenting now that we have the roll
     MCH_Foot_Bank_01_Left.parent = MCH_Foot_Roll_Left
     MCH_Foot_Bank_02_Left.parent = MCH_Foot_Bank_01_Left
@@ -704,7 +711,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Toe_Left.use_connect = False
     ORG_Toe_Left.parent = Toe_Tweak_Left
 
-    # ============================= CONSTRAINTS ==============================================
+    # ============================================== CONSTRAINTS ============================================================================
     # Constraints hang off pose bones, and everything built above only shows up
     # in armature_obj.pose.bones once edit mode is left -- so the switch has to
     # happen here, after the whole chain exists.
@@ -724,6 +731,12 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # outright rather than raising. Constraints only exist on pose bones anyway.
     pose_bones = armature_obj.pose.bones
 
+    #------- Set rotation for certain foot bones to XYZ Euler (only needs these rotatin axes) --------------------
+    for name in ("MCH_Foot_Bank_01.L","MCH_Foot_Bank_02.L","MCH_Foot_Roll.L","MCH_Heel.L","WGT_Foot_Roll.L"):
+        pb = pose_bones.get(name)
+        if pb is not None:
+            pb.rotation_mode = "XYZ"
+
     # --- location constraints -----------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_location = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_LOCATION")
 
@@ -735,6 +748,12 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # --- rotation constraints -------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
     copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
+    copy_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("COPY_ROTATION")
+    copy_heel_rotation.target_space = copy_heel_rotation.owner_space = "LOCAL"
+
+    # --- limit rotation constraints -------------------------------------------------------------------------------------
+    limit_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("LIMIT_ROTATION")
+    limit_heel_rotation.target_space = limit_heel_rotation.owner_space = "LOCAL"
 
     # --- transform constraints -------------------------------------------------------------------------------------
     # --- FK leg copy transform constraints ---------------------------------
@@ -770,16 +789,27 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # -------------------------------- ASSIGNING TARGETS AND SUBTARGETS -------------------------------------------------------------------------------------
     # Chaining is fine here -- every constraint points at the same armature.
     # subtarget is the part that cannot be chained: it differs per constraint.
-    copy_thigh_scale.target = copy_shin_scale.target = armature_obj
+    # ------------- scale targets -------------
+    copy_thigh_scale.target = copy_shin_scale.target  = copy_leg_intermediary_socket_scale.target  = armature_obj
+    # ------------- stretch targets -------------
     stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
-    copy_leg_intermediary_socket_location.target = copy_leg_intermediary_socket_scale.target = copy_leg_intermediary_socket_rotation.target = armature_obj
+    # -------------rotation targets -------------
+    copy_heel_rotation.target = copy_leg_intermediary_socket_rotation.target = armature_obj
+    # ------------- location targets -------------
+    copy_leg_intermediary_socket_location.target = armature_obj
+    # -------------transform targets -------------
     copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = copy_IK_thigh_transform.target = copy_IK_shin_transform.target = copy_IK_foot_transform.target = copy_IK_toe_transform.target = armature_obj
+    # -------------ik targets -------------
     shin_IK.target = shin_IK.pole_target = armature_obj
 
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
+
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
+    copy_heel_rotation.subtarget = "WGT_Foot_Roll.L"
+
     copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
     copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
+
     stretch_toe.subtarget = "Toe_Tip_Tweak.L"
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
