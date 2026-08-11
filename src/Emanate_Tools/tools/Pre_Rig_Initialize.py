@@ -404,12 +404,23 @@ def create_deformation_skeleton(context):
     DEF_Toe_Left.roll = -(math.pi / 2)
     DEF_Toe_Left.use_connect = True
 
-    # ---!!! MCH HEEL - Needs to be positioned at character heel before rigging---------------------------------------------------------
+    # ---!!! MCH HEEL AND FOOT BANKS - Needs to be positioned manually in blender before rigging---------------------------------------------------------
+    # --- HEEL Mechanism ----
     MCH_Heel_left = armature_data.edit_bones.new("MCH_Heel.L")
     MCH_Heel_left.head = (0.09, 0.0, 0.00)
     MCH_Heel_left.tail = (0.09, 0.0, 0.08)
-    # MCH_Heel_left.roll = -(math.pi / 2)
-    MCH_Heel_left.use_connect = True
+
+    # --- Bank left Mechanism ----
+    MCH_Foot_Bank_01_left = armature_data.edit_bones.new("MCH_Foot_Bank_01.L")
+    MCH_Foot_Bank_01_left.head = (0.02, -0.2, 0.00)
+    MCH_Foot_Bank_01_left.tail = (0.16, -0.2, 0.00)
+
+    # --- Bank right Mechanism ----
+    MCH_Foot_Bank_02_left = armature_data.edit_bones.new("MCH_Foot_Bank_02.L")
+    MCH_Foot_Bank_02_left.head = (0.16, -0.2, 0.00)
+    MCH_Foot_Bank_02_left.tail = (0.02, -0.2, 0.00)
+    MCH_Foot_Bank_02_left.parent = MCH_Foot_Bank_01_left
+    MCH_Foot_Bank_02_left.use_connect = True
 
     # ------- END OF BONE CREATION -------
 
@@ -444,7 +455,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Foot_Left = edit_bones.get("ORG_Foot.L")
     ORG_Toe_Left = edit_bones.get("ORG_Toe.L")
     Root = edit_bones.get("Root")
+    # These bones below are manually placed during def skeleton, before ORG one generation
     MCH_Heel_Left = edit_bones.get("MCH_Heel.L")
+    MCH_Foot_Bank_01_Left = edit_bones.get("MCH_Foot_Bank_01.L")
+    MCH_Foot_Bank_02_Left = edit_bones.get("MCH_Foot_Bank_02.L")
     # `is None` binds to a single operand, so it has to be tested per bone --
     # chaining them with `or` would only check the last one.
     if any(
@@ -455,7 +469,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
             ORG_Shin_Left,
             ORG_Foot_Left,
             ORG_Toe_Left,
-            Root,
+            Root
         )
     ):
         return changed
@@ -513,13 +527,18 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Toe_Left.use_connect = True
 
     # --------- FOOT RIG ------------------
-    # ---MCH Left Toe---------------------------------------------------------
+    # ---MCH Foot Roll - Left ---------------------------------------------------------
     MCH_Foot_Roll_Left = edit_bones.new("MCH_Foot_Roll.L")
     MCH_Foot_Roll_Left.head = ORG_Toe_Left.head
     MCH_Foot_Roll_Left.tail = MCH_Heel_Left.head
     MCH_Foot_Roll_Left.parent = MCH_Heel_Left
     MCH_Foot_Roll_Left.align_roll(Vector((0.0,0.0,1.0))) #--- reminder this recalculate bone roll global z+
     MCH_Foot_Roll_Left.use_connect = False
+
+    # parenting now that we have the roll
+    MCH_Foot_Bank_01_Left.parent = MCH_Foot_Roll_Left
+    MCH_Foot_Bank_02_Left.parent = MCH_Foot_Bank_01_Left
+    
 
     # ============================= MCH TWEAK CHAIN ============================================================================================================
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
@@ -659,7 +678,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Foot_Left = edit_bones.new("IK_Foot.L")
     IK_Foot_Left.head = ORG_Foot_Left.head
     IK_Foot_Left.tail = ORG_Foot_Left.tail
-    IK_Foot_Left.parent = MCH_Foot_Roll_Left
+    IK_Foot_Left.parent = MCH_Foot_Bank_02_Left
     IK_Foot_Left.roll = ORG_Foot_Left.roll
     IK_Foot_Left.use_connect = False
 
