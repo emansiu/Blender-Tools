@@ -711,6 +711,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Toe_Left.use_connect = False
     ORG_Toe_Left.parent = Toe_Tweak_Left
 
+    # ========================================== ENTERING POSE MODE  ============================================================================
     # ============================================== CONSTRAINTS ============================================================================
     # Constraints hang off pose bones, and everything built above only shows up
     # in armature_obj.pose.bones once edit mode is left -- so the switch has to
@@ -748,12 +749,48 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # --- rotation constraints -------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
     copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
+
     copy_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("COPY_ROTATION")
     copy_heel_rotation.target_space = copy_heel_rotation.owner_space = "LOCAL"
+    copy_heel_rotation.use_y = copy_heel_rotation.use_z = False
+
+    copy_foot_roll_rotation = pose_bones["MCH_Foot_Roll.L"].constraints.new("COPY_ROTATION")
+    copy_foot_roll_rotation.target_space = copy_foot_roll_rotation.owner_space = "LOCAL"
+    copy_foot_roll_rotation.use_y = copy_foot_roll_rotation.use_z = False
+
+    copy_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("COPY_ROTATION")
+    copy_foot_bank_01_rotation.target_space = copy_foot_bank_01_rotation.owner_space = "LOCAL"
+    copy_foot_bank_01_rotation.use_y = copy_foot_bank_01_rotation.use_x = False
+
+    copy_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("COPY_ROTATION")
+    copy_foot_bank_02_rotation.target_space = copy_foot_bank_02_rotation.owner_space = "LOCAL"
+    copy_foot_bank_02_rotation.use_y = copy_foot_bank_02_rotation.use_x = False
 
     # --- limit rotation constraints -------------------------------------------------------------------------------------
+    # --- heel limits ----
     limit_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("LIMIT_ROTATION")
     limit_heel_rotation.target_space = limit_heel_rotation.owner_space = "LOCAL"
+    limit_heel_rotation.use_limit_x = True
+    limit_heel_rotation.min_x = math.radians(-100)
+    limit_heel_rotation.max_x = math.radians(0)
+    # --- foot roll limits ----
+    limit_foot_roll_rotation = pose_bones["MCH_Foot_Roll.L"].constraints.new("LIMIT_ROTATION")
+    limit_foot_roll_rotation.target_space = limit_foot_roll_rotation.owner_space = "LOCAL"
+    limit_foot_roll_rotation.use_limit_x = True
+    limit_foot_roll_rotation.min_x = math.radians(0)
+    limit_foot_roll_rotation.max_x = math.radians(180)
+    # --- foot bank 01 limits ----
+    limit_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("LIMIT_ROTATION")
+    limit_foot_bank_01_rotation.target_space = limit_foot_bank_01_rotation.owner_space = "LOCAL"
+    limit_foot_bank_01_rotation.use_limit_z = True
+    limit_foot_bank_01_rotation.min_x = math.radians(-100)
+    limit_foot_bank_01_rotation.max_x = math.radians(0)
+    # --- foot bank 02 limits ----
+    limit_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("LIMIT_ROTATION")
+    limit_foot_bank_02_rotation.target_space = limit_foot_bank_02_rotation.owner_space = "LOCAL"
+    limit_foot_bank_02_rotation.use_limit_z = True
+    limit_foot_bank_02_rotation.min_x = math.radians(-100)
+    limit_foot_bank_02_rotation.max_x = math.radians(0)
 
     # --- transform constraints -------------------------------------------------------------------------------------
     # --- FK leg copy transform constraints ---------------------------------
@@ -795,6 +832,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
     # -------------rotation targets -------------
     copy_heel_rotation.target = copy_leg_intermediary_socket_rotation.target = armature_obj
+    copy_foot_roll_rotation.target = copy_foot_bank_01_rotation.target = copy_foot_bank_02_rotation.target =armature_obj
+    
     # ------------- location targets -------------
     copy_leg_intermediary_socket_location.target = armature_obj
     # -------------transform targets -------------
@@ -802,10 +841,12 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # -------------ik targets -------------
     shin_IK.target = shin_IK.pole_target = armature_obj
 
+
+    # ----------------------- all subtargets --------------------------------
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
 
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
-    copy_heel_rotation.subtarget = "WGT_Foot_Roll.L"
+    copy_heel_rotation.subtarget = copy_foot_roll_rotation.subtarget = copy_foot_bank_01_rotation.subtarget = copy_foot_bank_02_rotation.subtarget= "WGT_Foot_Roll.L"
 
     copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
     copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
