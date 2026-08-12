@@ -414,12 +414,14 @@ def create_deformation_skeleton(context):
     MCH_Foot_Bank_01_left = armature_data.edit_bones.new("MCH_Foot_Bank_01.L")
     MCH_Foot_Bank_01_left.head = (0.02, -0.2, 0.00)
     MCH_Foot_Bank_01_left.tail = (0.16, -0.2, 0.00)
+    MCH_Foot_Bank_01_left.align_roll(Vector((0.0,-1.0,0.0)))
 
     # --- Bank right Mechanism ----
     MCH_Foot_Bank_02_left = armature_data.edit_bones.new("MCH_Foot_Bank_02.L")
     MCH_Foot_Bank_02_left.head = (0.16, -0.2, 0.00)
     MCH_Foot_Bank_02_left.tail = (0.02, -0.2, 0.00)
     MCH_Foot_Bank_02_left.parent = MCH_Foot_Bank_01_left
+    MCH_Foot_Bank_02_left.align_roll(Vector((0.0,-1.0,0.0)))
     MCH_Foot_Bank_02_left.use_connect = True
 
     # ------- END OF BONE CREATION -------
@@ -689,13 +691,23 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Foot_Left.roll = ORG_Foot_Left.roll
     IK_Foot_Left.use_connect = False
 
-    # ---IK Left Toe---------------------------------------------------------
-    IK_Toe_Left = edit_bones.new("IK_Toe.L")
-    IK_Toe_Left.head = ORG_Toe_Left.head
-    IK_Toe_Left.tail = ORG_Toe_Left.tail
-    IK_Toe_Left.parent = IK_Foot_Left
-    IK_Toe_Left.roll = ORG_Toe_Left.roll 
-    IK_Toe_Left.use_connect = True
+    # ---IK Left Toe MCH bone---------------------------------------------------------
+    MCH_Toe_IK_Left = edit_bones.new("MCH_Toe_IK.L")
+    MCH_Toe_IK_Left.head = ORG_Toe_Left.head
+    MCH_Toe_IK_Left.tail = ORG_Toe_Left.tail
+    MCH_Toe_IK_Left.parent = IK_Foot_Left
+    MCH_Toe_IK_Left.roll = MCH_Foot_Roll_Left.roll
+    MCH_Toe_IK_Left.use_connect = True
+    MCH_Toe_IK_Left.length *= 0.6
+    
+    # ---IK Left Toe WGT Control ---------------------------------------------------------
+    WGT_IK_Toe_Left = edit_bones.new("WGT_IK_Toe.L")
+    WGT_IK_Toe_Left.head = ORG_Toe_Left.head
+    WGT_IK_Toe_Left.tail = ORG_Toe_Left.tail
+    WGT_IK_Toe_Left.parent = MCH_Toe_IK_Left
+    WGT_IK_Toe_Left.roll = ORG_Toe_Left.roll 
+    WGT_IK_Toe_Left.use_connect = False
+    
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
     # use_connect welds a child's head onto its parent's tail. The ORG bones
@@ -752,19 +764,25 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     copy_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("COPY_ROTATION")
     copy_heel_rotation.target_space = copy_heel_rotation.owner_space = "LOCAL"
-    copy_heel_rotation.use_y = copy_heel_rotation.use_z = False
+    copy_heel_rotation.use_y = copy_heel_rotation.use_z = False # <------- only follow x axis
 
     copy_foot_roll_rotation = pose_bones["MCH_Foot_Roll.L"].constraints.new("COPY_ROTATION")
     copy_foot_roll_rotation.target_space = copy_foot_roll_rotation.owner_space = "LOCAL"
-    copy_foot_roll_rotation.use_y = copy_foot_roll_rotation.use_z = False
+    copy_foot_roll_rotation.use_y = copy_foot_roll_rotation.use_z = False # <------- only follow x axis
 
     copy_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("COPY_ROTATION")
     copy_foot_bank_01_rotation.target_space = copy_foot_bank_01_rotation.owner_space = "LOCAL"
-    copy_foot_bank_01_rotation.use_y = copy_foot_bank_01_rotation.use_x = False
+    copy_foot_bank_01_rotation.use_y = copy_foot_bank_01_rotation.use_x = False # <------- only follow z axis
 
     copy_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("COPY_ROTATION")
     copy_foot_bank_02_rotation.target_space = copy_foot_bank_02_rotation.owner_space = "LOCAL"
-    copy_foot_bank_02_rotation.use_y = copy_foot_bank_02_rotation.use_x = False
+    copy_foot_bank_02_rotation.use_y = copy_foot_bank_02_rotation.use_x = False # <------- only follow z axis
+
+    copy_toe_rotation = pose_bones["MCH_Toe_IK.L"].constraints.new("COPY_ROTATION")
+    copy_toe_rotation.target_space = copy_toe_rotation.owner_space = "LOCAL"
+    copy_toe_rotation.use_y = copy_toe_rotation.use_z = False # <------- only follow x axis
+
+    
 
     # --- limit rotation constraints -------------------------------------------------------------------------------------
     # --- heel limits ----
@@ -783,14 +801,14 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     limit_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("LIMIT_ROTATION")
     limit_foot_bank_01_rotation.target_space = limit_foot_bank_01_rotation.owner_space = "LOCAL"
     limit_foot_bank_01_rotation.use_limit_z = True
-    limit_foot_bank_01_rotation.min_x = math.radians(-100)
-    limit_foot_bank_01_rotation.max_x = math.radians(0)
+    limit_foot_bank_01_rotation.min_z = math.radians(0)
+    limit_foot_bank_01_rotation.max_z = math.radians(180)
     # --- foot bank 02 limits ----
     limit_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("LIMIT_ROTATION")
     limit_foot_bank_02_rotation.target_space = limit_foot_bank_02_rotation.owner_space = "LOCAL"
     limit_foot_bank_02_rotation.use_limit_z = True
-    limit_foot_bank_02_rotation.min_x = math.radians(-100)
-    limit_foot_bank_02_rotation.max_x = math.radians(0)
+    limit_foot_bank_02_rotation.min_z = math.radians(-180)
+    limit_foot_bank_02_rotation.max_z = math.radians(0)
 
     # --- transform constraints -------------------------------------------------------------------------------------
     # --- FK leg copy transform constraints ---------------------------------
@@ -832,7 +850,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
     # -------------rotation targets -------------
     copy_heel_rotation.target = copy_leg_intermediary_socket_rotation.target = armature_obj
-    copy_foot_roll_rotation.target = copy_foot_bank_01_rotation.target = copy_foot_bank_02_rotation.target =armature_obj
+    copy_foot_roll_rotation.target = copy_foot_bank_01_rotation.target = copy_foot_bank_02_rotation.target = copy_toe_rotation.target = armature_obj
     
     # ------------- location targets -------------
     copy_leg_intermediary_socket_location.target = armature_obj
@@ -846,6 +864,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
 
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
+    copy_toe_rotation.subtarget = "MCH_Foot_Roll.L"
     copy_heel_rotation.subtarget = copy_foot_roll_rotation.subtarget = copy_foot_bank_01_rotation.subtarget = copy_foot_bank_02_rotation.subtarget= "WGT_Foot_Roll.L"
 
     copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
