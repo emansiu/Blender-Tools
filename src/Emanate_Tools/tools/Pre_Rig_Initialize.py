@@ -528,7 +528,25 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_SWITCH_Toe_Left.roll = ORG_Toe_Left.roll 
     MCH_SWITCH_Toe_Left.use_connect = True
 
-    # --------- FOOT RIG ------------------
+    # ==========================--------- FOOT RIG ------------------==============================
+
+    # ---IK Master Parent for a switch constraint to root or hips ---------------------------------------------------------
+    MCH_Parent_Foot_IK_Master_Left = edit_bones.new("MCH_Parent_Foot_IK_Master.L")
+    MCH_Parent_Foot_IK_Master_Left.head = Vector((ORG_Toe_Left.head.x,ORG_Toe_Left.head.y ,0))
+    MCH_Parent_Foot_IK_Master_Left.tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04 ,0))
+    MCH_Parent_Foot_IK_Master_Left.use_connect = False
+    MCH_Parent_Foot_IK_Master_Left.length *= 0.6
+
+    # ---IK Master Left Foot Control ---------------------------------------------------------
+    WGT_Foot_IK_Master_Left = edit_bones.new("WGT_Foot_IK_Master.L")
+    WGT_Foot_IK_Master_Left.head = Vector((ORG_Toe_Left.head.x,ORG_Toe_Left.head.y ,0))
+    WGT_Foot_IK_Master_Left.tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04 ,0))
+    WGT_Foot_IK_Master_Left.parent = MCH_Parent_Foot_IK_Master_Left
+    WGT_Foot_IK_Master_Left.use_connect = False
+    
+
+    
+
     # ---MCH Foot Roll - Left ---------------------------------------------------------
     MCH_Foot_Roll_Left = edit_bones.new("MCH_Foot_Roll.L")
     MCH_Foot_Roll_Left.head = ORG_Toe_Left.head
@@ -541,12 +559,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_Foot_Roll_Left = edit_bones.new("WGT_Foot_Roll.L")
     WGT_Foot_Roll_Left.head = MCH_Heel_Left.head + Vector((0.0,0.1,0.0))
     WGT_Foot_Roll_Left.tail = MCH_Heel_Left.tail + Vector((0.0,0.1,0.0))
-    # WGT_Foot_Roll_Left.parent = MCH_Heel_Left
+    WGT_Foot_Roll_Left.parent = WGT_Foot_IK_Master_Left
     WGT_Foot_Roll_Left.use_connect = False
 
     # parenting now that we have the roll
     MCH_Foot_Bank_01_Left.parent = MCH_Foot_Roll_Left
     MCH_Foot_Bank_02_Left.parent = MCH_Foot_Bank_01_Left
+    MCH_Heel_Left.parent = WGT_Foot_IK_Master_Left
     
 
     # ============================= MCH TWEAK CHAIN ============================================================================================================
@@ -670,10 +689,18 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Pole_Left.head = TEMP_Left_Leg_Pole.tail 
     IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0,0.15, 0.0))
     IK_Pole_Left.align_roll(Vector((0.0,0.0,1.0)))
+    IK_Pole_Left.parent = WGT_Foot_IK_Master_Left
     IK_Pole_Left.use_connect = False
 
     # TEMP_Left_Leg_Pole was only needed to derive the pole position/roll above; discard it now.     
     edit_bones.remove(TEMP_Left_Leg_Pole)
+
+    # ---IK Pole Target Visualization bone ---------------------------------------------------------
+    VIS_IK_Pole_Left = edit_bones.new("VIS_IK_Pole.L")
+    VIS_IK_Pole_Left.head = IK_Thigh_Left.tail
+    VIS_IK_Pole_Left.tail = IK_Pole_Left.head
+    VIS_IK_Pole_Left.parent = IK_Thigh_Left
+    VIS_IK_Pole_Left.use_connect = False
 
     # ---IK Left Shin---------------------------------------------------------
     IK_Shin_Left = edit_bones.new("IK_Shin.L")
@@ -697,7 +724,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Toe_IK_Left.tail = ORG_Toe_Left.tail
     MCH_Toe_IK_Left.parent = IK_Foot_Left
     MCH_Toe_IK_Left.roll = MCH_Foot_Roll_Left.roll
-    MCH_Toe_IK_Left.use_connect = True
+    MCH_Toe_IK_Left.use_connect = False
     MCH_Toe_IK_Left.length *= 0.6
     
     # ---IK Left Toe WGT Control ---------------------------------------------------------
@@ -707,6 +734,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_IK_Toe_Left.parent = MCH_Toe_IK_Left
     WGT_IK_Toe_Left.roll = ORG_Toe_Left.roll 
     WGT_IK_Toe_Left.use_connect = False
+
+
     
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
@@ -832,6 +861,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --- IK - proper inverse kinematic constraints for the IK leg ---------------------------------
     shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
+    pose_bones["IK_Shin.L"].ik_stretch = 0.01
+    pose_bones["IK_Thigh.L"].ik_stretch = 0.01
     shin_IK.chain_count = 2
 
     # ----- stretch to constraints -------------------------------------------------------------------------------------
@@ -840,6 +871,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
     stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
     stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
+    stretch_pole_visualizer = pose_bones["VIS_IK_Pole.L"].constraints.new("STRETCH_TO")
 
     # -------------------------------- ASSIGNING TARGETS AND SUBTARGETS -------------------------------------------------------------------------------------
     # Chaining is fine here -- every constraint points at the same armature.
@@ -847,7 +879,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ------------- scale targets -------------
     copy_thigh_scale.target = copy_shin_scale.target  = copy_leg_intermediary_socket_scale.target  = armature_obj
     # ------------- stretch targets -------------
-    stretch_toe.target = stretch_foot.target = stretch_shin.target = (stretch_thigh.target) = armature_obj
+    stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = stretch_pole_visualizer.target = armature_obj
     # -------------rotation targets -------------
     copy_heel_rotation.target = copy_leg_intermediary_socket_rotation.target = armature_obj
     copy_foot_roll_rotation.target = copy_foot_bank_01_rotation.target = copy_foot_bank_02_rotation.target = copy_toe_rotation.target = armature_obj
@@ -874,6 +906,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
+    stretch_pole_visualizer.subtarget = "IK_Pole.L"
 
     copy_FK_thigh_transform.subtarget = "FK_Thigh.L"
     copy_FK_shin_transform.subtarget = "FK_Shin.L"
@@ -883,7 +916,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_thigh_transform.subtarget = "IK_Thigh.L"
     copy_IK_shin_transform.subtarget = "IK_Shin.L"
     copy_IK_foot_transform.subtarget = "IK_Foot.L"
-    copy_IK_toe_transform.subtarget = "IK_Toe.L"
+    copy_IK_toe_transform.subtarget = "WGT_IK_Toe.L"
 
     shin_IK.subtarget = "IK_Foot.L"
     shin_IK.pole_subtarget = "IK_Pole.L"
