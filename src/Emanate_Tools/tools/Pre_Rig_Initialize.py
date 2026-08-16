@@ -859,6 +859,9 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform = pose_bones["MCH_SWITCH_Toe.L"].constraints.new("COPY_TRANSFORMS")
     copy_IK_toe_transform.name = "IK_Transform_Influence"
 
+    # --- Armature constraints -------------------------------------------------------------------------------------
+    Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
+
     # --- IK - proper inverse kinematic constraints for the IK leg ---------------------------------
     shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
     pose_bones["IK_Shin.L"].ik_stretch = 0.01
@@ -890,6 +893,16 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = copy_IK_thigh_transform.target = copy_IK_shin_transform.target = copy_IK_foot_transform.target = copy_IK_toe_transform.target = armature_obj
     # -------------ik targets -------------
     shin_IK.target = shin_IK.pole_target = armature_obj
+    # -------------armature targets -------------
+    Armature_IK_Parent_root_target = Armature_IK_Parent.targets.new()
+    Armature_IK_Parent_root_target.target = armature_obj
+    Armature_IK_Parent_root_target.subtarget = "Root"
+    Armature_IK_Parent_root_target.weight = 0.0
+
+    Armature_IK_Parent_hip_target = Armature_IK_Parent.targets.new()
+    Armature_IK_Parent_hip_target.target = armature_obj
+    Armature_IK_Parent_hip_target.subtarget = "ORG_Hips"
+    Armature_IK_Parent_hip_target.weight = 0.0
 
 
     # ----------------------- all subtargets --------------------------------
@@ -922,10 +935,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     shin_IK.pole_subtarget = "IK_Pole.L"
 
     # -------------------------------  WIDGETS -------------------------------------------------------------------------------
-    widgets.assign_widget(pose_bones["IK_Foot.L"], "WGT_Cube", scale=0.5)
+    # widgets.assign_widget(pose_bones["IK_Foot.L"], "WGT_Left_Foot_Properties", scale=1.0)
 
-    changed.append("copy scale on the thigh/shin compensation bones -> Root")
-    changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
+    # changed.append("copy scale on the thigh/shin compensation bones -> Root")
+    # changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
 
     changed.append("MCH legs added")
 

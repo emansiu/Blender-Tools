@@ -1,4 +1,6 @@
 import bpy
+
+from .. import bone_collections
 from .. import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -91,46 +93,6 @@ def create_org_bones(armature_obj):
     return pairs, created, reused
 
 
-def get_or_create_collection(armature, name):
-    """Fetch a bone collection by name, creating it if it is missing.
-
-    Looks in collections_all rather than collections so a collection nested
-    under another one is found instead of a second one being made alongside it.
-
-    Returns (collection, was_created).
-    """
-    collection = armature.collections_all.get(name)
-    if collection is not None:
-        return collection, False
-    return armature.collections.new(name), True
-
-
-def move_bones_to_collection(armature, bone_names, collection):
-    """Put the named bones in this collection and no other. EDIT mode.
-
-    Membership is additive, and a bone stays on screen while ANY collection
-    holding it is visible -- so hiding DEFORMATION only actually hides the DEF
-    bones if they are not also sitting in some other, visible collection.
-    That is why this unassigns before it assigns.
-    """
-    moved = 0
-
-    for name in bone_names:
-        bone = armature.edit_bones.get(name)
-        if bone is None:
-            continue
-
-        # list() because unassigning mutates what we are iterating over.
-        for other in list(bone.collections):
-            if other.name != collection.name:
-                other.unassign(bone)
-
-        collection.assign(bone)
-        moved += 1
-
-    return moved
-
-
 def organize_bone_collections(armature_obj, pairs):
     """File DEF bones under DEFORMATION (hidden) and ORG under ORIGINAL.
 
@@ -142,17 +104,17 @@ def organize_bone_collections(armature_obj, pairs):
     armature = armature_obj.data
     changes = []
 
-    deform, was_created = get_or_create_collection(armature, DEFORM_COLLECTION)
+    deform, was_created = bone_collections.get_or_create_collection(armature, DEFORM_COLLECTION)
     if was_created:
         changes.append(f"created collection {DEFORM_COLLECTION}")
-    moved = move_bones_to_collection(armature, [d for d, _ in pairs], deform)
+    moved = bone_collections.move_bones_to_collection(armature, [d for d, _ in pairs], deform)
     changes.append(f"{moved} bone(s) -> {DEFORM_COLLECTION} (hidden)")
     deform.is_visible = False
 
-    original, was_created = get_or_create_collection(armature, ORIGINAL_COLLECTION)
+    original, was_created = bone_collections.get_or_create_collection(armature, ORIGINAL_COLLECTION)
     if was_created:
         changes.append(f"created collection {ORIGINAL_COLLECTION}")
-    moved = move_bones_to_collection(armature, [o for _, o in pairs], original)
+    moved = bone_collections.move_bones_to_collection(armature, [o for _, o in pairs], original)
     changes.append(f"{moved} bone(s) -> {ORIGINAL_COLLECTION} (visible)")
     original.is_visible = True
 
