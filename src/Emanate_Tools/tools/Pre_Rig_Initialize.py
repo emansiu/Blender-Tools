@@ -934,12 +934,17 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     shin_IK.subtarget = "IK_Foot.L"
     shin_IK.pole_subtarget = "IK_Pole.L"
 
-    # -------------------------------  WIDGETS -------------------------------------------------------------------------------
-    # widgets.assign_widget(pose_bones["IK_Foot.L"], "WGT_Left_Foot_Properties", scale=1.0)
+    # ========================================================================================================================
+    # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
+    # ========================================================================================================================
+    VIS_IK_Pole_Icon = pose_bones["VIS_IK_Pole.L"]
+    widgets.assign_widget(VIS_IK_Pole_Icon, "VIS_Line", scale=1.0)
+    VIS_IK_Pole_Icon.custom_shape_wire_width = 2
+    VIS_IK_Pole_Icon.bone.color.palette = "THEME07"
 
-    # changed.append("copy scale on the thigh/shin compensation bones -> Root")
-    # changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
 
+    changed.append("copy scale on the thigh/shin compensation bones -> Root")
+    changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
     changed.append("MCH legs added")
 
     return changed
