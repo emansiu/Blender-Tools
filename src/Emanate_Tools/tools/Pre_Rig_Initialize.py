@@ -687,7 +687,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ---IK Pole Target left leg ---------------------------------------------------------
     IK_Pole_Left = edit_bones.new("IK_Pole.L")
     IK_Pole_Left.head = TEMP_Left_Leg_Pole.tail 
-    IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0,0.15, 0.0))
+    IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0,0.075, 0.0))
     IK_Pole_Left.align_roll(Vector((0.0,0.0,1.0)))
     IK_Pole_Left.parent = WGT_Foot_IK_Master_Left
     IK_Pole_Left.use_connect = False
@@ -734,6 +734,20 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_IK_Toe_Left.parent = MCH_Toe_IK_Left
     WGT_IK_Toe_Left.roll = ORG_Toe_Left.roll 
     WGT_IK_Toe_Left.use_connect = False
+
+    # ------- Final Property Bones ---------------
+    WGT_Leg_Properties_Left = edit_bones.new("WGT_Leg_Properties.L")
+    WGT_Leg_Properties_Left.head = WGT_Foot_IK_Master_Left.head + Vector((0.0,-0.3,0.0))
+    WGT_Leg_Properties_Left.tail = WGT_Foot_IK_Master_Left.head + Vector((0.0,-0.2,0.0))
+    WGT_Leg_Properties_Left.parent = WGT_Foot_IK_Master_Left
+    WGT_Leg_Properties_Left.use_connect = False
+
+    WGT_Leg_Properties_Controller_Left = edit_bones.new("WGT_Leg_Properties_Controller.L")
+    WGT_Leg_Properties_Controller_Left.head = WGT_Leg_Properties_Left.head
+    WGT_Leg_Properties_Controller_Left.tail = WGT_Leg_Properties_Left.tail
+    WGT_Leg_Properties_Controller_Left.parent = WGT_Leg_Properties_Left
+    WGT_Leg_Properties_Controller_Left.use_connect = False
+    WGT_Leg_Properties_Controller_Left.length *= 0.2
 
 
     
@@ -859,6 +873,15 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform = pose_bones["MCH_SWITCH_Toe.L"].constraints.new("COPY_TRANSFORMS")
     copy_IK_toe_transform.name = "IK_Transform_Influence"
 
+    # --- limit location constraints -------------------------------------------------------------------------------------
+    # --- leg properties control limits ----
+    limit_location_properties_controller = pose_bones["WGT_Leg_Properties_Controller.L"].constraints.new("LIMIT_LOCATION")
+    limit_location_properties_controller.owner_space = "LOCAL"
+    limit_location_properties_controller.use_min_x = limit_location_properties_controller.use_min_y = limit_location_properties_controller.use_min_z = True
+    limit_location_properties_controller.use_max_x = limit_location_properties_controller.use_max_y = limit_location_properties_controller.use_max_z = True
+    limit_location_properties_controller.min_x = limit_location_properties_controller.min_y = limit_location_properties_controller.min_z = 0
+    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = 0.1
+
     # --- Armature constraints -------------------------------------------------------------------------------------
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
 
@@ -937,11 +960,46 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
+    # --------- IK Pole ----------
     VIS_IK_Pole_Icon = pose_bones["VIS_IK_Pole.L"]
     widgets.assign_widget(VIS_IK_Pole_Icon, "VIS_Line", scale=1.0)
     VIS_IK_Pole_Icon.custom_shape_wire_width = 2
     VIS_IK_Pole_Icon.bone.color.palette = "THEME07"
 
+    # --------- Left Leg IK Master ----------
+    IK_Master_Left = pose_bones["WGT_Foot_IK_Master.L"]
+    widgets.assign_widget(IK_Master_Left, "WGT_Bottom_Face_Centered_Cube", scale=1.0)
+    IK_Master_Left.custom_shape_wire_width = 2
+    IK_Master_Left.custom_shape_rotation_euler[0] = math.radians(90)
+    IK_Master_Left.custom_shape_scale_xyz[1] = 0.5
+    IK_Master_Left.bone.color.palette = "THEME04"
+    # --------- Left Leg IK Toe ----------
+    # --------- Left Leg IK Roll ----------
+    # --------- Left Leg FK Thigh ----------
+    # --------- Left Leg FK Knee ----------
+    # --------- Left Leg FK Ankle ----------
+    # --------- Left Leg FK Foot ----------
+    # --------- Left Leg FK Toe ----------
+    # --------- Left Leg Thigh Tweak ----------
+    # --------- Left Leg Knee Tweak ----------
+    # --------- Left Leg Ankle Tweak ----------
+    # --------- Left Leg Toe Tweak ----------
+
+    # --------- Properties Container ----------
+    IK_Properties_Container = pose_bones["WGT_Leg_Properties.L"]
+    widgets.assign_widget(IK_Properties_Container, "WGT_Left_Foot_Properties", scale=1.0)
+    IK_Properties_Container.custom_shape_wire_width = 2
+    # IK_Properties_Container.custom_shape_rotation_euler[0] = math.radians(90)
+    # IK_Properties_Container.custom_shape_scale_xyz[1] = 0.5
+    IK_Properties_Container.bone.color.palette = "THEME04"
+
+    # --------- Properties Controller ----------
+    IK_Properties_Controller = pose_bones["WGT_Leg_Properties_Controller.L"]
+    widgets.assign_widget(IK_Properties_Controller, "WGT_Centered_IcoSphere", scale=1.0)
+    IK_Properties_Controller.custom_shape_wire_width = 1
+    # IK_Properties_Controller.custom_shape_rotation_euler[0] = math.radians(90)
+    # IK_Properties_Controller.custom_shape_scale_xyz[1] = 0.5
+    IK_Properties_Controller.bone.color.palette = "THEME04"
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
