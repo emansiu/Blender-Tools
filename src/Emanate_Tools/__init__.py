@@ -4,7 +4,7 @@ import pkgutil
 import importlib
 
 from . import tools
-from . import naming_unity as naming
+from .helpers import naming_unity as naming
 
 
 class EMANATE_PT_root(bpy.types.Panel):
