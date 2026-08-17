@@ -1,3 +1,6 @@
+import fnmatch
+
+
 def get_or_create_collection(armature, name):
     """Fetch a bone collection by name, creating it if it is missing.
 
@@ -38,21 +41,19 @@ def move_bones_to_collection(armature, bone_names, collection):
     return moved
 
 
-def move_bones_with_prefix(armature, prefix, collection):
-    """Move every edit bone whose name starts with `prefix` into `collection`.
+def move_bones_matching(armature, pattern, collection):
+    """Move every edit bone whose name matches `pattern` into `collection`.
 
-    `prefix` can be a single string or a tuple of strings -- str.startswith
-    accepts both, so "MCH_ or ORG_" is just ("MCH_", "ORG_"). EDIT mode.
+    `pattern` uses shell-style wildcards (fnmatch): `*` matches any run of
+    characters, `?` matches a single character. Prefix is "MCH_*", suffix is
+    "*.L", and text anywhere in the middle is "*_IK_*". `pattern` can also be
+    a tuple of patterns, matched as OR, so "MCH_ or ORG_" is
+    ("MCH_*", "ORG_*"). Matching is case-sensitive. EDIT mode.
     """
-    names = [eb.name for eb in armature.edit_bones if eb.name.startswith(prefix)]
-    return move_bones_to_collection(armature, names, collection)
-
-
-def move_bones_with_suffix(armature, suffix, collection):
-    """Move every edit bone whose name ends with `suffix` into `collection`.
-
-    `suffix` can be a single string or a tuple of strings -- str.endswith
-    accepts both, so ".L or .R" is just (".L", ".R"). EDIT mode.
-    """
-    names = [eb.name for eb in armature.edit_bones if eb.name.endswith(suffix)]
+    patterns = (pattern,) if isinstance(pattern, str) else tuple(pattern)
+    names = [
+        eb.name
+        for eb in armature.edit_bones
+        if any(fnmatch.fnmatchcase(eb.name, p) for p in patterns)
+    ]
     return move_bones_to_collection(armature, names, collection)
