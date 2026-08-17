@@ -430,6 +430,53 @@ def create_deformation_skeleton(context):
     return armature_obj
 
 
+def add_slider_driver(
+    constraint,
+    armature_obj,
+    expression,
+    axis="X",
+    slider_bone="WGT_Leg_Properties_Controller.L",
+):
+    """Drive `constraint`.influence from a location channel of the slider bone.
+
+    Blender has no clean Python route for duplicating an existing driver onto
+    another property -- the only native one is the copy/paste driver operators,
+    which need button context -- so rebuilding it per constraint is the tidy
+    way to share one setup across a chain.
+
+    `axis` picks the channel: "X", "Y" or "Z". The driver variable is named to
+    match, so axis="Y" reads LOC_Y and exposes it to the expression as
+    `slider_y`. `expression` has to reference that same name -- pass the
+    inverse form ("1 - slider_x / max") for whichever side should fade out.
+    """
+    fcurve = constraint.driver_add("influence")
+
+    # Defensive: a generator modifier on the curve would override the
+    # expression and make the driver read as a flat ramp. Removing any that
+    # turn up costs nothing when there are none.
+    for modifier in list(fcurve.modifiers):
+        fcurve.modifiers.remove(modifier)
+
+    driver = fcurve.driver
+    driver.type = "SCRIPTED"
+
+    variable = driver.variables.new()
+    variable.name = f"slider_{axis.lower()}"
+    variable.type = "TRANSFORMS"
+
+    target = variable.targets[0]
+    target.id = armature_obj
+    target.bone_target = slider_bone
+    target.transform_type = f"LOC_{axis.upper()}"
+    # TRANSFORM_SPACE reads the raw channel value -- the same number the
+    # sidebar shows and the same one LIMIT_LOCATION clamps in LOCAL space --
+    # so the bone's rest roll cannot rotate the axis out from under the slider.
+    target.transform_space = "TRANSFORM_SPACE"
+
+    driver.expression = expression
+    return driver
+
+
 def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     changed = []
@@ -879,8 +926,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     limit_location_properties_controller.owner_space = "LOCAL"
     limit_location_properties_controller.use_min_x = limit_location_properties_controller.use_min_y = limit_location_properties_controller.use_min_z = True
     limit_location_properties_controller.use_max_x = limit_location_properties_controller.use_max_y = limit_location_properties_controller.use_max_z = True
+    limit_location_properties_controller.use_transform_limit = True
     limit_location_properties_controller.min_x = limit_location_properties_controller.min_y = limit_location_properties_controller.min_z = 0
-    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = 0.1
+    max_distance_for_controller  = 0.1
+    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = max_distance_for_controller
 
     # --- Armature constraints -------------------------------------------------------------------------------------
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
@@ -958,55 +1007,105 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     shin_IK.pole_subtarget = "IK_Pole.L"
 
     # ========================================================================================================================
+    # -------------------------------  DRIVERS -------------------------------------------------------------------------------
+    # ========================================================================================================================
+    # --- IK influence follows the properties controller slider ----
+    # The controller slides from 0 to max_distance_for_controller on X -- that
+    # is what the LIMIT_LOCATION above pins it to -- so dividing by that max
+    # normalizes the slide into the 0..1 range influence expects. The whole IK
+    # chain reads the same slider, so one expression covers all four.
+    ik_switch_expression = f"slider_x / {max_distance_for_controller}"
+    for ik_constraint in (
+        copy_IK_thigh_transform,
+        copy_IK_shin_transform,
+        copy_IK_foot_transform,
+        copy_IK_toe_transform,
+    ):
+        add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X")
+
+    # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
     # --------- IK Pole Line Visualizer ----------
-    VIS_IK_Pole_Icon = pose_bones["VIS_IK_Pole.L"]
-    widgets.assign_widget(VIS_IK_Pole_Icon, "VIS_Line", scale=1.0)
-    VIS_IK_Pole_Icon.custom_shape_wire_width = 2
-    VIS_IK_Pole_Icon.bone.color.palette = "THEME07"
+    widgets.assign_widget(
+        pose_bones["VIS_IK_Pole.L"],
+        "VIS_Line",
+        wire_width=2,
+        color="THEME07",
+    )
 
     # --------- IK Pole Controller ----------
-    WGT_IK_Pole_Left = pose_bones["IK_Pole.L"]
-    widgets.assign_widget(WGT_IK_Pole_Left, "WGT_Bottom_Face_Centered_Pyramid", scale=1.0)
-    WGT_IK_Pole_Left.custom_shape_wire_width = 2
-    WGT_IK_Pole_Left.custom_shape_scale_xyz[1] = -1
-    WGT_IK_Pole_Left.bone.color.palette = "THEME07"
+    widgets.assign_widget(
+        pose_bones["IK_Pole.L"],
+        "WGT_Bottom_Face_Centered_Pyramid",
+        scale_y=-1,
+        wire_width=2,
+        color="THEME07",
+    )
 
     # --------- Left Leg IK Master ----------
-    IK_Master_Left = pose_bones["WGT_Foot_IK_Master.L"]
-    widgets.assign_widget(IK_Master_Left, "WGT_Bottom_Face_Centered_Cube", scale=1.0)
-    IK_Master_Left.custom_shape_wire_width = 2
-    IK_Master_Left.custom_shape_rotation_euler[0] = math.radians(90)
-    IK_Master_Left.custom_shape_scale_xyz[1] = 0.5
-    IK_Master_Left.bone.color.palette = "THEME04"
+    widgets.assign_widget(
+        pose_bones["WGT_Foot_IK_Master.L"],
+        "WGT_Bottom_Face_Centered_Cube",
+        scale_y=0.5,
+        rotation_x=90,
+        wire_width=2,
+        color="THEME04",
+    )
     # --------- Left Leg IK Toe ----------
+
     # --------- Left Leg IK Roll ----------
-    # --------- Left Leg FK Thigh ----------
-    # --------- Left Leg FK Knee ----------
-    # --------- Left Leg FK Ankle ----------
-    # --------- Left Leg FK Foot ----------
-    # --------- Left Leg FK Toe ----------
-    # --------- Left Leg Thigh Tweak ----------
-    # --------- Left Leg Knee Tweak ----------
-    # --------- Left Leg Ankle Tweak ----------
-    # --------- Left Leg Toe Tweak ----------
+    widgets.assign_widget(
+        pose_bones["WGT_Foot_Roll.L"],
+        "WGT_Curved_Quadruple_Arrows",
+        wire_width=2,
+        color="THEME04",
+    )
+
+    # --------- Left Leg FK Chain ----------
+    FK_LEG_WIDGET_SIZE = 0.25  # armature units, tune to taste
+
+    for name in ("FK_Thigh.L", "FK_Shin.L", "FK_Foot.L","FK_Toe.L"):
+        widgets.assign_widget(
+            pose_bones[name],
+            "WGT_Circle_Centered",
+            scale_x=FK_LEG_WIDGET_SIZE,
+            scale_y=FK_LEG_WIDGET_SIZE,
+            scale_z=FK_LEG_WIDGET_SIZE,
+            use_bone_size=False,
+            color="THEME09",
+        )
+
+    # --------- Left Tweakers --------------
+    TWEAK_WIDGET_SIZE = 0.05  # armature units, tune to taste
+
+    for name in ("Thigh_Tweak.L", "Shin_Tweak.L", "Foot_Tweak.L",
+                "Toe_Tweak.L", "Toe_Tip_Tweak.L"):
+        widgets.assign_widget(
+            pose_bones[name],
+            "WGT_Centered_IcoSphere",
+            scale_x=TWEAK_WIDGET_SIZE,
+            scale_y=TWEAK_WIDGET_SIZE,
+            scale_z=TWEAK_WIDGET_SIZE,
+            use_bone_size=False,
+            color="THEME09",
+        )
 
     # --------- Properties Container ----------
-    IK_Properties_Container = pose_bones["WGT_Leg_Properties.L"]
-    widgets.assign_widget(IK_Properties_Container, "WGT_Left_Foot_Properties", scale=1.0)
-    IK_Properties_Container.custom_shape_wire_width = 1
-    # IK_Properties_Container.custom_shape_rotation_euler[0] = math.radians(90)
-    # IK_Properties_Container.custom_shape_scale_xyz[1] = 0.5
-    IK_Properties_Container.bone.color.palette = "THEME04"
+    widgets.assign_widget(
+        pose_bones["WGT_Leg_Properties.L"],
+        "WGT_Left_Foot_Properties",
+        wire_width=1,
+        color="THEME04",
+    )
 
     # --------- Properties Controller ----------
-    IK_Properties_Controller = pose_bones["WGT_Leg_Properties_Controller.L"]
-    widgets.assign_widget(IK_Properties_Controller, "WGT_Centered_IcoSphere", scale=1.0)
-    IK_Properties_Controller.custom_shape_wire_width = 1
-    # IK_Properties_Controller.custom_shape_rotation_euler[0] = math.radians(90)
-    # IK_Properties_Controller.custom_shape_scale_xyz[1] = 0.5
-    IK_Properties_Controller.bone.color.palette = "THEME07"
+    widgets.assign_widget(
+        pose_bones["WGT_Leg_Properties_Controller.L"],
+        "WGT_Centered_IcoSphere",
+        wire_width=1,
+        color="THEME07",
+    )
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
