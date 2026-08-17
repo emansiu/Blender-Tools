@@ -960,11 +960,18 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
-    # --------- IK Pole ----------
+    # --------- IK Pole Line Visualizer ----------
     VIS_IK_Pole_Icon = pose_bones["VIS_IK_Pole.L"]
     widgets.assign_widget(VIS_IK_Pole_Icon, "VIS_Line", scale=1.0)
     VIS_IK_Pole_Icon.custom_shape_wire_width = 2
     VIS_IK_Pole_Icon.bone.color.palette = "THEME07"
+
+    # --------- IK Pole Controller ----------
+    WGT_IK_Pole_Left = pose_bones["IK_Pole.L"]
+    widgets.assign_widget(WGT_IK_Pole_Left, "WGT_Bottom_Face_Centered_Pyramid", scale=1.0)
+    WGT_IK_Pole_Left.custom_shape_wire_width = 2
+    WGT_IK_Pole_Left.custom_shape_scale_xyz[1] = -1
+    WGT_IK_Pole_Left.bone.color.palette = "THEME07"
 
     # --------- Left Leg IK Master ----------
     IK_Master_Left = pose_bones["WGT_Foot_IK_Master.L"]
@@ -988,7 +995,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # --------- Properties Container ----------
     IK_Properties_Container = pose_bones["WGT_Leg_Properties.L"]
     widgets.assign_widget(IK_Properties_Container, "WGT_Left_Foot_Properties", scale=1.0)
-    IK_Properties_Container.custom_shape_wire_width = 2
+    IK_Properties_Container.custom_shape_wire_width = 1
     # IK_Properties_Container.custom_shape_rotation_euler[0] = math.radians(90)
     # IK_Properties_Container.custom_shape_scale_xyz[1] = 0.5
     IK_Properties_Container.bone.color.palette = "THEME04"
@@ -999,7 +1006,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Properties_Controller.custom_shape_wire_width = 1
     # IK_Properties_Controller.custom_shape_rotation_euler[0] = math.radians(90)
     # IK_Properties_Controller.custom_shape_scale_xyz[1] = 0.5
-    IK_Properties_Controller.bone.color.palette = "THEME04"
+    IK_Properties_Controller.bone.color.palette = "THEME07"
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
