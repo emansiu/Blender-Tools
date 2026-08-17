@@ -1,7 +1,7 @@
 import bpy
 
-from .. import bone_collections
-from .. import naming_unity as naming
+from ..helpers import bone_collections
+from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
     "org_bone_generator",

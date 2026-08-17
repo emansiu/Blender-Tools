@@ -3,8 +3,8 @@ import math
 import bpy
 from mathutils import Vector
 
-from .. import naming_unity as naming
-from .. import widgets
+from ..helpers import naming_unity as naming
+from ..helpers import widgets
 
 NAMES = naming.register_tool(
     "pre_rig_initialize",

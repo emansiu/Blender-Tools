@@ -10,7 +10,8 @@ bl_info = {
 }
 
 import bpy
-from .. import naming_unity as naming
+
+from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
     "stretchy_fk",
