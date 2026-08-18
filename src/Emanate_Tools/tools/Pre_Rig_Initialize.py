@@ -3,6 +3,7 @@ import math
 import bpy
 from mathutils import Vector
 
+from ..helpers import bone_collections
 from ..helpers import naming_unity as naming
 from ..helpers import widgets
 
@@ -31,6 +32,12 @@ NAMES_MAKE_RIG = naming.register_tool(
     label="Generate Rig",
     owner=__name__,
     description="Creates flexible rig with switchable fk/ik arms and legs.",
+)
+NAMES_ORGANIZE_COLLECTIONS = naming.register_tool(
+    "organize_bone_collections",
+    label="Organize Bone Collections",
+    owner=__name__,
+    description="Sorts MCH_/FK_/IK_/ORG_/Tweak/WGT_/VIS_ bones into matching bone collections",
 )
 
 # ------ Scene settings a rig destined for Unreal Engine expects -------------
@@ -788,10 +795,18 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_IK_Toe_Left.use_connect = False
 
     # ------- Final Property Bones ---------------
+    # Parented to Root rather than WGT_Foot_IK_Master_Left: the properties
+    # controller slider that lives under this bone drives the Armature
+    # constraint weights on MCH_Parent_Foot_IK_Master_Left, and that bone is
+    # WGT_Foot_IK_Master_Left's parent -- nesting the slider chain under its
+    # own child creates a dependency cycle (the ancestor's constraint driver
+    # would need the descendant's pose done before the descendant's pose can
+    # be done). A fixed screen position next to the foot control does not
+    # require inheriting the foot control's pose anyway.
     WGT_Leg_Properties_Left = edit_bones.new("WGT_Leg_Properties.L")
     WGT_Leg_Properties_Left.head = WGT_Foot_IK_Master_Left.head + Vector((0.0,-0.3,0.0))
     WGT_Leg_Properties_Left.tail = WGT_Foot_IK_Master_Left.head + Vector((0.0,-0.2,0.0))
-    WGT_Leg_Properties_Left.parent = WGT_Foot_IK_Master_Left
+    WGT_Leg_Properties_Left.parent = Root
     WGT_Leg_Properties_Left.use_connect = False
 
     WGT_Leg_Properties_Controller_Left = edit_bones.new("WGT_Leg_Properties_Controller.L")
@@ -1081,7 +1096,14 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         wire_width=2,
         color="THEME04",
     )
+
     # --------- Left Leg IK Toe ----------
+    widgets.assign_widget(
+        pose_bones["WGT_IK_Toe.L"],
+        "WGT_Bottom_Face_Centered_Cube",
+        wire_width=1,
+        color="THEME04",
+    )
 
     # --------- Left Leg IK Roll ----------
     widgets.assign_widget(
@@ -1186,6 +1208,53 @@ def mirror_deformation_skeleton(context, armature_obj=None):
         changed.append(
             f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side"
         )
+
+    return changed
+
+
+def organize_bone_collections(context, armature_obj=None):
+    """Sort every rig bone into a collection keyed off its name.
+
+    MCH_ -> MECHANISM, FK_ -> FK, IK_ -> IK, ORG_ -> ORIGINAL,
+    *Tweak* -> TWEAK, WGT_ -> WIDGETS, VIS_ -> VISUAL.
+
+    Order matters: move_bones_matching unassigns every other collection a
+    bone sits in before adding its own, so a later pass wins any overlap --
+    e.g. "WGT_IK_Toe.L" matches the IK_ pass too, but WGT_ runs after IK_ and
+    puts it in WIDGETS.
+
+    Must run in EDIT mode -- move_bones_matching only sees edit_bones.
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    if armature_obj.mode != "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="EDIT")
+
+    armature = armature_obj.data
+
+    passes = (
+        ("MCH_*", "MECHANISM"),
+        ("FK_*", "FK"),
+        ("IK_*", "IK"),
+        ("ORG_*", "ORIGINAL"),
+        ("*Tweak*", "TWEAK"),
+        ("WGT_*", "WIDGETS"),
+        ("VIS_*", "VISUAL"),
+    )
+
+    for pattern, collection_name in passes:
+        collection, was_created = bone_collections.get_or_create_collection(armature, collection_name)
+        if was_created:
+            changed.append(f"created collection {collection_name}")
+        moved = bone_collections.move_bones_matching(armature, pattern, collection)
+        if moved:
+            changed.append(f"{moved} bone(s) -> {collection_name}")
 
     return changed
 
@@ -1317,6 +1386,39 @@ class EMANATE_OT_generate_rig(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Organize Bone Collections" BUTTON IS CLICKED =========
+class EMANATE_OT_organize_bone_collections(bpy.types.Operator):
+    bl_idname = NAMES_ORGANIZE_COLLECTIONS.operator_idname
+    bl_label = NAMES_ORGANIZE_COLLECTIONS.label
+    bl_description = NAMES_ORGANIZE_COLLECTIONS.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == "ARMATURE"
+
+    def execute(self, context):
+        armature_obj = context.object
+
+        # poll() covers the button, but an operator can still be called from a
+        # script or the search menu, where poll is not guaranteed to have run.
+        if armature_obj is None or armature_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Select an armature first")
+            return {"CANCELLED"}
+
+        changed = organize_bone_collections(context, armature_obj)
+
+        if not changed:
+            self.report({"INFO"}, f"{armature_obj.name}: no matching bones found")
+            return {"FINISHED"}
+
+        for change in changed:
+            print(f"[organize-collections] {change}")
+
+        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        return {"FINISHED"}
+
+
 # ========= THIS IS THE PANEL THAT OPENS WHEN THE BUTTON IS CLICKED =========
 class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
     bl_idname = NAMES.panel_idname
@@ -1334,6 +1436,7 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
         layout.operator(NAMES_DEF_SKELETON.operator_idname)
         layout.operator(NAMES_DEF_MIRROR.operator_idname)
         layout.operator(NAMES_MAKE_RIG.operator_idname)
+        layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
 
 _classes = (
@@ -1341,6 +1444,7 @@ _classes = (
     EMANATE_OT_make_def_skeleton,
     EMANATE_OT_mirror_def_skeleton,
     EMANATE_OT_generate_rig,
+    EMANATE_OT_organize_bone_collections,
     EMANATE_PT_pre_rig_initialize,
 )
 
@@ -1352,6 +1456,7 @@ def register():
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
     naming.check_classes((EMANATE_OT_generate_rig,), NAMES_MAKE_RIG)
+    naming.check_classes((EMANATE_OT_organize_bone_collections,), NAMES_ORGANIZE_COLLECTIONS)
     for cls in _classes:
         bpy.utils.register_class(cls)
 
