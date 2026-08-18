@@ -436,8 +436,9 @@ def add_slider_driver(
     expression,
     axis="X",
     slider_bone="WGT_Leg_Properties_Controller.L",
+    data_path="influence",
 ):
-    """Drive `constraint`.influence from a location channel of the slider bone.
+    """Drive `constraint`.<data_path> from a location channel of the slider bone.
 
     Blender has no clean Python route for duplicating an existing driver onto
     another property -- the only native one is the copy/paste driver operators,
@@ -448,8 +449,12 @@ def add_slider_driver(
     match, so axis="Y" reads LOC_Y and exposes it to the expression as
     `slider_y`. `expression` has to reference that same name -- pass the
     inverse form ("1 - slider_x / max") for whichever side should fade out.
+
+    `data_path` defaults to "influence" for constraints, but also accepts
+    "weight" so the same helper can drive an armature constraint target's
+    blend weight.
     """
-    fcurve = constraint.driver_add("influence")
+    fcurve = constraint.driver_add(data_path)
 
     # Defensive: a generator modifier on the curve would override the
     # expression and make the driver read as a flat ramp. Removing any that
@@ -732,7 +737,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     TEMP_Left_Leg_Pole.use_connect = False
 
     # ---IK Pole Target left leg ---------------------------------------------------------
-    IK_Pole_Left = edit_bones.new("IK_Pole.L")
+    IK_Pole_Left = edit_bones.new("WGT_IK_Pole.L")
     IK_Pole_Left.head = TEMP_Left_Leg_Pole.tail 
     IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0,0.075, 0.0))
     IK_Pole_Left.align_roll(Vector((0.0,0.0,1.0)))
@@ -794,7 +799,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_Leg_Properties_Controller_Left.tail = WGT_Leg_Properties_Left.tail
     WGT_Leg_Properties_Controller_Left.parent = WGT_Leg_Properties_Left
     WGT_Leg_Properties_Controller_Left.use_connect = False
-    WGT_Leg_Properties_Controller_Left.length *= 0.2
+    WGT_Leg_Properties_Controller_Left.length *= 0.4
 
 
     
@@ -991,7 +996,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
-    stretch_pole_visualizer.subtarget = "IK_Pole.L"
+    stretch_pole_visualizer.subtarget = "WGT_IK_Pole.L"
 
     copy_FK_thigh_transform.subtarget = "FK_Thigh.L"
     copy_FK_shin_transform.subtarget = "FK_Shin.L"
@@ -1004,7 +1009,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform.subtarget = "WGT_IK_Toe.L"
 
     shin_IK.subtarget = "IK_Foot.L"
-    shin_IK.pole_subtarget = "IK_Pole.L"
+    shin_IK.pole_subtarget = "WGT_IK_Pole.L"
 
     # ========================================================================================================================
     # -------------------------------  DRIVERS -------------------------------------------------------------------------------
@@ -1023,6 +1028,30 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ):
         add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X")
 
+    # ---------- follow hip rotation slider ----------------
+    follow_rotation_expression = f"slider_y / {max_distance_for_controller}"
+    add_slider_driver(copy_leg_intermediary_socket_rotation, armature_obj, follow_rotation_expression, axis="Y")
+
+    # ---------- IK follow hip or root ----------------
+    # Root and ORG_Hips are the two blend targets on the same armature
+    # constraint, so their weights have to be complementary -- Root rises
+    # with the slider while ORG_Hips falls, keeping the blend at 1.0 total.
+    ik_follow_hip_or_root_expression = f"slider_z / {max_distance_for_controller}"
+    add_slider_driver(
+        Armature_IK_Parent_root_target,
+        armature_obj,
+        ik_follow_hip_or_root_expression,
+        axis="Z",
+        data_path="weight",
+    )
+    add_slider_driver(
+        Armature_IK_Parent_hip_target,
+        armature_obj,
+        f"1 - ({ik_follow_hip_or_root_expression})",
+        axis="Z",
+        data_path="weight",
+    )
+
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
@@ -1036,7 +1065,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --------- IK Pole Controller ----------
     widgets.assign_widget(
-        pose_bones["IK_Pole.L"],
+        pose_bones["WGT_IK_Pole.L"],
         "WGT_Bottom_Face_Centered_Pyramid",
         scale_y=-1,
         wire_width=2,
