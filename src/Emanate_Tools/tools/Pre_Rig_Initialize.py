@@ -3,9 +3,8 @@ import math
 import bpy
 from mathutils import Vector
 
-from ..helpers import bone_collections
+from ..helpers import bone_collections, widgets
 from ..helpers import naming_unity as naming
-from ..helpers import widgets
 
 NAMES = naming.register_tool(
     "pre_rig_initialize",
@@ -1070,6 +1069,15 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
+    # --------- Root ----------
+    widgets.assign_widget(
+        pose_bones["Root"],
+        "WGT_Four_Arrow_Centered_Circle",
+        wire_width=2,
+        rotation_x=90,
+        color="THEME11",
+    )
+
     # --------- IK Pole Line Visualizer ----------
     widgets.assign_widget(
         pose_bones["VIS_IK_Pole.L"],
