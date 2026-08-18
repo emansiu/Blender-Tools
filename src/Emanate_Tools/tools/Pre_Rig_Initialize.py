@@ -32,6 +32,12 @@ NAMES_MAKE_RIG = naming.register_tool(
     owner=__name__,
     description="Creates flexible rig with switchable fk/ik arms and legs.",
 )
+NAMES_ADD_DRIVERS = naming.register_tool(
+    "add_all_drivers",
+    label="Add All Drivers",
+    owner=__name__,
+    description="Wires every driven constraint in the rig, both sides, to its properties controller slider. Safe to re-run, and meant to be run after mirroring -- symmetrize copies constraints but not drivers",
+)
 NAMES_ORGANIZE_COLLECTIONS = naming.register_tool(
     "organize_bone_collections",
     label="Organize Bone Collections",
@@ -436,6 +442,54 @@ def create_deformation_skeleton(context):
     return armature_obj
 
 
+# ---------------------------------------------------------------------------
+# Names the driver pass reaches for. A driver's data path is a string resolved
+# from the constraint's name at driver_add time, so a constraint has to be
+# named BEFORE it is driven, and renaming one afterwards silently breaks its
+# driver. Keeping the names here means the builder and the driver pass cannot
+# drift apart.
+IK_SWITCH_CONSTRAINT_NAME = "IK_Transform_Influence"
+ROTATION_FOLLOW_CONSTRAINT_NAME = "ROTATION_FOLLOW"
+IK_PARENT_CONSTRAINT_NAME = "IK_PARENT_SWITCH"
+SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
+
+# Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
+# Side-less -- the driver pass appends ".L" or ".R".
+IK_SWITCH_BONES = (
+    "MCH_SWITCH_Thigh",
+    "MCH_SWITCH_Shin",
+    "MCH_SWITCH_Foot",
+    "MCH_SWITCH_Toe",
+)
+# ---------------------------------------------------------------------------
+
+
+def slider_travel(limit_constraint, axis):
+    """The signed distance the properties controller may slide on one axis.
+
+    Symmetrize mirrors a LIMIT_LOCATION across X along with the bone that owns
+    it, so a left controller built with min_x = 0, max_x = 0.1 comes out on the
+    right as min_x = -0.1, max_x = 0. That is Blender being correct rather than
+    Blender being annoying: the mirrored bone's local X points the other way,
+    so the negative range is what makes the right slider travel the same
+    direction on screen as the left one. Y and Z survive untouched -- the
+    mirror is across X only.
+
+    Reading whichever bound is non-zero therefore gives the travel *with its
+    sign*, and dividing the slider channel by that signed value is what keeps
+    both sides normalizing to the same 0..1: the right controller's -0.1 over
+    -0.1 is the same 1.0 the left gets from 0.1 over 0.1.
+
+    Assumes the range runs from zero out in one direction, which is what
+    generate_leg_ik_fk_rig builds and what symmetrize preserves. A range
+    straddling zero would need a driver expression shaped differently anyway.
+    """
+    axis = axis.lower()
+    maximum = getattr(limit_constraint, f"max_{axis}", 0.0)
+    minimum = getattr(limit_constraint, f"min_{axis}", 0.0)
+    return maximum if maximum else minimum
+
+
 def add_slider_driver(
     constraint,
     armature_obj,
@@ -460,6 +514,15 @@ def add_slider_driver(
     "weight" so the same helper can drive an armature constraint target's
     blend weight.
     """
+    # Wipe any existing driver on this property first. driver_add on an
+    # already-driven property hands back the driver that is there rather than
+    # raising, so without this a second run would stack another variable on
+    # top -- slider_x plus a slider_x.001 the expression never mentions. The
+    # expression would still resolve, which is exactly what makes it worth
+    # clearing: the mess would be invisible until someone opened the driver
+    # editor. Returns False when there was nothing to remove.
+    constraint.driver_remove(data_path)
+
     fcurve = constraint.driver_add(data_path)
 
     # Defensive: a generator modifier on the curve would override the
@@ -942,6 +1005,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # --- limit location constraints -------------------------------------------------------------------------------------
     # --- leg properties control limits ----
     limit_location_properties_controller = pose_bones["WGT_Leg_Properties_Controller.L"].constraints.new("LIMIT_LOCATION")
+    # Named because the driver pass reads max_x back off this constraint to
+    # normalize the slider -- this is the single source of truth for how far
+    # the controller travels, so nothing downstream hardcodes the number.
+    limit_location_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
     limit_location_properties_controller.owner_space = "LOCAL"
     limit_location_properties_controller.use_min_x = limit_location_properties_controller.use_min_y = limit_location_properties_controller.use_min_z = True
     limit_location_properties_controller.use_max_x = limit_location_properties_controller.use_max_y = limit_location_properties_controller.use_max_z = True
@@ -952,6 +1019,9 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --- Armature constraints -------------------------------------------------------------------------------------
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
+    # Named so the driver pass can find it without depending on Blender's
+    # default "Armature" label.
+    Armature_IK_Parent.name = IK_PARENT_CONSTRAINT_NAME
 
     # --- IK - proper inverse kinematic constraints for the IK leg ---------------------------------
     shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
@@ -1025,46 +1095,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     shin_IK.subtarget = "IK_Foot.L"
     shin_IK.pole_subtarget = "WGT_IK_Pole.L"
 
-    # ========================================================================================================================
-    # -------------------------------  DRIVERS -------------------------------------------------------------------------------
-    # ========================================================================================================================
-    # --- IK influence follows the properties controller slider ----
-    # The controller slides from 0 to max_distance_for_controller on X -- that
-    # is what the LIMIT_LOCATION above pins it to -- so dividing by that max
-    # normalizes the slide into the 0..1 range influence expects. The whole IK
-    # chain reads the same slider, so one expression covers all four.
-    ik_switch_expression = f"slider_x / {max_distance_for_controller}"
-    for ik_constraint in (
-        copy_IK_thigh_transform,
-        copy_IK_shin_transform,
-        copy_IK_foot_transform,
-        copy_IK_toe_transform,
-    ):
-        add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X")
-
-    # ---------- follow hip rotation slider ----------------
-    follow_rotation_expression = f"slider_y / {max_distance_for_controller}"
-    add_slider_driver(copy_leg_intermediary_socket_rotation, armature_obj, follow_rotation_expression, axis="Y")
-
-    # ---------- IK follow hip or root ----------------
-    # Root and ORG_Hips are the two blend targets on the same armature
-    # constraint, so their weights have to be complementary -- Root rises
-    # with the slider while ORG_Hips falls, keeping the blend at 1.0 total.
-    ik_follow_hip_or_root_expression = f"slider_z / {max_distance_for_controller}"
-    add_slider_driver(
-        Armature_IK_Parent_root_target,
-        armature_obj,
-        ik_follow_hip_or_root_expression,
-        axis="Z",
-        data_path="weight",
-    )
-    add_slider_driver(
-        Armature_IK_Parent_hip_target,
-        armature_obj,
-        f"1 - ({ik_follow_hip_or_root_expression})",
-        axis="Z",
-        data_path="weight",
-    )
+    # Drivers used to be built here. They now live in add_leg_drivers, behind
+    # their own button, so they can be run after symmetrize -- symmetrize
+    # copies constraints onto the ".R" bones but not the drivers that feed
+    # them, so building them here only ever wired up the left leg.
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
@@ -1169,6 +1203,177 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
     changed.append("MCH legs added")
+
+    return changed
+
+
+def add_leg_drivers(context, armature_obj=None, side="L"):
+    """Drive one leg's constraints from its properties controller slider.
+
+    Split out of generate_leg_ik_fk_rig so it can run *after* symmetrize.
+    Symmetrize copies constraints onto the ".R" bones and remaps their
+    subtargets, but drivers live on the object's animation data and are not
+    copied at all -- so a mirrored right leg comes out fully constrained and
+    completely undriven. Everything here is looked up by name, which is what
+    lets the same code do either side.
+
+    Re-runnable: add_slider_driver clears any existing driver on a property
+    before rebuilding it, so pressing the button twice rebuilds rather than
+    accumulates.
+
+    A missing bone or constraint is skipped rather than raised on -- the right
+    side legitimately does not exist until the mirror has been run.
+
+    Sides are not assumed to be identical: symmetrize flips the controller's
+    X limit to run 0 -> -travel on the right, so every expression divides by
+    the signed range read off that constraint. See slider_travel.
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    # Constraints hang off pose bones, and organize_bone_collections leaves
+    # the armature in edit mode -- so the mode cannot be assumed here.
+    if armature_obj.mode == "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="POSE")
+
+    pose_bones = armature_obj.pose.bones
+
+    def constraint_on(bone_name, constraint_name):
+        """The named constraint, or None if either the bone or it is missing."""
+        pose_bone = pose_bones.get(bone_name)
+        if pose_bone is None:
+            return None
+        return pose_bone.constraints.get(constraint_name)
+
+    slider_bone_name = f"WGT_Leg_Properties_Controller.{side}"
+    slider_limit = constraint_on(slider_bone_name, SLIDER_LIMIT_CONSTRAINT_NAME)
+    if slider_limit is None:
+        return changed
+
+    # The limit constraint is the source of truth for how far the controller
+    # travels, so read the range back off it rather than hardcoding a copy --
+    # retuning the limit then retunes every expression built below, and reading
+    # it per axis is what absorbs the sign flip symmetrize puts on X. A zero
+    # range would put a division by zero into a driver, so bail instead.
+    travel = {axis: slider_travel(slider_limit, axis) for axis in ("X", "Y", "Z")}
+    flat = [axis for axis, distance in travel.items() if not distance]
+    if flat:
+        changed.append(
+            f"Issue: {slider_bone_name} has no slide range on "
+            f"{', '.join(flat)}; cannot normalize drivers"
+        )
+        return changed
+
+    # :g keeps the expression readable in the driver editor. The value read
+    # back off the constraint is a 32-bit float, so a plain f-string would
+    # write "slider_x / 0.10000000149011612" into every driver.
+    normalize = {axis: f"{distance:.6g}" for axis, distance in travel.items()}
+
+    driven = 0
+
+    # --- IK influence follows the properties controller slider ----
+    # Dividing by the slide range normalizes the slide into the 0..1 that
+    # influence expects. The whole IK chain reads the same slider, so one
+    # expression covers all four.
+    ik_switch_expression = f"slider_x / {normalize['X']}"
+    for bone_prefix in IK_SWITCH_BONES:
+        ik_constraint = constraint_on(f"{bone_prefix}.{side}", IK_SWITCH_CONSTRAINT_NAME)
+        if ik_constraint is None:
+            continue
+        add_slider_driver(
+            ik_constraint,
+            armature_obj,
+            ik_switch_expression,
+            axis="X",
+            slider_bone=slider_bone_name,
+        )
+        driven += 1
+
+    # ---------- follow hip rotation slider ----------------
+    follow_rotation = constraint_on(
+        f"MCH_INT_Leg_Socket.{side}", ROTATION_FOLLOW_CONSTRAINT_NAME
+    )
+    if follow_rotation is not None:
+        add_slider_driver(
+            follow_rotation,
+            armature_obj,
+            f"slider_y / {normalize['Y']}",
+            axis="Y",
+            slider_bone=slider_bone_name,
+        )
+        driven += 1
+
+    # ---------- IK follow hip or root ----------------
+    # Root and ORG_Hips are the two blend targets on the same armature
+    # constraint, so their weights have to be complementary -- Root rises
+    # with the slider while ORG_Hips falls, keeping the blend at 1.0 total.
+    ik_parent = constraint_on(
+        f"MCH_Parent_Foot_IK_Master.{side}", IK_PARENT_CONSTRAINT_NAME
+    )
+    if ik_parent is not None:
+        # An armature constraint's targets have no name field to look up, so
+        # they are matched on subtarget instead of trusting creation order to
+        # survive a symmetrize. Both are centreline bones, so the names are
+        # the same on either side.
+        root_target = next(
+            (target for target in ik_parent.targets if target.subtarget == "Root"), None
+        )
+        hip_target = next(
+            (target for target in ik_parent.targets if target.subtarget == "ORG_Hips"), None
+        )
+        ik_follow_hip_or_root_expression = f"slider_z / {normalize['Z']}"
+
+        if root_target is not None:
+            add_slider_driver(
+                root_target,
+                armature_obj,
+                ik_follow_hip_or_root_expression,
+                axis="Z",
+                slider_bone=slider_bone_name,
+                data_path="weight",
+            )
+            driven += 1
+
+        if hip_target is not None:
+            add_slider_driver(
+                hip_target,
+                armature_obj,
+                f"1 - ({ik_follow_hip_or_root_expression})",
+                axis="Z",
+                slider_bone=slider_bone_name,
+                data_path="weight",
+            )
+            driven += 1
+
+    if driven:
+        changed.append(f"{driven} driver(s) on .{side} -> {slider_bone_name}")
+
+    return changed
+
+
+def add_all_drivers(context, armature_obj=None):
+    """Run every driver pass in the rig, both sides.
+
+    The one-stop entry point behind the "Add All Drivers" button. Each limb
+    gets its own pass below -- arms will need their own, since they hang off a
+    different properties controller -- and each pass skips quietly when the
+    bones it wants are not there, so this stays safe to press at any point
+    after the rig has been generated.
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    for side in ("L", "R"):
+        changed += add_leg_drivers(context, armature_obj, side=side)
 
     return changed
 
@@ -1394,6 +1599,46 @@ class EMANATE_OT_generate_rig(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Add All Drivers" BUTTON IS CLICKED =========
+class EMANATE_OT_add_all_drivers(bpy.types.Operator):
+    bl_idname = NAMES_ADD_DRIVERS.operator_idname
+    bl_label = NAMES_ADD_DRIVERS.label
+    bl_description = NAMES_ADD_DRIVERS.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == "ARMATURE"
+
+    def execute(self, context):
+        armature_obj = context.object
+
+        # poll() covers the button, but an operator can still be called from a
+        # script or the search menu, where poll is not guaranteed to have run.
+        if armature_obj is None or armature_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Select an armature first")
+            return {"CANCELLED"}
+
+        # Both sides every time. Run before the mirror and the right side is
+        # simply skipped; run after and this is the pass that gives the
+        # mirrored limbs the drivers symmetrize could not copy.
+        changed = add_all_drivers(context, armature_obj)
+
+        if not changed:
+            self.report(
+                {"WARNING"},
+                f"{armature_obj.name} has no properties controller to drive from "
+                f"-- run the rig generator first",
+            )
+            return {"CANCELLED"}
+
+        for change in changed:
+            print(f"[add-all-drivers] {change}")
+
+        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        return {"FINISHED"}
+
+
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Organize Bone Collections" BUTTON IS CLICKED =========
 class EMANATE_OT_organize_bone_collections(bpy.types.Operator):
     bl_idname = NAMES_ORGANIZE_COLLECTIONS.operator_idname
@@ -1444,6 +1689,7 @@ class EMANATE_PT_pre_rig_initialize(bpy.types.Panel):
         layout.operator(NAMES_DEF_SKELETON.operator_idname)
         layout.operator(NAMES_DEF_MIRROR.operator_idname)
         layout.operator(NAMES_MAKE_RIG.operator_idname)
+        layout.operator(NAMES_ADD_DRIVERS.operator_idname)
         layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
 
@@ -1452,6 +1698,7 @@ _classes = (
     EMANATE_OT_make_def_skeleton,
     EMANATE_OT_mirror_def_skeleton,
     EMANATE_OT_generate_rig,
+    EMANATE_OT_add_all_drivers,
     EMANATE_OT_organize_bone_collections,
     EMANATE_PT_pre_rig_initialize,
 )
@@ -1464,6 +1711,7 @@ def register():
     naming.check_classes((EMANATE_OT_make_def_skeleton,), NAMES_DEF_SKELETON)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
     naming.check_classes((EMANATE_OT_generate_rig,), NAMES_MAKE_RIG)
+    naming.check_classes((EMANATE_OT_add_all_drivers,), NAMES_ADD_DRIVERS)
     naming.check_classes((EMANATE_OT_organize_bone_collections,), NAMES_ORGANIZE_COLLECTIONS)
     for cls in _classes:
         bpy.utils.register_class(cls)
