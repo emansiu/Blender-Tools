@@ -18,6 +18,7 @@ NAMES = naming.register_tool(
     label="Stretchy FK",
     owner=__name__,
     description="Creates a stretchy FK chain from the selected root bone",
+    order=30,
 )
 
 # ------ Global Variables --------------------------------------------------------------------------

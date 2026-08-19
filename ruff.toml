@@ -1,5 +1,5 @@
 [lint]
 ignore = [
     "RUF012",  # bl_options/bl_* are Blender registration attrs, never mutated
-    "N999",    # module names like Pre_Rig_Initialize.py are intentional
+    "N999",    # module names like Stretchy_FK.py are intentional
 ]
