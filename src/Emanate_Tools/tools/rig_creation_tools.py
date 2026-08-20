@@ -870,6 +870,17 @@ def organize_bone_collections(context, armature_obj=None):
         if moved:
             changed.append(f"{moved} bone(s) -> {collection_name}")
 
+    # The DEF skeleton builder turns these on to make bone placement easier to
+    # see while building; a finished rig with dozens of sorted bones is busier
+    # with them on than off, so switch them off once sorting is done.
+    if armature.show_names:
+        changed.append("armature display: Names -> off")
+        armature.show_names = False
+
+    if armature.show_axes:
+        changed.append("armature display: Axes -> off")
+        armature.show_axes = False
+
     return changed
 
 
