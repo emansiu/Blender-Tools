@@ -1,5 +1,3 @@
-import math
-
 import bpy
 from mathutils import Vector
 
@@ -123,6 +121,43 @@ def add_slider_driver(constraint, armature_obj, expression, axis="X", slider_bon
     return driver
 
 
+def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll=None, length=1.0, connect=False):
+    """Create one edit bone and return it.
+
+    Returning the bone is the whole point -- the builder chains parents off the
+    bones it just made, so a helper that only creates and drops the reference
+    would leave everything downstream parented to None.
+
+    `roll` and `align_roll` are both optional and `align_roll` is applied first,
+    so passing both lets an explicit roll win over the aligned one. Order of the
+    remaining assignments matches the hand-written blocks it replaces: parent,
+    then connect (which snaps the head to the parent's tail), then the length
+    scale, so `length` always scales from the bone's final head position.
+    """
+    bone = edit_bones.new(name)
+    bone.head = head
+    bone.tail = tail
+    bone.parent = parent
+
+    if align_roll is not None:
+        bone.align_roll(align_roll)
+    if roll is not None:
+        bone.roll = roll
+
+    # use_connect only means something when the bone has a parent to connect
+    # to. Blender ignores it on a parentless bone, so say so plainly rather
+    # than letting a connect=True argument look like it did something.
+    if parent is None:
+        bone.use_connect = False
+    else:
+        bone.use_connect = connect
+
+    if length != 1.0:
+        bone.length *= length
+
+    return bone
+
+
 def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     changed = []
@@ -161,84 +196,50 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ============================= MCH CHAIN ============================================================================================================
     # ---MCH Left Leg Socket---------------------------------------------------------
-    MCH_Leg_Socket_Left = edit_bones.new("MCH_Leg_Socket.L")
-    MCH_Leg_Socket_Left.head = ORG_Thigh_Left.head
-    MCH_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.06, 0.0))
-    MCH_Leg_Socket_Left.parent = ORG_Hips
     # align_roll is more intentional than leaving roll to default or zero in case the rig is moved somehow in the future
-    MCH_Leg_Socket_Left.align_roll(Vector((0.0, 0.0, 1.0)))
-    MCH_Leg_Socket_Left.use_connect = False
+    MCH_Leg_Socket_Left = create_bone(
+        edit_bones, "MCH_Leg_Socket.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.head + Vector((0.0, 0.06, 0.0)), parent=ORG_Hips, align_roll=Vector((0.0, 0.0, 1.0))
+    )
 
     # ---MCH Left Leg Intermediary Socket---------------------------------------------------------
-    MCH_INT_Leg_Socket_Left = edit_bones.new("MCH_INT_Leg_Socket.L")
-    MCH_INT_Leg_Socket_Left.head = ORG_Thigh_Left.head
-    MCH_INT_Leg_Socket_Left.tail = ORG_Thigh_Left.head + Vector((0.0, 0.03, 0.0))
-    MCH_INT_Leg_Socket_Left.parent = Root
-    MCH_INT_Leg_Socket_Left.align_roll(Vector((0.0, 0.0, 1.0)))
-    MCH_INT_Leg_Socket_Left.use_connect = False
+    MCH_INT_Leg_Socket_Left = create_bone(
+        edit_bones, "MCH_INT_Leg_Socket.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.head + Vector((0.0, 0.03, 0.0)), parent=Root, align_roll=Vector((0.0, 0.0, 1.0))
+    )
 
     # ---MCH Left Thigh---------------------------------------------------------
-    MCH_SWITCH_Thigh_Left = edit_bones.new("MCH_SWITCH_Thigh.L")
-    MCH_SWITCH_Thigh_Left.head = ORG_Thigh_Left.head
-    MCH_SWITCH_Thigh_Left.tail = ORG_Thigh_Left.tail
-    MCH_SWITCH_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    MCH_SWITCH_Thigh_Left.roll = ORG_Thigh_Left.roll
-    MCH_SWITCH_Thigh_Left.use_connect = False
+    MCH_SWITCH_Thigh_Left = create_bone(edit_bones, "MCH_SWITCH_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
 
     # ---MCH Left Shin---------------------------------------------------------
-    MCH_SWITCH_Shin_Left = edit_bones.new("MCH_SWITCH_Shin.L")
-    MCH_SWITCH_Shin_Left.head = ORG_Shin_Left.head
-    MCH_SWITCH_Shin_Left.tail = ORG_Shin_Left.tail
-    MCH_SWITCH_Shin_Left.parent = MCH_SWITCH_Thigh_Left
-    MCH_SWITCH_Shin_Left.roll = ORG_Shin_Left.roll
-    MCH_SWITCH_Shin_Left.use_connect = True
+    MCH_SWITCH_Shin_Left = create_bone(edit_bones, "MCH_SWITCH_Shin.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Shin_Left.roll, connect=True)
 
     # ---MCH Left Foot---------------------------------------------------------
-    MCH_SWITCH_Foot_Left = edit_bones.new("MCH_SWITCH_Foot.L")
-    MCH_SWITCH_Foot_Left.head = ORG_Foot_Left.head
-    MCH_SWITCH_Foot_Left.tail = ORG_Foot_Left.tail
-    MCH_SWITCH_Foot_Left.parent = MCH_SWITCH_Shin_Left
-    MCH_SWITCH_Foot_Left.roll = ORG_Foot_Left.roll
-    MCH_SWITCH_Foot_Left.use_connect = True
+    MCH_SWITCH_Foot_Left = create_bone(edit_bones, "MCH_SWITCH_Foot.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_SWITCH_Shin_Left, roll=ORG_Foot_Left.roll, connect=True)
 
     # ---MCH Left Toe---------------------------------------------------------
-    MCH_SWITCH_Toe_Left = edit_bones.new("MCH_SWITCH_Toe.L")
-    MCH_SWITCH_Toe_Left.head = ORG_Toe_Left.head
-    MCH_SWITCH_Toe_Left.tail = ORG_Toe_Left.tail
-    MCH_SWITCH_Toe_Left.parent = MCH_SWITCH_Foot_Left
-    MCH_SWITCH_Toe_Left.roll = ORG_Toe_Left.roll
-    MCH_SWITCH_Toe_Left.use_connect = True
+    MCH_SWITCH_Toe_Left = create_bone(edit_bones, "MCH_SWITCH_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_SWITCH_Foot_Left, roll=ORG_Toe_Left.roll, connect=True)
 
     # ==========================--------- FOOT RIG ------------------==============================
 
+    # Both IK master bones sit flat on the floor plane (z = 0) at the toe's x,
+    # running back to just behind the heel. Naming the two ends once keeps the
+    # control and its parent from drifting apart if the shape is ever tweaked.
+    foot_ik_master_head = Vector((ORG_Toe_Left.head.x, ORG_Toe_Left.head.y, 0))
+    foot_ik_master_tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04, 0))
+
     # ---IK Master Parent for a switch constraint to root or hips ---------------------------------------------------------
-    MCH_Parent_Foot_IK_Master_Left = edit_bones.new("MCH_Parent_Foot_IK_Master.L")
-    MCH_Parent_Foot_IK_Master_Left.head = Vector((ORG_Toe_Left.head.x, ORG_Toe_Left.head.y, 0))
-    MCH_Parent_Foot_IK_Master_Left.tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04, 0))
-    MCH_Parent_Foot_IK_Master_Left.use_connect = False
-    MCH_Parent_Foot_IK_Master_Left.length *= 0.6
+    MCH_Parent_Foot_IK_Master_Left = create_bone(edit_bones, "MCH_Parent_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, length=0.6)
 
     # ---IK Master Left Foot Control ---------------------------------------------------------
-    WGT_Foot_IK_Master_Left = edit_bones.new("WGT_Foot_IK_Master.L")
-    WGT_Foot_IK_Master_Left.head = Vector((ORG_Toe_Left.head.x, ORG_Toe_Left.head.y, 0))
-    WGT_Foot_IK_Master_Left.tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04, 0))
-    WGT_Foot_IK_Master_Left.parent = MCH_Parent_Foot_IK_Master_Left
-    WGT_Foot_IK_Master_Left.use_connect = False
+    WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, parent=MCH_Parent_Foot_IK_Master_Left)
 
     # ---MCH Foot Roll - Left ---------------------------------------------------------
-    MCH_Foot_Roll_Left = edit_bones.new("MCH_Foot_Roll.L")
-    MCH_Foot_Roll_Left.head = ORG_Toe_Left.head
-    MCH_Foot_Roll_Left.tail = MCH_Heel_Left.head
-    MCH_Foot_Roll_Left.parent = MCH_Heel_Left
-    MCH_Foot_Roll_Left.align_roll(Vector((0.0, 0.0, 1.0)))  # --- reminder this recalculate bone roll global z+
-    MCH_Foot_Roll_Left.use_connect = False
+    # align_roll here recalculates the bone roll to global z+
+    MCH_Foot_Roll_Left = create_bone(edit_bones, "MCH_Foot_Roll.L", head=ORG_Toe_Left.head, tail=MCH_Heel_Left.head, parent=MCH_Heel_Left, align_roll=Vector((0.0, 0.0, 1.0)))
 
     # ---MCH Foot Roll - Left ---------------------------------------------------------
-    WGT_Foot_Roll_Left = edit_bones.new("WGT_Foot_Roll.L")
-    WGT_Foot_Roll_Left.head = MCH_Heel_Left.head + Vector((0.0, 0.1, 0.0))
-    WGT_Foot_Roll_Left.tail = MCH_Heel_Left.tail + Vector((0.0, 0.1, 0.0))
-    WGT_Foot_Roll_Left.parent = WGT_Foot_IK_Master_Left
-    WGT_Foot_Roll_Left.use_connect = False
+    WGT_Foot_Roll_Left = create_bone(
+        edit_bones, "WGT_Foot_Roll.L", head=MCH_Heel_Left.head + Vector((0.0, 0.1, 0.0)), tail=MCH_Heel_Left.tail + Vector((0.0, 0.1, 0.0)), parent=WGT_Foot_IK_Master_Left
+    )
 
     # parenting now that we have the roll
     MCH_Foot_Bank_01_Left.parent = MCH_Foot_Roll_Left
@@ -247,166 +248,76 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ============================= MCH TWEAK CHAIN ============================================================================================================
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
-    MCH_Thigh_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Thigh_Tweak_Scale_Compensation.L")
-    MCH_Thigh_Tweak_Scale_Compensation_Left.head = ORG_Thigh_Left.head
-    MCH_Thigh_Tweak_Scale_Compensation_Left.tail = ORG_Thigh_Left.tail
-    MCH_Thigh_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Thigh_Left
-    MCH_Thigh_Tweak_Scale_Compensation_Left.roll = ORG_Thigh_Left.roll
-    MCH_Thigh_Tweak_Scale_Compensation_Left.use_connect = False
-    MCH_Thigh_Tweak_Scale_Compensation_Left.length *= 0.25
+    MCH_Thigh_Tweak_Scale_Compensation_Left = create_bone(
+        edit_bones, "MCH_Thigh_Tweak_Scale_Compensation.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Thigh_Left.roll, length=0.25
+    )
 
     # ---TWEAK MCH Left Thigh---------------------------------------------------------
-    Thigh_Tweak_Left = edit_bones.new("Thigh_Tweak.L")
-    Thigh_Tweak_Left.head = ORG_Thigh_Left.head
-    Thigh_Tweak_Left.tail = ORG_Thigh_Left.tail
-    Thigh_Tweak_Left.parent = MCH_Thigh_Tweak_Scale_Compensation_Left
-    Thigh_Tweak_Left.roll = ORG_Thigh_Left.roll
-    Thigh_Tweak_Left.use_connect = False
-    Thigh_Tweak_Left.length *= 0.5
+    Thigh_Tweak_Left = create_bone(
+        edit_bones, "Thigh_Tweak.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_Thigh_Tweak_Scale_Compensation_Left, roll=ORG_Thigh_Left.roll, length=0.5
+    )
 
     # --- TWEAK MCH Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
-    MCH_Shin_Tweak_Scale_Compensation_Left = edit_bones.new("MCH_Shin_Tweak_Scale_Compensation.L")
-    MCH_Shin_Tweak_Scale_Compensation_Left.head = ORG_Shin_Left.head
-    MCH_Shin_Tweak_Scale_Compensation_Left.tail = ORG_Shin_Left.tail
-    MCH_Shin_Tweak_Scale_Compensation_Left.parent = MCH_SWITCH_Shin_Left
-    MCH_Shin_Tweak_Scale_Compensation_Left.roll = ORG_Shin_Left.roll
-    MCH_Shin_Tweak_Scale_Compensation_Left.use_connect = False
-    MCH_Shin_Tweak_Scale_Compensation_Left.length *= 0.25
+    MCH_Shin_Tweak_Scale_Compensation_Left = create_bone(
+        edit_bones, "MCH_Shin_Tweak_Scale_Compensation.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_SWITCH_Shin_Left, roll=ORG_Shin_Left.roll, length=0.25
+    )
 
     # --- TWEAK MCH Left Shin ---------------------------------------------------------
-    Shin_Tweak_Left = edit_bones.new("Shin_Tweak.L")
-    Shin_Tweak_Left.head = ORG_Shin_Left.head
-    Shin_Tweak_Left.tail = ORG_Shin_Left.tail
-    Shin_Tweak_Left.parent = MCH_Shin_Tweak_Scale_Compensation_Left
-    Shin_Tweak_Left.roll = ORG_Shin_Left.roll
-    Shin_Tweak_Left.use_connect = False
-    Shin_Tweak_Left.length *= 0.5
+    Shin_Tweak_Left = create_bone(edit_bones, "Shin_Tweak.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_Shin_Tweak_Scale_Compensation_Left, roll=ORG_Shin_Left.roll, length=0.5)
 
     # --- TWEAK MCH Left Foot ---------------------------------------------------------
-    Foot_Tweak_Left = edit_bones.new("Foot_Tweak.L")
-    Foot_Tweak_Left.head = ORG_Foot_Left.head
-    Foot_Tweak_Left.tail = ORG_Foot_Left.tail
-    Foot_Tweak_Left.parent = MCH_SWITCH_Foot_Left
-    Foot_Tweak_Left.roll = ORG_Foot_Left.roll
-    Foot_Tweak_Left.use_connect = False
-    Foot_Tweak_Left.length *= 0.5
+    Foot_Tweak_Left = create_bone(edit_bones, "Foot_Tweak.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_SWITCH_Foot_Left, roll=ORG_Foot_Left.roll, length=0.5)
 
     # --- TWEAK MCH Left Toe  ---------------------------------------------------------
-    Toe_Tweak_Left = edit_bones.new("Toe_Tweak.L")
-    Toe_Tweak_Left.head = ORG_Toe_Left.head
-    Toe_Tweak_Left.tail = ORG_Toe_Left.tail
-    Toe_Tweak_Left.parent = MCH_SWITCH_Toe_Left
-    Toe_Tweak_Left.roll = ORG_Toe_Left.roll
-    Toe_Tweak_Left.use_connect = False
-    Toe_Tweak_Left.length *= 0.5
+    Toe_Tweak_Left = create_bone(edit_bones, "Toe_Tweak.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll, length=0.5)
 
     # --- TWEAK MCH Left Toe TIP  ---------------------------------------------------------
-    Toe_Tip_Tweak_Left = edit_bones.new("Toe_Tip_Tweak.L")
-    Toe_Tip_Tweak_Left.head = ORG_Toe_Left.tail
-    Toe_Tip_Tweak_Left.tail = ORG_Toe_Left.tail - Vector((0.00, 0.07, 0.0))
-    Toe_Tip_Tweak_Left.parent = MCH_SWITCH_Toe_Left
-    Toe_Tip_Tweak_Left.roll = ORG_Toe_Left.roll
-    Toe_Tip_Tweak_Left.use_connect = False
+    Toe_Tip_Tweak_Left = create_bone(edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, 0.07, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll)
 
     # ============================= FK CHAIN ============================================================================================================================
     # ---FK Left Thigh---------------------------------------------------------
-    FK_Thigh_Left = edit_bones.new("FK_Thigh.L")
-    FK_Thigh_Left.head = ORG_Thigh_Left.head
-    FK_Thigh_Left.tail = ORG_Thigh_Left.tail
-    FK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    FK_Thigh_Left.roll = ORG_Thigh_Left.roll
-    FK_Thigh_Left.use_connect = False
+    FK_Thigh_Left = create_bone(edit_bones, "FK_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
 
     # ---FK Left Shin---------------------------------------------------------
-    FK_Shin_Left = edit_bones.new("FK_Shin.L")
-    FK_Shin_Left.head = ORG_Shin_Left.head
-    FK_Shin_Left.tail = ORG_Shin_Left.tail
-    FK_Shin_Left.parent = FK_Thigh_Left
-    FK_Shin_Left.roll = ORG_Shin_Left.roll
-    FK_Shin_Left.use_connect = False
+    FK_Shin_Left = create_bone(edit_bones, "FK_Shin.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=FK_Thigh_Left, roll=ORG_Shin_Left.roll)
 
     # ---FK Left Foot---------------------------------------------------------
-    FK_Foot_Left = edit_bones.new("FK_Foot.L")
-    FK_Foot_Left.head = ORG_Foot_Left.head
-    FK_Foot_Left.tail = ORG_Foot_Left.tail
-    FK_Foot_Left.parent = FK_Shin_Left
-    FK_Foot_Left.roll = ORG_Foot_Left.roll
-    FK_Foot_Left.use_connect = False
+    FK_Foot_Left = create_bone(edit_bones, "FK_Foot.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=FK_Shin_Left, roll=ORG_Foot_Left.roll)
 
     # ---FK Left Toe---------------------------------------------------------
-    FK_Toe_Left = edit_bones.new("FK_Toe.L")
-    FK_Toe_Left.head = ORG_Toe_Left.head
-    FK_Toe_Left.tail = ORG_Toe_Left.tail
-    FK_Toe_Left.parent = FK_Foot_Left
-    FK_Toe_Left.roll = ORG_Toe_Left.roll
-    FK_Toe_Left.use_connect = False
+    FK_Toe_Left = create_bone(edit_bones, "FK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=FK_Foot_Left, roll=ORG_Toe_Left.roll)
 
     # ============================= IK CHAIN ============================================================================================================================
     # ---IK Left Thigh---------------------------------------------------------
-    IK_Thigh_Left = edit_bones.new("IK_Thigh.L")
-    IK_Thigh_Left.head = ORG_Thigh_Left.head
-    IK_Thigh_Left.tail = ORG_Thigh_Left.tail
-    IK_Thigh_Left.parent = MCH_INT_Leg_Socket_Left
-    IK_Thigh_Left.roll = ORG_Thigh_Left.roll
-    IK_Thigh_Left.use_connect = False
+    IK_Thigh_Left = create_bone(edit_bones, "IK_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
 
     # ---TEMP IK Pole Target base (fastest way to position pole exactly as we need ---------------------------------------------------------
-    TEMP_Left_Leg_Pole = edit_bones.new("TEMP_Left_Leg_Pole")
-    TEMP_Left_Leg_Pole.head = ORG_Thigh_Left.head + Vector((0.0, -0.4, 0.0))
-    TEMP_Left_Leg_Pole.tail = ORG_Thigh_Left.tail + Vector((0.0, -0.4, 0.0))
-    TEMP_Left_Leg_Pole.roll = ORG_Thigh_Left.roll
-    TEMP_Left_Leg_Pole.use_connect = False
+    TEMP_Left_Leg_Pole = create_bone(
+        edit_bones, "TEMP_Left_Leg_Pole", head=ORG_Thigh_Left.head + Vector((0.0, -0.4, 0.0)), tail=ORG_Thigh_Left.tail + Vector((0.0, -0.4, 0.0)), roll=ORG_Thigh_Left.roll
+    )
 
     # ---IK Pole Target left leg ---------------------------------------------------------
-    IK_Pole_Left = edit_bones.new("WGT_IK_Pole.L")
-    IK_Pole_Left.head = TEMP_Left_Leg_Pole.tail
-    IK_Pole_Left.tail = TEMP_Left_Leg_Pole.tail + Vector((0.0, 0.075, 0.0))
-    IK_Pole_Left.align_roll(Vector((0.0, 0.0, 1.0)))
-    IK_Pole_Left.parent = WGT_Foot_IK_Master_Left
-    IK_Pole_Left.use_connect = False
+    IK_Pole_Left = create_bone(
+        edit_bones, "WGT_IK_Pole.L", head=TEMP_Left_Leg_Pole.tail, tail=TEMP_Left_Leg_Pole.tail + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0))
+    )
 
     # TEMP_Left_Leg_Pole was only needed to derive the pole position/roll above; discard it now.
     edit_bones.remove(TEMP_Left_Leg_Pole)
 
     # ---IK Pole Target Visualization bone ---------------------------------------------------------
-    VIS_IK_Pole_Left = edit_bones.new("VIS_IK_Pole.L")
-    VIS_IK_Pole_Left.head = IK_Thigh_Left.tail
-    VIS_IK_Pole_Left.tail = IK_Pole_Left.head
-    VIS_IK_Pole_Left.parent = IK_Thigh_Left
-    VIS_IK_Pole_Left.use_connect = False
+    VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
 
     # ---IK Left Shin---------------------------------------------------------
-    IK_Shin_Left = edit_bones.new("IK_Shin.L")
-    IK_Shin_Left.head = ORG_Shin_Left.head
-    IK_Shin_Left.tail = ORG_Shin_Left.tail
-    IK_Shin_Left.parent = IK_Thigh_Left
-    IK_Shin_Left.roll = ORG_Shin_Left.roll
-    IK_Shin_Left.use_connect = True
+    IK_Shin_Left = create_bone(edit_bones, "IK_Shin.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=IK_Thigh_Left, roll=ORG_Shin_Left.roll, connect=True)
 
     # ---IK Left Foot---------------------------------------------------------
-    IK_Foot_Left = edit_bones.new("IK_Foot.L")
-    IK_Foot_Left.head = ORG_Foot_Left.head
-    IK_Foot_Left.tail = ORG_Foot_Left.tail
-    IK_Foot_Left.parent = MCH_Foot_Bank_02_Left
-    IK_Foot_Left.roll = ORG_Foot_Left.roll
-    IK_Foot_Left.use_connect = False
+    IK_Foot_Left = create_bone(edit_bones, "IK_Foot.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_Foot_Bank_02_Left, roll=ORG_Foot_Left.roll)
 
     # ---IK Left Toe MCH bone---------------------------------------------------------
-    MCH_Toe_IK_Left = edit_bones.new("MCH_Toe_IK.L")
-    MCH_Toe_IK_Left.head = ORG_Toe_Left.head
-    MCH_Toe_IK_Left.tail = ORG_Toe_Left.tail
-    MCH_Toe_IK_Left.parent = IK_Foot_Left
-    MCH_Toe_IK_Left.roll = MCH_Foot_Roll_Left.roll
-    MCH_Toe_IK_Left.use_connect = False
-    MCH_Toe_IK_Left.length *= 0.6
+    MCH_Toe_IK_Left = create_bone(edit_bones, "MCH_Toe_IK.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=IK_Foot_Left, roll=MCH_Foot_Roll_Left.roll, length=0.6)
 
     # ---IK Left Toe WGT Control ---------------------------------------------------------
-    WGT_IK_Toe_Left = edit_bones.new("WGT_IK_Toe.L")
-    WGT_IK_Toe_Left.head = ORG_Toe_Left.head
-    WGT_IK_Toe_Left.tail = ORG_Toe_Left.tail
-    WGT_IK_Toe_Left.parent = MCH_Toe_IK_Left
-    WGT_IK_Toe_Left.roll = ORG_Toe_Left.roll
-    WGT_IK_Toe_Left.use_connect = False
+    WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
 
     # ------- Final Property Bones ---------------
     # Parented to Root rather than WGT_Foot_IK_Master_Left: the properties
@@ -417,18 +328,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # would need the descendant's pose done before the descendant's pose can
     # be done). A fixed screen position next to the foot control does not
     # require inheriting the foot control's pose anyway.
-    WGT_Leg_Properties_Left = edit_bones.new("WGT_Leg_Properties.L")
-    WGT_Leg_Properties_Left.head = WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.3, 0.0))
-    WGT_Leg_Properties_Left.tail = WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.2, 0.0))
-    WGT_Leg_Properties_Left.parent = Root
-    WGT_Leg_Properties_Left.use_connect = False
+    WGT_Leg_Properties_Left = create_bone(
+        edit_bones, "WGT_Leg_Properties.L", head=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.3, 0.0)), tail=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.2, 0.0)), parent=Root
+    )
 
-    WGT_Leg_Properties_Controller_Left = edit_bones.new("WGT_Leg_Properties_Controller.L")
-    WGT_Leg_Properties_Controller_Left.head = WGT_Leg_Properties_Left.head
-    WGT_Leg_Properties_Controller_Left.tail = WGT_Leg_Properties_Left.tail
-    WGT_Leg_Properties_Controller_Left.parent = WGT_Leg_Properties_Left
-    WGT_Leg_Properties_Controller_Left.use_connect = False
-    WGT_Leg_Properties_Controller_Left.length *= 0.4
+    WGT_Leg_Properties_Controller_Left = create_bone(
+        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=0.4
+    )
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
     # use_connect welds a child's head onto its parent's tail. The ORG bones
@@ -476,12 +382,11 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_leg_intermediary_socket_scale = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_SCALE")
-    # -scale targets - 
+    # -scale targets -
     copy_thigh_scale.target = copy_shin_scale.target = copy_leg_intermediary_socket_scale.target = armature_obj
     # -scale subtargets -
     copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
     copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
-    
 
     # --- rotation constraints -------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
@@ -579,8 +484,6 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
     copy_toe_rotation.subtarget = "MCH_Foot_Roll.L"
-
-
 
     stretch_toe.subtarget = "Toe_Tip_Tweak.L"
     stretch_foot.subtarget = "Toe_Tweak.L"
