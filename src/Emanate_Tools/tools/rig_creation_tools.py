@@ -476,56 +476,20 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_leg_intermediary_socket_scale = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_SCALE")
+    # -scale targets - 
+    copy_thigh_scale.target = copy_shin_scale.target = copy_leg_intermediary_socket_scale.target = armature_obj
+    # -scale subtargets -
+    copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
+    copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
+    
 
     # --- rotation constraints -------------------------------------------------------------------------------------
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
     copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
 
-    copy_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("COPY_ROTATION")
-    copy_heel_rotation.target_space = copy_heel_rotation.owner_space = "LOCAL"
-    copy_heel_rotation.use_y = copy_heel_rotation.use_z = False  # <------- only follow x axis
-
-    copy_foot_roll_rotation = pose_bones["MCH_Foot_Roll.L"].constraints.new("COPY_ROTATION")
-    copy_foot_roll_rotation.target_space = copy_foot_roll_rotation.owner_space = "LOCAL"
-    copy_foot_roll_rotation.use_y = copy_foot_roll_rotation.use_z = False  # <------- only follow x axis
-
-    copy_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("COPY_ROTATION")
-    copy_foot_bank_01_rotation.target_space = copy_foot_bank_01_rotation.owner_space = "LOCAL"
-    copy_foot_bank_01_rotation.use_y = copy_foot_bank_01_rotation.use_x = False  # <------- only follow z axis
-
-    copy_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("COPY_ROTATION")
-    copy_foot_bank_02_rotation.target_space = copy_foot_bank_02_rotation.owner_space = "LOCAL"
-    copy_foot_bank_02_rotation.use_y = copy_foot_bank_02_rotation.use_x = False  # <------- only follow z axis
-
     copy_toe_rotation = pose_bones["MCH_Toe_IK.L"].constraints.new("COPY_ROTATION")
     copy_toe_rotation.target_space = copy_toe_rotation.owner_space = "LOCAL"
     copy_toe_rotation.use_y = copy_toe_rotation.use_z = False  # <------- only follow x axis
-
-    # --- limit rotation constraints -------------------------------------------------------------------------------------
-    # --- heel limits ----
-    limit_heel_rotation = pose_bones["MCH_Heel.L"].constraints.new("LIMIT_ROTATION")
-    limit_heel_rotation.target_space = limit_heel_rotation.owner_space = "LOCAL"
-    limit_heel_rotation.use_limit_x = True
-    limit_heel_rotation.min_x = math.radians(-100)
-    limit_heel_rotation.max_x = math.radians(0)
-    # --- foot roll limits ----
-    limit_foot_roll_rotation = pose_bones["MCH_Foot_Roll.L"].constraints.new("LIMIT_ROTATION")
-    limit_foot_roll_rotation.target_space = limit_foot_roll_rotation.owner_space = "LOCAL"
-    limit_foot_roll_rotation.use_limit_x = True
-    limit_foot_roll_rotation.min_x = math.radians(0)
-    limit_foot_roll_rotation.max_x = math.radians(180)
-    # --- foot bank 01 limits ----
-    limit_foot_bank_01_rotation = pose_bones["MCH_Foot_Bank_01.L"].constraints.new("LIMIT_ROTATION")
-    limit_foot_bank_01_rotation.target_space = limit_foot_bank_01_rotation.owner_space = "LOCAL"
-    limit_foot_bank_01_rotation.use_limit_z = True
-    limit_foot_bank_01_rotation.min_z = math.radians(0)
-    limit_foot_bank_01_rotation.max_z = math.radians(180)
-    # --- foot bank 02 limits ----
-    limit_foot_bank_02_rotation = pose_bones["MCH_Foot_Bank_02.L"].constraints.new("LIMIT_ROTATION")
-    limit_foot_bank_02_rotation.target_space = limit_foot_bank_02_rotation.owner_space = "LOCAL"
-    limit_foot_bank_02_rotation.use_limit_z = True
-    limit_foot_bank_02_rotation.min_z = math.radians(-180)
-    limit_foot_bank_02_rotation.max_z = math.radians(0)
 
     # --- transform constraints -------------------------------------------------------------------------------------
     # --- FK leg copy transform constraints ---------------------------------
@@ -585,13 +549,11 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # -------------------------------- ASSIGNING TARGETS AND SUBTARGETS -------------------------------------------------------------------------------------
     # Chaining is fine here -- every constraint points at the same armature.
     # subtarget is the part that cannot be chained: it differs per constraint.
-    # ------------- scale targets -------------
-    copy_thigh_scale.target = copy_shin_scale.target = copy_leg_intermediary_socket_scale.target = armature_obj
+
     # ------------- stretch targets -------------
     stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = stretch_pole_visualizer.target = armature_obj
     # -------------rotation targets -------------
-    copy_heel_rotation.target = copy_leg_intermediary_socket_rotation.target = armature_obj
-    copy_foot_roll_rotation.target = copy_foot_bank_01_rotation.target = copy_foot_bank_02_rotation.target = copy_toe_rotation.target = armature_obj
+    copy_leg_intermediary_socket_rotation.target = copy_toe_rotation.target = armature_obj
 
     # ------------- location targets -------------
     copy_leg_intermediary_socket_location.target = armature_obj
@@ -617,10 +579,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
     copy_toe_rotation.subtarget = "MCH_Foot_Roll.L"
-    copy_heel_rotation.subtarget = copy_foot_roll_rotation.subtarget = copy_foot_bank_01_rotation.subtarget = copy_foot_bank_02_rotation.subtarget = "WGT_Foot_Roll.L"
 
-    copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
-    copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
+
 
     stretch_toe.subtarget = "Toe_Tip_Tweak.L"
     stretch_foot.subtarget = "Toe_Tweak.L"
