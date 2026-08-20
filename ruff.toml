@@ -1,5 +1,16 @@
+line-length = 200
+
 [lint]
 ignore = [
     "RUF012",  # bl_options/bl_* are Blender registration attrs, never mutated
     "N999",    # module names like Stretchy_FK.py are intentional
 ]
+
+[lint.isort]
+# Keep isort's collapsing behavior in sync with format.skip-magic-trailing-comma below.
+split-on-trailing-comma = false
+
+[format]
+# Without this, a call that already fits on one line still gets exploded to
+# one-arg-per-line if it has a trailing comma after the last argument.
+skip-magic-trailing-comma = true
