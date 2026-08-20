@@ -11,6 +11,7 @@ bl_info = {
 
 import bpy
 
+from ..helpers import deform_cleanup
 from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -314,7 +315,9 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
         armature.select_set(True)
         bpy.context.view_layer.objects.active = armature
         swith_to_mode("POSE")
-        
+
+        deform_cleanup.sync_deform_flags(armature)
+
         return{'FINISHED'}
 
 

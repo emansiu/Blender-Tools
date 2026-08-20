@@ -3,7 +3,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from ..helpers import bone_collections, widgets
+from ..helpers import bone_collections, deform_cleanup, widgets
 from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -1204,6 +1204,8 @@ class EMANATE_OT_generate_rig(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
+        changed += deform_cleanup.sync_deform_flags(armature_obj)
+
         for change in changed:
             print(f"[generate-rig] {change}")
 
@@ -1241,6 +1243,8 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
         if not changed:
             self.report({"WARNING"}, f"{armature_obj.name} has no .L bones to mirror")
             return {"CANCELLED"}
+
+        changed += deform_cleanup.sync_deform_flags(armature_obj)
 
         for change in changed:
             print(f"[def-mirror] {change}")
@@ -1282,6 +1286,8 @@ class EMANATE_OT_add_all_drivers(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
+        changed += deform_cleanup.sync_deform_flags(armature_obj)
+
         for change in changed:
             print(f"[add-all-drivers] {change}")
 
@@ -1314,6 +1320,8 @@ class EMANATE_OT_organize_bone_collections(bpy.types.Operator):
         if not changed:
             self.report({"INFO"}, f"{armature_obj.name}: no matching bones found")
             return {"FINISHED"}
+
+        changed += deform_cleanup.sync_deform_flags(armature_obj)
 
         for change in changed:
             print(f"[organize-collections] {change}")

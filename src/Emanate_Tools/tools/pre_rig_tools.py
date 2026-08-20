@@ -3,7 +3,7 @@ import math
 import bpy
 from mathutils import Vector
 
-from ..helpers import bone_collections
+from ..helpers import bone_collections, deform_cleanup
 from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -431,7 +431,7 @@ def create_deformation_skeleton(context):
 # ---------------------------------------------------------------------------
 
 # ------ Naming convention this tool works to ------------------------------
-DEF_PREFIX = "DEF_"
+DEF_PREFIX = deform_cleanup.DEF_PREFIX
 ORG_PREFIX = "ORG_"
 
 # Naming the constraint lets a second run recognise its own work instead of
@@ -592,6 +592,8 @@ class EMANATE_OT_pre_rig_initialize(bpy.types.Operator):
             changed += fix_scene_units(context.scene)
             changed += fix_viewport_overlays()
 
+        changed += deform_cleanup.sync_deform_flags(context.active_object)
+
         # Warn either way -- the setting can already be GPU from a previous run
         # and still not actually be rendering on the GPU.
         if not gpu_backend_is_configured():
@@ -623,6 +625,7 @@ class EMANATE_OT_make_def_skeleton(bpy.types.Operator):
 
     def execute(self, context):
         armature_obj = create_deformation_skeleton(context)
+        deform_cleanup.sync_deform_flags(armature_obj)
 
         self.report({"INFO"}, f"Built {armature_obj.name}")
         return {"FINISHED"}
@@ -656,6 +659,7 @@ class EMANATE_OT_org_bone_generator(bpy.types.Operator):
         # Still in edit mode, which is where collection membership has to be
         # set -- armature.bones is not valid until edit mode is left.
         collection_changes = organize_org_bone_collections(armature_obj, pairs)
+        deform_cleanup.sync_deform_flags(armature_obj)
 
         # Constraints live on pose bones, and pose bones for freshly created
         # edit bones only exist once edit mode has been left.
