@@ -689,6 +689,15 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
     ik_switch_expression = f"slider_x / {normalize['X']}"
 
+    if side == "R":
+        # Mirroring flips .R's local X axis, so the same world-space drag that
+        # pushes .L toward IK pushes .R the other way. Negating the normalized
+        # reading re-syncs them: grabbing both and sliding the same screen
+        # direction now moves both into IK, or both into FK, together. This
+        # also flips what slider_x = 0 (rest) means on .R alone -- .R now
+        # starts in IK rather than FK until it is dragged back.
+        ik_switch_expression = f"1 - ({ik_switch_expression})"
+
     for bone_prefix in IK_SWITCH_BONES:
         ik_constraint = constraint_on(f"{bone_prefix}.{side}", IK_SWITCH_CONSTRAINT_NAME)
         if ik_constraint is None:
@@ -851,6 +860,13 @@ def mirror_deformation_skeleton(context, armature_obj=None):
 
     if bones_created:
         changed.append(f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side")
+
+    # ========== Re-assigning widgets that had text which could not be mirrored ==============
+    # ---- need to move to pose mode ------
+    bpy.ops.object.mode_set(mode="POSE")
+    pose_bones = armature_obj.pose.bones    
+    widgets.assign_widget(pose_bones["WGT_Leg_Properties.R"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME04")
+    pose_bones["WGT_Leg_Properties_Controller.L"].location[0] = 0.1
 
     return changed
 
