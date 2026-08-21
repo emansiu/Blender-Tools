@@ -38,6 +38,26 @@ SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
 # Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R".
 IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MCH_SWITCH_Toe")
+
+# (driven bone prefix, rotation_euler axis, clamp expression) for the foot
+# roll/bank split. WGT_Foot_Roll is one control: turning it on Z is bank,
+# on X is roll. Each pair below reads that same axis back off it and clamps
+# to the half it owns, so Bank_01/Foot_Roll pick up the positive turn and
+# Bank_02/Heel pick up the negative one. See add_leg_drivers.
+FOOT_ROLL_SPLIT_DRIVERS = (
+    ("MCH_Foot_Bank_01", "Z", "max(controller_rotation, 0)"),
+    ("MCH_Foot_Bank_02", "Z", "min(controller_rotation, 0)"),
+    ("MCH_Foot_Roll", "X", "max(controller_rotation, 0)"),
+    ("MCH_Heel", "X", "min(controller_rotation, 0)"),
+)
+
+# Widget/control bones that only make sense in one FK/IK mode, auto-hidden
+# once the slider crosses to the other one. FK_* bones carry their widget
+# directly rather than through a separate WGT_ bone, so they are the mirror
+# of IK_VISIBILITY_BONES even though the naming does not match it. See
+# add_leg_drivers.
+IK_VISIBILITY_BONES = ("WGT_Foot_IK_Master", "WGT_IK_Pole", "VIS_IK_Pole", "WGT_IK_Toe", "WGT_Foot_Roll")
+FK_VISIBILITY_BONES = ("FK_Thigh", "FK_Shin", "FK_Foot", "FK_Toe")
 # ---------------------------------------------------------------------------
 
 
@@ -67,13 +87,42 @@ def slider_travel(limit_constraint, axis):
     return maximum if maximum else minimum
 
 
-def add_slider_driver(constraint, armature_obj, expression, axis="X", slider_bone="WGT_Leg_Properties_Controller.L", data_path="influence"):
-    """Drive `constraint`.<data_path> from a location channel of the slider bone.
+def start_scripted_driver(owner, data_path, index=None):
+    """Clear any existing driver on `owner`.<data_path> and start a fresh SCRIPTED one.
 
-    Blender has no clean Python route for duplicating an existing driver onto
-    another property -- the only native one is the copy/paste driver operators,
-    which need button context -- so rebuilding it per constraint is the tidy
-    way to share one setup across a chain.
+    Shared by every driver-adding helper below. Blender has no clean Python
+    route for duplicating an existing driver onto another property -- the
+    only native one is the copy/paste driver operators, which need button
+    context -- so rebuilding one from scratch per property is the tidy way to
+    share one setup across a chain.
+
+    Wiping any existing driver first matters because driver_add on an
+    already-driven property hands back the driver that is there rather than
+    raising, so without this a second run would stack another variable on top
+    rather than replacing it -- the mess would be invisible until someone
+    opened the driver editor. A leftover generator modifier would override
+    the expression outright and make the driver read as a flat ramp, so those
+    are stripped too.
+
+    `index` is required for array properties like "rotation_euler" (0/1/2 for
+    X/Y/Z) and must stay unset for scalar ones like "influence" or "weight" --
+    passing an index there would ask Blender for one component of a value
+    that has none.
+    """
+    args = (data_path,) if index is None else (data_path, index)
+    owner.driver_remove(*args)
+    fcurve = owner.driver_add(*args)
+
+    for modifier in list(fcurve.modifiers):
+        fcurve.modifiers.remove(modifier)
+
+    driver = fcurve.driver
+    driver.type = "SCRIPTED"
+    return driver
+
+
+def add_slider_driver(owner, armature_obj, expression, axis="X", slider_bone="WGT_Leg_Properties_Controller.L", data_path="influence"):
+    """Drive `owner`.<data_path> from a location channel of the slider bone.
 
     `axis` picks the channel: "X", "Y" or "Z". The driver variable is named to
     match, so axis="Y" reads LOC_Y and exposes it to the expression as
@@ -81,28 +130,13 @@ def add_slider_driver(constraint, armature_obj, expression, axis="X", slider_bon
     inverse form ("1 - slider_x / max") for whichever side should fade out.
 
     `data_path` defaults to "influence" for constraints, but also accepts
-    "weight" so the same helper can drive an armature constraint target's
-    blend weight.
+    "weight" to drive an armature constraint target's blend weight, or "hide"
+    to drive a pose bone's own viewport visibility -- pass `owner=pose_bone`
+    for that one. PoseBone.hide is its own property, separate from
+    Bone.hide and EditBone.hide, so it must be driven on the pose bone
+    itself rather than through `.bone`.
     """
-    # Wipe any existing driver on this property first. driver_add on an
-    # already-driven property hands back the driver that is there rather than
-    # raising, so without this a second run would stack another variable on
-    # top -- slider_x plus a slider_x.001 the expression never mentions. The
-    # expression would still resolve, which is exactly what makes it worth
-    # clearing: the mess would be invisible until someone opened the driver
-    # editor. Returns False when there was nothing to remove.
-    constraint.driver_remove(data_path)
-
-    fcurve = constraint.driver_add(data_path)
-
-    # Defensive: a generator modifier on the curve would override the
-    # expression and make the driver read as a flat ramp. Removing any that
-    # turn up costs nothing when there are none.
-    for modifier in list(fcurve.modifiers):
-        fcurve.modifiers.remove(modifier)
-
-    driver = fcurve.driver
-    driver.type = "SCRIPTED"
+    driver = start_scripted_driver(owner, data_path)
 
     variable = driver.variables.new()
     variable.name = f"slider_{axis.lower()}"
@@ -116,6 +150,42 @@ def add_slider_driver(constraint, armature_obj, expression, axis="X", slider_bon
     # sidebar shows and the same one LIMIT_LOCATION clamps in LOCAL space --
     # so the bone's rest roll cannot rotate the axis out from under the slider.
     target.transform_space = "TRANSFORM_SPACE"
+
+    driver.expression = expression
+    return driver
+
+
+def add_rotation_clamp_driver(pose_bone, armature_obj, expression, axis, source_bone):
+    """Drive `pose_bone`'s rotation_euler[axis] from `source_bone`'s rotation on that same axis.
+
+    Built for the foot-roll split (see FOOT_ROLL_SPLIT_DRIVERS): one control
+    bone's rotation on an axis gets read into two MCH bones, one clamped to
+    the positive half via `expression="max(controller_rotation, 0)"` and the
+    other to the negative half via `"min(controller_rotation, 0)"`.
+
+    The variable is always named `controller_rotation` -- `expression` must
+    reference that name. Reads with mode "AUTO" (Auto Euler) in "LOCAL_SPACE",
+    matching the driver as configured by hand in Blender's driver editor.
+
+    `pose_bone` must already be in Euler rotation_mode: rotation_euler is only
+    live when the bone's own rotation_mode is an Euler order, so driving it
+    under quaternion mode would compute a value pose evaluation never reads.
+    """
+    axis = axis.upper()
+    index = "XYZ".index(axis)
+
+    driver = start_scripted_driver(pose_bone, "rotation_euler", index)
+
+    variable = driver.variables.new()
+    variable.name = "controller_rotation"
+    variable.type = "TRANSFORMS"
+
+    target = variable.targets[0]
+    target.id = armature_obj
+    target.bone_target = source_bone
+    target.transform_type = f"ROT_{axis}"
+    target.rotation_mode = "AUTO"
+    target.transform_space = "LOCAL_SPACE"
 
     driver.expression = expression
     return driver
@@ -489,7 +559,6 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     shin_IK.pole_subtarget = "WGT_IK_Pole.L"
 
     # ============================= stretch to constraints ==========================================================
-
     stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
     stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
     stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
@@ -505,6 +574,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
     stretch_pole_visualizer.subtarget = "WGT_IK_Pole.L"
+
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
@@ -573,8 +643,7 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
     if armature_obj is None or armature_obj.type != "ARMATURE":
         return changed
 
-    # Constraints hang off pose bones, and organize_bone_collections leaves
-    # the armature in edit mode -- so the mode cannot be assumed here.
+    # Constraints require pose mode, so moving here if not here already.
     if armature_obj.mode == "EDIT":
         context.view_layer.objects.active = armature_obj
         bpy.ops.object.mode_set(mode="POSE")
@@ -628,6 +697,36 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
         add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X", slider_bone=slider_bone_name)
         driven += 1
 
+    # ------------------------ IK/FK widget auto-hide ------------------------
+    # Same slider, same normalized 0..1 reading as the switch above -- past
+    # the halfway point (which is what comparing the normalized value to 0.5
+    # means: half of whatever max_x the limit constraint allows, on either
+    # side's sign) the rig is IK, so the FK controls hide and the IK ones
+    # show; below halfway it is the other way round.
+    #
+    # Driven on the pose bone itself (pose.bones["Name"].hide), not
+    # data.bones[name].hide or pose.bones[name].bone.hide -- both looked
+    # right but neither is a path driver_add can actually resolve back to an
+    # ID through, so both silently added nothing.
+    hide_while_fk_expression = f"({ik_switch_expression}) < 0.5"
+    hide_while_ik_expression = f"({ik_switch_expression}) >= 0.5"
+
+    for bone_prefix in IK_VISIBILITY_BONES:
+        pose_bone = pose_bones.get(f"{bone_prefix}.{side}")
+        if pose_bone is None:
+            continue
+
+        add_slider_driver(pose_bone, armature_obj, hide_while_fk_expression, axis="X", slider_bone=slider_bone_name, data_path="hide")
+        driven += 1
+
+    for bone_prefix in FK_VISIBILITY_BONES:
+        pose_bone = pose_bones.get(f"{bone_prefix}.{side}")
+        if pose_bone is None:
+            continue
+
+        add_slider_driver(pose_bone, armature_obj, hide_while_ik_expression, axis="X", slider_bone=slider_bone_name, data_path="hide")
+        driven += 1
+
     # ------------------------ follow hip rotation slider ------------------------
 
     follow_rotation = constraint_on(f"MCH_INT_Leg_Socket.{side}", ROTATION_FOLLOW_CONSTRAINT_NAME)
@@ -663,6 +762,23 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
         if hip_target is not None:
             add_slider_driver(hip_target, armature_obj, f"1 - ({ik_follow_hip_or_root_expression})", axis="Z", slider_bone=slider_bone_name, data_path="weight")
+
+            driven += 1
+
+    # ------------------------ foot roll/bank split from WGT_Foot_Roll ------------------------
+
+    foot_roll_source = f"WGT_Foot_Roll.{side}"
+
+    if pose_bones.get(foot_roll_source) is not None:
+        for bone_prefix, axis, expression in FOOT_ROLL_SPLIT_DRIVERS:
+            pose_bone = pose_bones.get(f"{bone_prefix}.{side}")
+            if pose_bone is None:
+                continue
+
+            # Only generate_leg_ik_fk_rig sets this, and only for .L -- enforce
+            # it here too so the mirrored .R side gets it after symmetrize.
+            pose_bone.rotation_mode = "XYZ"
+            add_rotation_clamp_driver(pose_bone, armature_obj, expression, axis=axis, source_bone=foot_roll_source)
 
             driven += 1
 
