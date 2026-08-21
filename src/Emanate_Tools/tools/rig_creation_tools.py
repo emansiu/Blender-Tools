@@ -375,14 +375,14 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         if pb is not None:
             pb.rotation_mode = "XYZ"
 
-    # ============================= location constraints =============================
+    # ============================= location constraints =======================================================================================
     copy_leg_intermediary_socket_location = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_LOCATION")
     # -------- location targets --------
     copy_leg_intermediary_socket_location.target = armature_obj
     # -------- location subtargets --------
     copy_leg_intermediary_socket_location.subtarget = "MCH_Leg_Socket.L"
 
-    # ============================= scale constraints =============================
+    # ============================= scale constraints =======================================================================================
     copy_thigh_scale = pose_bones["MCH_Thigh_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_shin_scale = pose_bones["MCH_Shin_Tweak_Scale_Compensation.L"].constraints.new("COPY_SCALE")
     copy_leg_intermediary_socket_scale = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_SCALE")
@@ -392,22 +392,23 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_thigh_scale.subtarget = copy_shin_scale.subtarget = "Root"
     copy_leg_intermediary_socket_scale.subtarget = "MCH_Leg_Socket.L"
 
-    # ============================= rotation constraints =============================
+    # ============================= rotation constraints =======================================================================================
     copy_leg_intermediary_socket_rotation = pose_bones["MCH_INT_Leg_Socket.L"].constraints.new("COPY_ROTATION")
     copy_leg_intermediary_socket_rotation.name = "ROTATION_FOLLOW"
-
-    # -------------rotation targets -------------
-    copy_leg_intermediary_socket_rotation.target = armature_obj
-
-    copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
 
     copy_toe_rotation = pose_bones["MCH_Toe_IK.L"].constraints.new("COPY_ROTATION")
     copy_toe_rotation.target_space = copy_toe_rotation.owner_space = "LOCAL"
     copy_toe_rotation.use_y = copy_toe_rotation.use_z = False  # <------- only follow x axis
+
+    # -------------rotation targets -------------
+    copy_leg_intermediary_socket_rotation.target = armature_obj
     copy_toe_rotation.target = armature_obj
+
+    # -------------rotation subtargets -------------
+    copy_leg_intermediary_socket_rotation.subtarget = "MCH_Leg_Socket.L"
     copy_toe_rotation.subtarget = "MCH_Foot_Roll.L"
 
-    # ============================= transform constraints =============================
+    # ============================= transform constraints =======================================================================================
     # --- FK leg copy transform constraints ---------------------------------
     copy_FK_thigh_transform = pose_bones["MCH_SWITCH_Thigh.L"].constraints.new("COPY_TRANSFORMS")
     copy_FK_thigh_transform.name = "FK_Copy_Transform"
@@ -427,7 +428,22 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform = pose_bones["MCH_SWITCH_Toe.L"].constraints.new("COPY_TRANSFORMS")
     copy_IK_toe_transform.name = "IK_Transform_Influence"
 
-    # ============================= limit location constraints =============================
+    # -------------transform targets -------------
+    copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = armature_obj
+    copy_IK_thigh_transform.target = copy_IK_shin_transform.target = copy_IK_foot_transform.target = copy_IK_toe_transform.target = armature_obj
+
+    # -------------transform subtargets -------------
+    copy_FK_thigh_transform.subtarget = "FK_Thigh.L"
+    copy_FK_shin_transform.subtarget = "FK_Shin.L"
+    copy_FK_foot_transform.subtarget = "FK_Foot.L"
+    copy_FK_toe_transform.subtarget = "FK_Toe.L"
+
+    copy_IK_thigh_transform.subtarget = "IK_Thigh.L"
+    copy_IK_shin_transform.subtarget = "IK_Shin.L"
+    copy_IK_foot_transform.subtarget = "IK_Foot.L"
+    copy_IK_toe_transform.subtarget = "WGT_IK_Toe.L"
+
+    # ============================= limit location constraints =======================================================================================
     # --- leg properties control limits ----
     limit_location_properties_controller = pose_bones["WGT_Leg_Properties_Controller.L"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
@@ -442,40 +458,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     max_distance_for_controller = 0.1
     limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = max_distance_for_controller
 
-    # ============================= Armature constraints =============================
+    # ============================= Armature constraints =======================================================================================
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
     # Named so the driver pass can find it without depending on Blender's
     # default "Armature" label.
     Armature_IK_Parent.name = IK_PARENT_CONSTRAINT_NAME
 
-    # ============================= IK - proper inverse kinematic constraints for the IK leg =============================
-    shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
-    pose_bones["IK_Shin.L"].ik_stretch = 0.01
-    pose_bones["IK_Thigh.L"].ik_stretch = 0.01
-    shin_IK.chain_count = 2
-
-    # ============================= stretch to constraints =============================
-
-    stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
-    stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
-    stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
-    stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
-    stretch_pole_visualizer = pose_bones["VIS_IK_Pole.L"].constraints.new("STRETCH_TO")
-
-    # -------------------------------- ASSIGNING TARGETS AND SUBTARGETS -------------------------------------------------------------------------------------
-    # Chaining is fine here -- every constraint points at the same armature.
-    # subtarget is the part that cannot be chained: it differs per constraint.
-
-    # ------------- stretch targets -------------
-    stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = stretch_pole_visualizer.target = armature_obj
-
-    # -------------transform targets -------------
-    copy_FK_thigh_transform.target = copy_FK_shin_transform.target = copy_FK_foot_transform.target = copy_FK_toe_transform.target = copy_IK_thigh_transform.target = copy_IK_shin_transform.target = (
-        copy_IK_foot_transform.target
-    ) = copy_IK_toe_transform.target = armature_obj
-    # -------------ik targets -------------
-    shin_IK.target = shin_IK.pole_target = armature_obj
-    # -------------armature targets -------------
+    # ---- armature targets (including subtargets since this is a unique constraint with multible targets/subtargets) -------
     Armature_IK_Parent_root_target = Armature_IK_Parent.targets.new()
     Armature_IK_Parent_root_target.target = armature_obj
     Armature_IK_Parent_root_target.subtarget = "Root"
@@ -486,26 +475,36 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     Armature_IK_Parent_hip_target.subtarget = "ORG_Hips"
     Armature_IK_Parent_hip_target.weight = 0.0
 
-    # ----------------------- all subtargets --------------------------------
+    # ============================= IK - proper inverse kinematic constraints for the IK leg ==========================================================
+    shin_IK = pose_bones["IK_Shin.L"].constraints.new("IK")
+    pose_bones["IK_Shin.L"].ik_stretch = 0.01
+    pose_bones["IK_Thigh.L"].ik_stretch = 0.01
+    shin_IK.chain_count = 2
 
+    # -------------ik targets -------------
+    shin_IK.target = shin_IK.pole_target = armature_obj
+
+    # -------------ik subtargets -------------
+    shin_IK.subtarget = "IK_Foot.L"
+    shin_IK.pole_subtarget = "WGT_IK_Pole.L"
+
+    # ============================= stretch to constraints ==========================================================
+
+    stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
+    stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
+    stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
+    stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
+    stretch_pole_visualizer = pose_bones["VIS_IK_Pole.L"].constraints.new("STRETCH_TO")
+
+    # ------------- stretch targets -------------
+    stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = stretch_pole_visualizer.target = armature_obj
+
+    # ----------------------- stretch subtargets --------------------------------
     stretch_toe.subtarget = "Toe_Tip_Tweak.L"
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
     stretch_pole_visualizer.subtarget = "WGT_IK_Pole.L"
-
-    copy_FK_thigh_transform.subtarget = "FK_Thigh.L"
-    copy_FK_shin_transform.subtarget = "FK_Shin.L"
-    copy_FK_foot_transform.subtarget = "FK_Foot.L"
-    copy_FK_toe_transform.subtarget = "FK_Toe.L"
-
-    copy_IK_thigh_transform.subtarget = "IK_Thigh.L"
-    copy_IK_shin_transform.subtarget = "IK_Shin.L"
-    copy_IK_foot_transform.subtarget = "IK_Foot.L"
-    copy_IK_toe_transform.subtarget = "WGT_IK_Toe.L"
-
-    shin_IK.subtarget = "IK_Foot.L"
-    shin_IK.pole_subtarget = "WGT_IK_Pole.L"
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
