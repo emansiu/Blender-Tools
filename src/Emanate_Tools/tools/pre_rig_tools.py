@@ -202,9 +202,21 @@ def create_deformation_skeleton(context):
     # --- chest ---
     DEF_Chest = armature_data.edit_bones.new("DEF_Chest")
     DEF_Chest.head = (0, 0, 1.2)
-    DEF_Chest.tail = (0, 0, 1.3)
+    DEF_Chest.tail = (0, 0.3, 1.3)
     DEF_Chest.parent = DEF_Spine_02
     DEF_Chest.use_connect = False
+    # --- chest 01 --- extra control for chest
+    DEF_Chest_01 = armature_data.edit_bones.new("DEF_Chest_01")
+    DEF_Chest_01.head = DEF_Chest.head
+    DEF_Chest_01.tail = (DEF_Chest.tail + DEF_Chest.head)/2
+    DEF_Chest_01.parent = DEF_Chest
+    DEF_Chest_01.use_connect = False
+    # --- chest 02 ---extra control for chest
+    DEF_Chest_02 = armature_data.edit_bones.new("DEF_Chest_02")
+    DEF_Chest_02.head = DEF_Chest_01.tail
+    DEF_Chest_02.tail = DEF_Chest.tail
+    DEF_Chest_02.parent = DEF_Chest
+    DEF_Chest_02.use_connect = False
     # --- neck 01---
     DEF_Neck_01 = armature_data.edit_bones.new("DEF_Neck_01")
     DEF_Neck_01.head = (0, 0, 1.3)
