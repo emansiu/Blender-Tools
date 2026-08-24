@@ -880,7 +880,8 @@ def organize_bone_collections(context, armature_obj=None):
     Order matters: move_bones_matching unassigns every other collection a
     bone sits in before adding its own, so a later pass wins any overlap --
     e.g. "WGT_IK_Toe.L" matches the IK_ pass too, but WGT_ runs after IK_ and
-    puts it in WIDGETS.
+    puts it in WIDGETS. Likewise "MCH_Shin_Tweak_Scale_Compensation.L" matches
+    both MCH_ and *Tweak*, so MCH_ runs after Tweak to keep it in MECHANISM.
 
     Must run in EDIT mode -- move_bones_matching only sees edit_bones.
     """
@@ -897,7 +898,7 @@ def organize_bone_collections(context, armature_obj=None):
 
     armature = armature_obj.data
 
-    passes = (("*Root*", "ROOT"), ("MCH_*", "MECHANISM"), ("FK_*", "FK"), ("IK_*", "IK"), ("ORG_*", "ORIGINAL"), ("*Tweak*", "TWEAK"), ("WGT_*", "WIDGETS"), ("VIS_*", "VISUAL"))
+    passes = (("*Root*", "ROOT"), ("FK_*", "FK"), ("IK_*", "IK"), ("ORG_*", "ORIGINAL"), ("*Tweak*", "TWEAK"), ("MCH_*", "MECHANISM"), ("WGT_*", "WIDGETS"), ("VIS_*", "VISUAL"))
 
     for pattern, collection_name in passes:
         collection, was_created = bone_collections.get_or_create_collection(armature, collection_name)
@@ -917,6 +918,16 @@ def organize_bone_collections(context, armature_obj=None):
     if armature.show_axes:
         changed.append("armature display: Axes -> off")
         armature.show_axes = False
+
+    # ---- Hide layers that are no required to manipulate the rig. ----
+    # ---- Layers we want on are in tuple below -----------------------
+    collections_needed_for_control = ("FK", "TWEAK", "WIDGETS", "VISUAL")
+
+    for collection in armature.collections_all:
+        should_be_visible = collection.name in collections_needed_for_control
+        if collection.is_visible != should_be_visible:
+            collection.is_visible = should_be_visible
+            changed.append(f"collection {collection.name} visibility -> {should_be_visible}")
 
     return changed
 
