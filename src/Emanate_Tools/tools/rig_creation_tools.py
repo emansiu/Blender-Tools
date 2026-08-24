@@ -640,10 +640,19 @@ def generate_spine_rig(context, armature_obj=None):
         context.view_layer.objects.active = armature_obj
         bpy.ops.object.mode_set(mode="EDIT")
 
-    # TODO: fetch the ORG_ spine chain off armature_obj.data.edit_bones
-    # (e.g. ORG_Spine_01.. ORG_Chest, ORG_Neck, ORG_Head) once it is named,
-    # then build the MCH_/FK_/IK_ bones, constraints and widgets the same
-    # way the leg rig does.
+    #---------- Get bones we need that are already generated ----------
+    edit_bones = armature_obj.data.edit_bones
+
+    ORG_Hips = edit_bones.get("ORG_Hips")
+    ORG_Spine_01 = edit_bones.get("DEF_Spine_01")
+    Root = edit_bones.get("Root")
+    
+
+    # ---WGT Torso Bone---------------------------------------------------------
+    WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0,0.5,0))), parent=Root)
+    ORG_Hips.parent = WGT_COG_Torso
+
+    # ----------------------------------  TWEAKER BONES   -----------------------------------------------------------
 
     return changed
 
