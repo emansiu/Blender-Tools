@@ -650,13 +650,13 @@ def generate_spine_rig(context, armature_obj=None):
     edit_bones = armature_obj.data.edit_bones
 
     ORG_Hips = edit_bones.get("ORG_Hips")
-    ORG_Spine_01 = edit_bones.get("DEF_Spine_01")
-    ORG_Spine_02 = edit_bones.get("DEF_Spine_02")
-    ORG_Chest_01 = edit_bones.get("DEF_Chest_01")
-    ORG_Chest_02 = edit_bones.get("DEF_Chest_02")
-    ORG_Neck_01 = edit_bones.get("DEF_Neck_01")
-    ORG_Neck_02 = edit_bones.get("DEF_Neck_02")
-    ORG_Head = edit_bones.get("DEF_Head")
+    ORG_Spine_01 = edit_bones.get("ORG_Spine_01")
+    ORG_Spine_02 = edit_bones.get("ORG_Spine_02")
+    ORG_Chest_01 = edit_bones.get("ORG_Chest_01")
+    ORG_Chest_02 = edit_bones.get("ORG_Chest_02")
+    ORG_Neck_01 = edit_bones.get("ORG_Neck_01")
+    ORG_Neck_02 = edit_bones.get("ORG_Neck_02")
+    ORG_Head = edit_bones.get("ORG_Head")
     Root = edit_bones.get("Root")
 
     # ---WGT Torso Bone---------------------------------------------------------
@@ -664,15 +664,29 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Hips.parent = WGT_COG_Torso
 
     # ----------------------------------  TWEAKER BONES   -----------------------------------------------------------
-    tweaker_bone_legth = 0.025
-    # MCH_SWITCH_Thigh_Left = create_bone(edit_bones, "MCH_SWITCH_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
-    Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=Root, length=tweaker_bone_legth)
-    # Spine_02_Tweak =
-    # Chest_01_Tweak =
-    # Chest_02_Tweak =
-    # Neck_01_Tweak =
-    # Neck_02_Tweak =
-    # Head_Tweak =
+    #---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
+    desired_percent_size_of_tweakers = 0.8
+    ORG_Spine_Chain = (ORG_Hips,ORG_Spine_01, ORG_Spine_02, ORG_Chest_01, ORG_Chest_02, ORG_Neck_01, ORG_Neck_02, ORG_Head)
+    # min() with a key returns the bone itself, so the chain stays inspectable; (name, roll, ...) instead of collapsing straight down to a float.
+    smallest_bone_in_chain = min(ORG_Spine_Chain, key=lambda bone: bone.length)
+    tweaker_bone_length = smallest_bone_in_chain.length * desired_percent_size_of_tweakers
+
+    Hips_Tweak = create_bone(edit_bones, "Hips_Tweak", head=ORG_Hips.head, tail=ORG_Hips.tail, parent=WGT_COG_Torso, length=tweaker_bone_length)
+    Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=Hips_Tweak, length=tweaker_bone_length)
+    Spine_02_Tweak = create_bone(edit_bones, "Spine_02_Tweak", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=Spine_01_Tweak, length=tweaker_bone_length)
+    Chest_01_Tweak = create_bone(edit_bones, "Chest_01_Tweak", head=ORG_Chest_01.head, tail=ORG_Chest_01.tail, parent=Spine_02_Tweak, length=tweaker_bone_length)
+    Chest_02_Tweak = create_bone(edit_bones, "Chest_02_Tweak", head=ORG_Chest_02.head, tail=ORG_Chest_02.tail, parent=Chest_01_Tweak, length=tweaker_bone_length)
+    Neck_01_Tweak = create_bone(edit_bones, "Neck_01_Tweak", head=ORG_Neck_01.head, tail=ORG_Neck_01.tail, parent=Chest_02_Tweak, length=tweaker_bone_length)
+    Neck_02_Tweak = create_bone(edit_bones, "Neck_02_Tweak", head=ORG_Neck_02.head, tail=ORG_Neck_02.tail, parent=Neck_01_Tweak, length=tweaker_bone_length)
+    Head_Tweak = create_bone(edit_bones, "Head_Tweak", head=ORG_Head.head, tail=ORG_Head.tail, parent=Neck_02_Tweak, length=tweaker_bone_length)
+
+    # make a tweak chain
+    Spine_Tweak_Chain = (Hips_Tweak, Spine_01_Tweak, Spine_02_Tweak, Chest_01_Tweak, Chest_02_Tweak, Neck_01_Tweak, Neck_02_Tweak, Head_Tweak)
+
+    # loop through org and tweak chain to assign parenting
+    for org_bone, tweak_bone in zip(ORG_Spine_Chain, Spine_Tweak_Chain, strict=True):
+        org_bone.use_connect = False
+        org_bone.parent = tweak_bone
 
     return changed
 
