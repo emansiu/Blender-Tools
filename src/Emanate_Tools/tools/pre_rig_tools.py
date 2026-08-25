@@ -206,34 +206,28 @@ def create_deformation_skeleton(context):
     DEF_Chest.parent = DEF_Spine_02
     DEF_Chest.use_connect = False
     # --- chest 01 --- extra control for chest
-    DEF_Chest_01 = armature_data.edit_bones.new("DEF_Chest_01")
-    DEF_Chest_01.head = DEF_Chest.head
-    DEF_Chest_01.tail = (DEF_Chest.tail + DEF_Chest.head)/2
-    DEF_Chest_01.parent = DEF_Chest
-    DEF_Chest_01.use_connect = False
+    DEF_Chest_Sub_01 = armature_data.edit_bones.new("DEF_Chest_Sub_01")
+    DEF_Chest_Sub_01.head = DEF_Chest.head
+    DEF_Chest_Sub_01.tail = (DEF_Chest.tail + DEF_Chest.head)/2
+    DEF_Chest_Sub_01.parent = DEF_Chest
+    DEF_Chest_Sub_01.use_connect = False
     # --- chest 02 ---extra control for chest
-    DEF_Chest_02 = armature_data.edit_bones.new("DEF_Chest_02")
-    DEF_Chest_02.head = DEF_Chest_01.tail
-    DEF_Chest_02.tail = DEF_Chest.tail
-    DEF_Chest_02.parent = DEF_Chest
-    DEF_Chest_02.use_connect = False
-    # --- neck 01---
-    DEF_Neck_01 = armature_data.edit_bones.new("DEF_Neck_01")
-    DEF_Neck_01.head = (0, 0, 1.3)
-    DEF_Neck_01.tail = (0, 0, 1.4)
-    DEF_Neck_01.parent = DEF_Chest
-    DEF_Neck_01.use_connect = False
-    # --- neck 02 ---
-    DEF_Neck_02 = armature_data.edit_bones.new("DEF_Neck_02")
-    DEF_Neck_02.head = (0, 0, 1.4)
-    DEF_Neck_02.tail = (0, 0, 1.5)
-    DEF_Neck_02.parent = DEF_Neck_01
-    DEF_Neck_02.use_connect = False
+    DEF_Chest_Sub_02 = armature_data.edit_bones.new("DEF_Chest_Sub_02")
+    DEF_Chest_Sub_02.head = DEF_Chest_Sub_01.tail
+    DEF_Chest_Sub_02.tail = DEF_Chest.tail
+    DEF_Chest_Sub_02.parent = DEF_Chest
+    DEF_Chest_Sub_02.use_connect = False
+    # --- neck ---
+    DEF_Neck = armature_data.edit_bones.new("DEF_Neck")
+    DEF_Neck.head = (0, 0, 1.3)
+    DEF_Neck.tail = (0, 0, 1.5)
+    DEF_Neck.parent = DEF_Chest
+    DEF_Neck.use_connect = False
     # --- head ---
     DEF_Head = armature_data.edit_bones.new("DEF_Head")
     DEF_Head.head = (0, 0, 1.5)
     DEF_Head.tail = (0, 0, 1.7)
-    DEF_Head.parent = DEF_Neck_02
+    DEF_Head.parent = DEF_Neck
     DEF_Head.use_connect = False
 
     # ------- START OF LEFT ARM CREATION -------

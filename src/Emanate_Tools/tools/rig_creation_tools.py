@@ -192,7 +192,7 @@ def add_rotation_clamp_driver(pose_bone, armature_obj, expression, axis, source_
     return driver
 
 
-def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll=None, length=None, connect=False):
+def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_to=None, align_roll=None, length=None, connect=False):
     """Create one edit bone and return it.
 
     Returning the bone is the whole point -- the builder chains parents off the
@@ -210,6 +210,8 @@ def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll
     bone.tail = tail
     bone.parent = parent
 
+    if align_to is not None:
+        bone.align_orientation(align_to)
     if align_roll is not None:
         bone.align_roll(align_roll)
     if roll is not None:
@@ -652,41 +654,110 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Hips = edit_bones.get("ORG_Hips")
     ORG_Spine_01 = edit_bones.get("ORG_Spine_01")
     ORG_Spine_02 = edit_bones.get("ORG_Spine_02")
-    ORG_Chest_01 = edit_bones.get("ORG_Chest_01")
-    ORG_Chest_02 = edit_bones.get("ORG_Chest_02")
-    ORG_Neck_01 = edit_bones.get("ORG_Neck_01")
-    ORG_Neck_02 = edit_bones.get("ORG_Neck_02")
+    ORG_Chest = edit_bones.get("ORG_Chest")
+    ORG_Chest_Sub_01 = edit_bones.get("ORG_Chest_Sub_01")
+    ORG_Chest_Sub_02 = edit_bones.get("ORG_Chest_Sub_02")
+    ORG_Neck = edit_bones.get("ORG_Neck")
     ORG_Head = edit_bones.get("ORG_Head")
     Root = edit_bones.get("Root")
 
     # ---WGT Torso Bone---------------------------------------------------------
     WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0, 0.5, 0))), parent=Root)
-    ORG_Hips.parent = WGT_COG_Torso
+    
 
-    # ----------------------------------  TWEAKER BONES   -----------------------------------------------------------
+
+
+    # ==================================================  WIDGET CONTROLLER BONES   ====================================================================================================
+    # ------------ BOTTOM HALF CONTROLLERS -----------------
+    FK_Hips = create_bone(edit_bones, "FK_Hips", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, align_to=ORG_Hips, parent=ORG_Hips)
+    FK_Spine_01 = create_bone(edit_bones, "FK_Spine_01", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, align_to=ORG_Spine_01, parent=FK_Hips)
+    # ------------ TOP HALF CONTROLLERS -----------------
+    FK_Spine_02 = create_bone(edit_bones, "FK_Spine_02", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=WGT_COG_Torso)
+    FK_Chest = create_bone(edit_bones, "FK_Chest", head=ORG_Chest.head, tail=ORG_Chest.tail, parent=ORG_Hips)
+    WGT_Neck = create_bone(edit_bones, "WGT_Neck", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=ORG_Hips)
+    WGT_Head = create_bone(edit_bones, "WGT_Head", head=ORG_Head.head, tail=ORG_Head.tail, parent=ORG_Hips)
+
+    # ==================================================  TWEAKER BONES   ====================================================================================================
     #---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
     desired_percent_size_of_tweakers = 0.8
-    ORG_Spine_Chain = (ORG_Hips,ORG_Spine_01, ORG_Spine_02, ORG_Chest_01, ORG_Chest_02, ORG_Neck_01, ORG_Neck_02, ORG_Head)
+    ORG_Spine_Chain = (ORG_Hips,ORG_Spine_01, ORG_Spine_02, ORG_Chest_Sub_01, ORG_Chest_Sub_02, ORG_Neck, ORG_Head)
     # min() with a key returns the bone itself, so the chain stays inspectable; (name, roll, ...) instead of collapsing straight down to a float.
     smallest_bone_in_chain = min(ORG_Spine_Chain, key=lambda bone: bone.length)
     tweaker_bone_length = smallest_bone_in_chain.length * desired_percent_size_of_tweakers
 
-    Hips_Tweak = create_bone(edit_bones, "Hips_Tweak", head=ORG_Hips.head, tail=ORG_Hips.tail, parent=WGT_COG_Torso, length=tweaker_bone_length)
-    Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=Hips_Tweak, length=tweaker_bone_length)
-    Spine_02_Tweak = create_bone(edit_bones, "Spine_02_Tweak", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=Spine_01_Tweak, length=tweaker_bone_length)
-    Chest_01_Tweak = create_bone(edit_bones, "Chest_01_Tweak", head=ORG_Chest_01.head, tail=ORG_Chest_01.tail, parent=Spine_02_Tweak, length=tweaker_bone_length)
-    Chest_02_Tweak = create_bone(edit_bones, "Chest_02_Tweak", head=ORG_Chest_02.head, tail=ORG_Chest_02.tail, parent=Chest_01_Tweak, length=tweaker_bone_length)
-    Neck_01_Tweak = create_bone(edit_bones, "Neck_01_Tweak", head=ORG_Neck_01.head, tail=ORG_Neck_01.tail, parent=Chest_02_Tweak, length=tweaker_bone_length)
-    Neck_02_Tweak = create_bone(edit_bones, "Neck_02_Tweak", head=ORG_Neck_02.head, tail=ORG_Neck_02.tail, parent=Neck_01_Tweak, length=tweaker_bone_length)
-    Head_Tweak = create_bone(edit_bones, "Head_Tweak", head=ORG_Head.head, tail=ORG_Head.tail, parent=Neck_02_Tweak, length=tweaker_bone_length)
+    Hips_Tweak = create_bone(edit_bones, "Hips_Tweak", head=ORG_Hips.head, tail=ORG_Hips.tail, parent=FK_Hips, length=tweaker_bone_length)
+    Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=ORG_Hips, length=tweaker_bone_length)
+    Spine_02_Tweak = create_bone(edit_bones, "Spine_02_Tweak", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=ORG_Spine_01, length=tweaker_bone_length)
+    Chest_01_Tweak = create_bone(edit_bones, "Chest_01_Tweak", head=ORG_Chest_Sub_01.head, tail=ORG_Chest_Sub_01.tail,  length=tweaker_bone_length)
+    Chest_02_Tweak = create_bone(edit_bones, "Chest_02_Tweak", head=ORG_Chest_Sub_02.head, tail=ORG_Chest_Sub_02.tail, parent=ORG_Chest, length=tweaker_bone_length)
+    Neck_Tweak = create_bone(edit_bones, "Neck_Tweak", head=ORG_Neck.head, tail=ORG_Neck.tail, length=tweaker_bone_length)
+    Head_Tweak = create_bone(edit_bones, "Head_Tweak", head=ORG_Head.head, tail=ORG_Head.tail, parent=ORG_Neck, length=tweaker_bone_length)
+    # parentless tweak
+    Head_Top_Tweak = create_bone(edit_bones, "Head_Top_Tweak", head=ORG_Head.tail, tail=(ORG_Head.tail + Vector((0,0,0.1))), length=tweaker_bone_length)
 
-    # make a tweak chain
-    Spine_Tweak_Chain = (Hips_Tweak, Spine_01_Tweak, Spine_02_Tweak, Chest_01_Tweak, Chest_02_Tweak, Neck_01_Tweak, Neck_02_Tweak, Head_Tweak)
 
-    # loop through org and tweak chain to assign parenting
-    for org_bone, tweak_bone in zip(ORG_Spine_Chain, Spine_Tweak_Chain, strict=True):
-        org_bone.use_connect = False
-        org_bone.parent = tweak_bone
+
+
+
+    # now we can parent ORG bones where we need to
+    ORG_Hips.parent = Hips_Tweak
+    ORG_Spine_01.parent = Spine_01_Tweak
+    ORG_Spine_02.parent = Spine_02_Tweak
+    ORG_Chest.parent = Chest_01_Tweak
+    ORG_Chest_Sub_01.parent = Chest_01_Tweak
+    ORG_Chest_Sub_02.parent = Chest_02_Tweak
+    ORG_Neck.parent = Neck_Tweak
+    ORG_Head.parent = Head_Tweak
+
+    # ========================================== ENTERING POSE MODE  ============================================================================
+    # ============================================== CONSTRAINTS ============================================================================
+    # Constraints hang off pose bones, and everything built above only shows up
+    # in armature_obj.pose.bones once edit mode is left -- so the switch has to
+    # happen here, after the whole chain exists.
+    bpy.ops.object.mode_set(mode="POSE")
+
+    # Root comes from the DEF skeleton, not from this function, so it can be
+    # missing if the tools are run out of order.
+    if armature_obj.data.bones.get("Root") is None:
+        changed.append("Issue: Cannot find ROOT bone, this rig is not ready; cancelling request")
+        return changed
+
+    # Every bone below has to be re-fetched from pose.bones by name. The
+    # EditBone variables built further up are dangling pointers now -- leaving
+    # edit mode frees the edit-bone structs, and touching one crashes Blender
+    # outright rather than raising. Constraints only exist on pose bones anyway.
+    pose_bones = armature_obj.pose.bones
+
+    # ============================= stretch to constraints ==========================================================
+    stretch_hips = pose_bones["ORG_Hips"].constraints.new("STRETCH_TO")
+    stretch_spine_01 = pose_bones["ORG_Spine_01"].constraints.new("STRETCH_TO")
+    stretch_spine_02 = pose_bones["ORG_Spine_02"].constraints.new("STRETCH_TO")
+    stretch_chest = pose_bones["ORG_Chest"].constraints.new("STRETCH_TO")
+    stretch_chest_sub_01 = pose_bones["ORG_Chest_Sub_01"].constraints.new("STRETCH_TO")
+    stretch_chest_sub_02 = pose_bones["ORG_Chest_Sub_02"].constraints.new("STRETCH_TO")
+    stretch_neck = pose_bones["ORG_Neck"].constraints.new("STRETCH_TO")
+    stretch_head = pose_bones["ORG_Head"].constraints.new("STRETCH_TO")
+
+    # ------------- stretch targets -------------
+    stretch_hips.target = stretch_spine_01.target = stretch_spine_02.target = stretch_chest.target = stretch_chest_sub_01.target = stretch_chest_sub_02.target = stretch_neck.target = stretch_head.target = armature_obj
+
+    # ----------------------- stretch subtargets --------------------------------
+    stretch_hips.subtarget = "Spine_01_Tweak"
+    stretch_spine_01.subtarget = "Spine_02_Tweak"
+    stretch_spine_02.subtarget = "Chest_01_Tweak"
+    stretch_chest.subtarget = "Neck_Tweak"
+    stretch_chest_sub_01.subtarget = "Chest_02_Tweak"
+    stretch_chest_sub_02.subtarget = "Neck_Tweak"
+    stretch_neck.subtarget = "Head_Tweak"
+    stretch_head.subtarget = "Head_Top_Tweak"
+
+
+
+
+
+
+
+
 
     return changed
 
