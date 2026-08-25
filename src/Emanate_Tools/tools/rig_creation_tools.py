@@ -192,7 +192,7 @@ def add_rotation_clamp_driver(pose_bone, armature_obj, expression, axis, source_
     return driver
 
 
-def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll=None, length=1.0, connect=False):
+def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll=None, length=None, connect=False):
     """Create one edit bone and return it.
 
     Returning the bone is the whole point -- the builder chains parents off the
@@ -223,8 +223,8 @@ def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_roll
     else:
         bone.use_connect = connect
 
-    if length != 1.0:
-        bone.length *= length
+    if length is not None:
+        bone.length = length
 
     return bone
 
@@ -298,7 +298,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     foot_ik_master_tail = Vector((ORG_Toe_Left.head.x, MCH_Heel_Left.head.y + 0.04, 0))
 
     # ---IK Master Parent for a switch constraint to root or hips ---------------------------------------------------------
-    MCH_Parent_Foot_IK_Master_Left = create_bone(edit_bones, "MCH_Parent_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, length=0.6)
+    MCH_Parent_Foot_IK_Master_Left = create_bone(edit_bones, "MCH_Parent_Foot_IK_Master.L", head=foot_ik_master_head, tail=(foot_ik_master_head + foot_ik_master_tail) / 2)
 
     # ---IK Master Left Foot Control ---------------------------------------------------------
     WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, parent=MCH_Parent_Foot_IK_Master_Left)
@@ -318,32 +318,39 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Heel_Left.parent = WGT_Foot_IK_Master_Left
 
     # ============================= MCH TWEAK CHAIN ============================================================================================================
+    # --- since we want all tweak bones to be the same length we take a percent of smallest bone in hierarchy that we can probably open up as parameter in the future ---
+    desired_percent_size_of_tweakers = 0.5
+    ORG_Leg_Chain_Left = (ORG_Thigh_Left, ORG_Shin_Left, ORG_Foot_Left, ORG_Toe_Left)
+    # min() with a key returns the bone itself, so the chain stays inspectable; (name, roll, ...) instead of collapsing straight down to a float.
+    smallest_bone_in_chain = min(ORG_Leg_Chain_Left, key=lambda bone: bone.length)
+    tweaker_bone_length = smallest_bone_in_chain.length * desired_percent_size_of_tweakers
+
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
     MCH_Thigh_Tweak_Scale_Compensation_Left = create_bone(
-        edit_bones, "MCH_Thigh_Tweak_Scale_Compensation.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Thigh_Left.roll, length=0.25
+        edit_bones, "MCH_Thigh_Tweak_Scale_Compensation.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Thigh_Left.roll, length=tweaker_bone_length/2
     )
 
     # ---TWEAK MCH Left Thigh---------------------------------------------------------
     Thigh_Tweak_Left = create_bone(
-        edit_bones, "Thigh_Tweak.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_Thigh_Tweak_Scale_Compensation_Left, roll=ORG_Thigh_Left.roll, length=0.5
+        edit_bones, "Thigh_Tweak.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_Thigh_Tweak_Scale_Compensation_Left, roll=ORG_Thigh_Left.roll,length=tweaker_bone_length
     )
 
     # --- TWEAK MCH Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
     MCH_Shin_Tweak_Scale_Compensation_Left = create_bone(
-        edit_bones, "MCH_Shin_Tweak_Scale_Compensation.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_SWITCH_Shin_Left, roll=ORG_Shin_Left.roll, length=0.25
+        edit_bones, "MCH_Shin_Tweak_Scale_Compensation.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_SWITCH_Shin_Left, roll=ORG_Shin_Left.roll, length=tweaker_bone_length
     )
 
     # --- TWEAK MCH Left Shin ---------------------------------------------------------
-    Shin_Tweak_Left = create_bone(edit_bones, "Shin_Tweak.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_Shin_Tweak_Scale_Compensation_Left, roll=ORG_Shin_Left.roll, length=0.5)
+    Shin_Tweak_Left = create_bone(edit_bones, "Shin_Tweak.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_Shin_Tweak_Scale_Compensation_Left, roll=ORG_Shin_Left.roll, length=tweaker_bone_length)
 
     # --- TWEAK MCH Left Foot ---------------------------------------------------------
-    Foot_Tweak_Left = create_bone(edit_bones, "Foot_Tweak.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_SWITCH_Foot_Left, roll=ORG_Foot_Left.roll, length=0.5)
+    Foot_Tweak_Left = create_bone(edit_bones, "Foot_Tweak.L", head=ORG_Foot_Left.head, tail=(ORG_Foot_Left.head + ORG_Foot_Left.tail)/2, parent=MCH_SWITCH_Foot_Left, roll=ORG_Foot_Left.roll, length=tweaker_bone_length)
 
     # --- TWEAK MCH Left Toe  ---------------------------------------------------------
-    Toe_Tweak_Left = create_bone(edit_bones, "Toe_Tweak.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll, length=0.5)
+    Toe_Tweak_Left = create_bone(edit_bones, "Toe_Tweak.L", head=ORG_Toe_Left.head, tail=(ORG_Toe_Left.head + ORG_Toe_Left.tail)/2, parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll, length=tweaker_bone_length)
 
     # --- TWEAK MCH Left Toe TIP  ---------------------------------------------------------
-    Toe_Tip_Tweak_Left = create_bone(edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, 0.07, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll)
+    Toe_Tip_Tweak_Left = create_bone(edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, tweaker_bone_length, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll)
 
     # ============================= FK CHAIN ============================================================================================================================
     # ---FK Left Thigh---------------------------------------------------------
@@ -385,7 +392,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Foot_Left = create_bone(edit_bones, "IK_Foot.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_Foot_Bank_02_Left, roll=ORG_Foot_Left.roll)
 
     # ---IK Left Toe MCH bone---------------------------------------------------------
-    MCH_Toe_IK_Left = create_bone(edit_bones, "MCH_Toe_IK.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=IK_Foot_Left, roll=MCH_Foot_Roll_Left.roll, length=0.6)
+    MCH_Toe_IK_Left = create_bone(edit_bones, "MCH_Toe_IK.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=IK_Foot_Left, roll=MCH_Foot_Roll_Left.roll, length = ORG_Toe_Left.length * 0.6)
 
     # ---IK Left Toe WGT Control ---------------------------------------------------------
     WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
@@ -404,7 +411,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     )
 
     WGT_Leg_Properties_Controller_Left = create_bone(
-        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=0.4
+        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=WGT_Leg_Properties_Left.length * 0.4
     )
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
@@ -576,7 +583,6 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_thigh.subtarget = "Shin_Tweak.L"
     stretch_pole_visualizer.subtarget = "WGT_IK_Pole.L"
 
-
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
@@ -605,10 +611,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Circle_Centered", scale_x=FK_LEG_WIDGET_SIZE, scale_y=FK_LEG_WIDGET_SIZE, scale_z=FK_LEG_WIDGET_SIZE, use_bone_size=False, color="THEME09")
 
     # --------- Left Tweakers --------------
-    TWEAK_WIDGET_SIZE = 0.05  # armature units, tune to taste
+    TWEAK_WIDGET_SIZE = 1  # armature units, tune to taste
 
     for name in ("Thigh_Tweak.L", "Shin_Tweak.L", "Foot_Tweak.L", "Toe_Tweak.L", "Toe_Tip_Tweak.L"):
-        widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=False, color="THEME09")
+        widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=True, color="THEME09")
 
     # --------- Properties Container ----------
     widgets.assign_widget(pose_bones["WGT_Leg_Properties.L"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME04")
@@ -640,19 +646,33 @@ def generate_spine_rig(context, armature_obj=None):
         context.view_layer.objects.active = armature_obj
         bpy.ops.object.mode_set(mode="EDIT")
 
-    #---------- Get bones we need that are already generated ----------
+    # ---------- Get bones we need that are already generated ----------
     edit_bones = armature_obj.data.edit_bones
 
     ORG_Hips = edit_bones.get("ORG_Hips")
     ORG_Spine_01 = edit_bones.get("DEF_Spine_01")
+    ORG_Spine_02 = edit_bones.get("DEF_Spine_02")
+    ORG_Chest_01 = edit_bones.get("DEF_Chest_01")
+    ORG_Chest_02 = edit_bones.get("DEF_Chest_02")
+    ORG_Neck_01 = edit_bones.get("DEF_Neck_01")
+    ORG_Neck_02 = edit_bones.get("DEF_Neck_02")
+    ORG_Head = edit_bones.get("DEF_Head")
     Root = edit_bones.get("Root")
-    
 
     # ---WGT Torso Bone---------------------------------------------------------
-    WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0,0.5,0))), parent=Root)
+    WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0, 0.5, 0))), parent=Root)
     ORG_Hips.parent = WGT_COG_Torso
 
     # ----------------------------------  TWEAKER BONES   -----------------------------------------------------------
+    tweaker_bone_legth = 0.025
+    # MCH_SWITCH_Thigh_Left = create_bone(edit_bones, "MCH_SWITCH_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
+    Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=Root, length=tweaker_bone_legth)
+    # Spine_02_Tweak =
+    # Chest_01_Tweak =
+    # Chest_02_Tweak =
+    # Neck_01_Tweak =
+    # Neck_02_Tweak =
+    # Head_Tweak =
 
     return changed
 
@@ -899,7 +919,7 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     # ========== Re-assigning widgets that had text which could not be mirrored ==============
     # ---- need to move to pose mode ------
     bpy.ops.object.mode_set(mode="POSE")
-    pose_bones = armature_obj.pose.bones    
+    pose_bones = armature_obj.pose.bones
     widgets.assign_widget(pose_bones["WGT_Leg_Properties.R"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME04")
     pose_bones["WGT_Leg_Properties_Controller.L"].location[0] = 0.1
 
