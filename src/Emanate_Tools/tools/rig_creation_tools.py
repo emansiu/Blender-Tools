@@ -670,6 +670,7 @@ def generate_spine_rig(context, armature_obj=None):
     # ==================================================  WIDGET CONTROLLER BONES   ====================================================================================================
     # ------------ BOTTOM HALF CONTROLLERS -----------------
     FK_Spine_01 = create_bone(edit_bones, "FK_Spine_01", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, align_to=ORG_Spine_01, parent=WGT_COG_Torso)
+    MCH_Spine_Pivot = create_bone(edit_bones, "MCH_Spine_Pivot", head=FK_Spine_01.head, tail=FK_Spine_01.tail, parent=WGT_COG_Torso, length=FK_Spine_01.length * 0.6)
     FK_Hips = create_bone(edit_bones, "FK_Hips", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, align_to=ORG_Hips, parent=FK_Spine_01)
     # ------------ TOP HALF CONTROLLERS -----------------
     FK_Spine_02 = create_bone(edit_bones, "FK_Spine_02", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=WGT_COG_Torso)

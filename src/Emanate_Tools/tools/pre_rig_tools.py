@@ -184,18 +184,18 @@ def create_deformation_skeleton(context):
     # ------- START OF SPINE CREATION -------
     DEF_Hips = armature_data.edit_bones.new("DEF_Hips")
     DEF_Hips.head = (0, 0, 0.85)
-    DEF_Hips.tail = (0, 0, 0.97)
+    DEF_Hips.tail = (0,  -0.019, 0.97)
     DEF_Hips.parent = root
     DEF_Hips.use_connect = False
     # --- spine 01 ---
     DEF_Spine_01 = armature_data.edit_bones.new("DEF_Spine_01")
-    DEF_Spine_01.head = (0, 0, 0.97)
-    DEF_Spine_01.tail = (0, 0, 1.1)
+    DEF_Spine_01.head = (0, -0.019, 0.97)
+    DEF_Spine_01.tail = (0, -0.028, 1.1)
     DEF_Spine_01.parent = DEF_Hips
     DEF_Spine_01.use_connect = False
     # --- spine 02 ---
     DEF_Spine_02 = armature_data.edit_bones.new("DEF_Spine_02")
-    DEF_Spine_02.head = (0, 0, 1.1)
+    DEF_Spine_02.head = (0, -0.028, 1.1)
     DEF_Spine_02.tail = (0, 0, 1.2)
     DEF_Spine_02.parent = DEF_Spine_01
     DEF_Spine_02.use_connect = False
