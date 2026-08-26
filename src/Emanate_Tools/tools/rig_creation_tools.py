@@ -663,20 +663,32 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ---WGT Torso Bone---------------------------------------------------------
     WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0, 0.5, 0))), parent=Root)
+    Chest_Master = create_bone(edit_bones, "Chest_Master", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.75)
+    Hips_Master = create_bone(edit_bones, "Hips_Master", head=Chest_Master.head, tail=Chest_Master.tail, parent=WGT_COG_Torso, length = Chest_Master.length * 0.75)
     
 
+    
 
-
-    # ==================================================  WIDGET CONTROLLER BONES   ====================================================================================================
+    # ==================================================  WIDGET AND FK CONTROLLER BONES   ====================================================================================================
+    # ==================================================  MECHANISM Bones sprinkled in. They all depend on one another   ====================================================================================================
     # ------------ BOTTOM HALF CONTROLLERS -----------------
-    FK_Spine_01 = create_bone(edit_bones, "FK_Spine_01", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, align_to=ORG_Spine_01, parent=WGT_COG_Torso)
-    MCH_Spine_Pivot = create_bone(edit_bones, "MCH_Spine_Pivot", head=FK_Spine_01.head, tail=FK_Spine_01.tail, parent=WGT_COG_Torso, length=FK_Spine_01.length * 0.6)
-    FK_Hips = create_bone(edit_bones, "FK_Hips", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, align_to=ORG_Hips, parent=FK_Spine_01)
+    MCH_Spine_01_FK = create_bone(edit_bones, "MCH_Spine_01_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.075)
+    FK_Spine_01 = create_bone(edit_bones, "FK_Spine_01", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, align_to=ORG_Spine_01, parent=MCH_Spine_01_FK)
+    MCH_Hips_FK = create_bone(edit_bones, "MCH_Hips_FK", head=ORG_Spine_01.head, tail=(ORG_Spine_01.head + Vector((0,0.04,0))), parent=FK_Spine_01)
+    FK_Hips = create_bone(edit_bones, "FK_Hips", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, align_to=ORG_Hips, parent=MCH_Hips_FK)
+
     # ------------ TOP HALF CONTROLLERS -----------------
-    FK_Spine_02 = create_bone(edit_bones, "FK_Spine_02", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=WGT_COG_Torso)
-    FK_Chest = create_bone(edit_bones, "FK_Chest", head=ORG_Chest.head, tail=ORG_Chest.tail, parent=FK_Spine_02)
+    MCH_Spine_02_FK = create_bone(edit_bones, "MCH_Spine_02_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.1)
+    FK_Spine_02 = create_bone(edit_bones, "FK_Spine_02", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=MCH_Spine_02_FK)
+    MCH_Chest_FK = create_bone(edit_bones, "MCH_Chest_FK", head=ORG_Spine_02.tail, tail=(ORG_Spine_02.tail + Vector((0,0.04,0))), parent=FK_Spine_02)
+    
+    FK_Chest = create_bone(edit_bones, "FK_Chest", head=ORG_Chest.head, tail=ORG_Chest.tail, parent=MCH_Chest_FK)
     WGT_Neck = create_bone(edit_bones, "WGT_Neck", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=FK_Chest)
     WGT_Head = create_bone(edit_bones, "WGT_Head", head=ORG_Head.head, tail=ORG_Head.tail, parent=WGT_Neck)
+    MCH_Spine_Pivot = create_bone(edit_bones, "MCH_Spine_Pivot", head=FK_Spine_01.head, tail=FK_Spine_01.tail, parent=FK_Spine_02, length=FK_Spine_01.length * 0.6)
+
+
+
 
     # ==================================================  TWEAKER BONES   ====================================================================================================
     #---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
@@ -688,7 +700,7 @@ def generate_spine_rig(context, armature_obj=None):
 
     Hips_Tweak = create_bone(edit_bones, "Hips_Tweak", head=ORG_Hips.head, tail=ORG_Hips.tail, parent=FK_Hips, length=tweaker_bone_length)
     Spine_01_Tweak = create_bone(edit_bones, "Spine_01_Tweak", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, parent=FK_Hips, length=tweaker_bone_length)
-    Spine_02_Tweak = create_bone(edit_bones, "Spine_02_Tweak", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=FK_Spine_01, length=tweaker_bone_length)
+    Spine_02_Tweak = create_bone(edit_bones, "Spine_02_Tweak", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=MCH_Spine_Pivot, length=tweaker_bone_length)
     Chest_01_Tweak = create_bone(edit_bones, "Chest_01_Tweak", head=ORG_Chest_Sub_01.head, tail=ORG_Chest_Sub_01.tail, parent=FK_Chest, length=tweaker_bone_length)
     Chest_02_Tweak = create_bone(edit_bones, "Chest_02_Tweak", head=ORG_Chest_Sub_02.head, tail=ORG_Chest_Sub_02.tail, parent=ORG_Chest, length=tweaker_bone_length)
     Neck_Tweak = create_bone(edit_bones, "Neck_Tweak", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=WGT_Neck, length=tweaker_bone_length)
@@ -726,7 +738,7 @@ def generate_spine_rig(context, armature_obj=None):
     # outright rather than raising. Constraints only exist on pose bones anyway.
     pose_bones = armature_obj.pose.bones
 
-    # ============================= stretch to constraints ==========================================================
+    # ============================= STRETCH TO CONSTRAINTS ==========================================================
     stretch_hips = pose_bones["ORG_Hips"].constraints.new("STRETCH_TO")
     stretch_spine_01 = pose_bones["ORG_Spine_01"].constraints.new("STRETCH_TO")
     stretch_spine_02 = pose_bones["ORG_Spine_02"].constraints.new("STRETCH_TO")
@@ -748,6 +760,37 @@ def generate_spine_rig(context, armature_obj=None):
     stretch_chest_sub_02.subtarget = "Neck_Tweak"
     stretch_neck.subtarget = "Head_Tweak"
     stretch_head.subtarget = "Head_Top_Tweak"
+
+    # ============================= COPY TRANSFORM CONSTRAINTS ==========================================================
+    copy_spine_01_fk_transforms = pose_bones["MCH_Spine_Pivot"].constraints.new("COPY_TRANSFORMS")
+    copy_spine_01_fk_transforms.influence = 0.5
+    copy_mch_chest_fk_transforms = pose_bones["MCH_Chest_FK"].constraints.new("COPY_TRANSFORMS")
+    copy_mch_chest_fk_transforms.influence = 0.5
+    copy_mch_chest_fk_transforms.target_space = copy_mch_chest_fk_transforms.owner_space = "LOCAL"
+
+    copy_mch_spine_01_fk_transforms = pose_bones["MCH_Spine_01_FK"].constraints.new("COPY_TRANSFORMS")
+    copy_mch_spine_01_fk_transforms.target_space = copy_mch_spine_01_fk_transforms.owner_space = "LOCAL"
+    copy_mch_spine_01_fk_transforms.influence = 0.5
+
+    copy_mch_hips_fk_transforms = pose_bones["MCH_Hips_FK"].constraints.new("COPY_TRANSFORMS")
+    copy_mch_hips_fk_transforms.target_space = copy_mch_hips_fk_transforms.owner_space = "LOCAL"
+    copy_mch_hips_fk_transforms.influence = 0.5
+
+    copy_mch_spine_02_fk_transforms = pose_bones["MCH_Spine_02_FK"].constraints.new("COPY_TRANSFORMS")
+    copy_mch_spine_02_fk_transforms.target_space = copy_mch_spine_02_fk_transforms.owner_space = "LOCAL"
+    copy_mch_spine_02_fk_transforms.influence = 0.5
+
+    # ------------- copy transform targets -------------
+    copy_spine_01_fk_transforms.target = copy_mch_chest_fk_transforms.target = copy_mch_spine_02_fk_transforms.target = copy_mch_hips_fk_transforms.target = copy_mch_spine_01_fk_transforms.target = armature_obj
+    # ------------- copy transform subtargets -------------
+    copy_spine_01_fk_transforms.subtarget = "FK_Spine_01"
+    copy_mch_chest_fk_transforms.subtarget = "Chest_Master"
+    copy_mch_spine_02_fk_transforms.subtarget = "Chest_Master"
+    copy_mch_hips_fk_transforms.subtarget = "Hips_Master"
+    copy_mch_spine_01_fk_transforms.subtarget = "Hips_Master"
+
+
+
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
