@@ -329,12 +329,12 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --- Left Thigh Tweak SCALE COMPENSATION CORRECTION ---------------------------------------------------------
     MCH_Thigh_Tweak_Scale_Compensation_Left = create_bone(
-        edit_bones, "MCH_Thigh_Tweak_Scale_Compensation.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Thigh_Left.roll, length=tweaker_bone_length/2
+        edit_bones, "MCH_Thigh_Tweak_Scale_Compensation.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_SWITCH_Thigh_Left, roll=ORG_Thigh_Left.roll, length=tweaker_bone_length / 2
     )
 
     # ---TWEAK MCH Left Thigh---------------------------------------------------------
     Thigh_Tweak_Left = create_bone(
-        edit_bones, "Thigh_Tweak.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_Thigh_Tweak_Scale_Compensation_Left, roll=ORG_Thigh_Left.roll,length=tweaker_bone_length
+        edit_bones, "Thigh_Tweak.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_Thigh_Tweak_Scale_Compensation_Left, roll=ORG_Thigh_Left.roll, length=tweaker_bone_length
     )
 
     # --- TWEAK MCH Left Shin Tweak SCALE COMPENSATION CORRECTION---------------------------------------------------------
@@ -343,16 +343,24 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     )
 
     # --- TWEAK MCH Left Shin ---------------------------------------------------------
-    Shin_Tweak_Left = create_bone(edit_bones, "Shin_Tweak.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_Shin_Tweak_Scale_Compensation_Left, roll=ORG_Shin_Left.roll, length=tweaker_bone_length)
+    Shin_Tweak_Left = create_bone(
+        edit_bones, "Shin_Tweak.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=MCH_Shin_Tweak_Scale_Compensation_Left, roll=ORG_Shin_Left.roll, length=tweaker_bone_length
+    )
 
     # --- TWEAK MCH Left Foot ---------------------------------------------------------
-    Foot_Tweak_Left = create_bone(edit_bones, "Foot_Tweak.L", head=ORG_Foot_Left.head, tail=(ORG_Foot_Left.head + ORG_Foot_Left.tail)/2, parent=MCH_SWITCH_Foot_Left, roll=ORG_Foot_Left.roll, length=tweaker_bone_length)
+    Foot_Tweak_Left = create_bone(
+        edit_bones, "Foot_Tweak.L", head=ORG_Foot_Left.head, tail=(ORG_Foot_Left.head + ORG_Foot_Left.tail) / 2, parent=MCH_SWITCH_Foot_Left, roll=ORG_Foot_Left.roll, length=tweaker_bone_length
+    )
 
     # --- TWEAK MCH Left Toe  ---------------------------------------------------------
-    Toe_Tweak_Left = create_bone(edit_bones, "Toe_Tweak.L", head=ORG_Toe_Left.head, tail=(ORG_Toe_Left.head + ORG_Toe_Left.tail)/2, parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll, length=tweaker_bone_length)
+    Toe_Tweak_Left = create_bone(
+        edit_bones, "Toe_Tweak.L", head=ORG_Toe_Left.head, tail=(ORG_Toe_Left.head + ORG_Toe_Left.tail) / 2, parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll, length=tweaker_bone_length
+    )
 
     # --- TWEAK MCH Left Toe TIP  ---------------------------------------------------------
-    Toe_Tip_Tweak_Left = create_bone(edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, tweaker_bone_length, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll)
+    Toe_Tip_Tweak_Left = create_bone(
+        edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, tweaker_bone_length, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll
+    )
 
     # ============================= FK CHAIN ============================================================================================================================
     # ---FK Left Thigh---------------------------------------------------------
@@ -394,7 +402,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     IK_Foot_Left = create_bone(edit_bones, "IK_Foot.L", head=ORG_Foot_Left.head, tail=ORG_Foot_Left.tail, parent=MCH_Foot_Bank_02_Left, roll=ORG_Foot_Left.roll)
 
     # ---IK Left Toe MCH bone---------------------------------------------------------
-    MCH_Toe_IK_Left = create_bone(edit_bones, "MCH_Toe_IK.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=IK_Foot_Left, roll=MCH_Foot_Roll_Left.roll, length = ORG_Toe_Left.length * 0.6)
+    MCH_Toe_IK_Left = create_bone(edit_bones, "MCH_Toe_IK.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=IK_Foot_Left, roll=MCH_Foot_Roll_Left.roll, length=ORG_Toe_Left.length * 0.6)
 
     # ---IK Left Toe WGT Control ---------------------------------------------------------
     WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
@@ -654,7 +662,7 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Hips = edit_bones.get("ORG_Hips")
     ORG_Spine_01 = edit_bones.get("ORG_Spine_01")
     ORG_Spine_02 = edit_bones.get("ORG_Spine_02")
-    ORG_Chest = edit_bones.get("ORG_Chest") #<---- the DEF Should be renamed to MCH later as this is not really a proper DEF bone...
+    ORG_Chest = edit_bones.get("ORG_Chest")  # <---- the DEF Should be renamed to MCH later as this is not really a proper DEF bone...
     ORG_Chest_Sub_01 = edit_bones.get("ORG_Chest_Sub_01")
     ORG_Chest_Sub_02 = edit_bones.get("ORG_Chest_Sub_02")
     ORG_Neck = edit_bones.get("ORG_Neck")
@@ -663,39 +671,37 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ---WGT Torso Bone---------------------------------------------------------
     WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0, 0.5, 0))), parent=Root)
-    Chest_Master = create_bone(edit_bones, "Chest_Master", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.75)
-    Hips_Master = create_bone(edit_bones, "Hips_Master", head=Chest_Master.head, tail=Chest_Master.tail, parent=WGT_COG_Torso, length = Chest_Master.length * 0.75)
-    
-
-    
+    Chest_Master = create_bone(edit_bones, "Chest_Master", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length=WGT_COG_Torso.length * 0.75)
+    Hips_Master = create_bone(edit_bones, "Hips_Master", head=Chest_Master.head, tail=Chest_Master.tail, parent=WGT_COG_Torso, length=Chest_Master.length * 0.75)
 
     # ==================================================  WIDGET AND FK CONTROLLER BONES   ====================================================================================================
     # ==================================================  MECHANISM Bones sprinkled in. They all depend on one another   ====================================================================================================
     # ------------ BOTTOM HALF CONTROLLERS -----------------
-    MCH_Spine_01_FK = create_bone(edit_bones, "MCH_Spine_01_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.075)
+    MCH_Spine_01_FK = create_bone(edit_bones, "MCH_Spine_01_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length=WGT_COG_Torso.length * 0.075)
     FK_Spine_01 = create_bone(edit_bones, "FK_Spine_01", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, align_to=ORG_Spine_01, parent=MCH_Spine_01_FK)
-    MCH_Hips_FK = create_bone(edit_bones, "MCH_Hips_FK", head=ORG_Spine_01.head, tail=(ORG_Spine_01.head + Vector((0,0.04,0))), parent=FK_Spine_01)
+    MCH_Hips_FK = create_bone(edit_bones, "MCH_Hips_FK", head=ORG_Spine_01.head, tail=(ORG_Spine_01.head + Vector((0, 0.04, 0))), parent=FK_Spine_01)
     FK_Hips = create_bone(edit_bones, "FK_Hips", head=ORG_Spine_01.head, tail=ORG_Spine_01.tail, align_to=ORG_Hips, parent=MCH_Hips_FK)
 
     # ------------ TOP HALF CONTROLLERS -----------------
-    MCH_Spine_02_FK = create_bone(edit_bones, "MCH_Spine_02_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length = WGT_COG_Torso.length * 0.1)
+    MCH_Spine_02_FK = create_bone(edit_bones, "MCH_Spine_02_FK", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length=WGT_COG_Torso.length * 0.1)
     FK_Spine_02 = create_bone(edit_bones, "FK_Spine_02", head=ORG_Spine_02.head, tail=ORG_Spine_02.tail, parent=MCH_Spine_02_FK)
-    MCH_Chest_FK = create_bone(edit_bones, "MCH_Chest_FK", head=ORG_Spine_02.tail, tail=(ORG_Spine_02.tail + Vector((0,0.04,0))), parent=FK_Spine_02)
-    
+    MCH_Chest_FK = create_bone(edit_bones, "MCH_Chest_FK", head=ORG_Spine_02.tail, tail=(ORG_Spine_02.tail + Vector((0, 0.04, 0))), parent=FK_Spine_02)
     FK_Chest = create_bone(edit_bones, "FK_Chest", head=ORG_Chest.head, tail=ORG_Chest.tail, parent=MCH_Chest_FK)
-    MCH_Neck = create_bone(edit_bones, "MCH_Neck", head=ORG_Neck.head, tail=(ORG_Neck.head + Vector((0,0.04,0))), parent=FK_Chest)
+    #--- neck ---
+    MCH_Neck = create_bone(edit_bones, "MCH_Neck", head=ORG_Neck.head, tail=(ORG_Neck.head + Vector((0, 0.04, 0))), parent=FK_Chest)
     MCH_Intermediary_Neck = create_bone(edit_bones, "MCH_Intermediary_Neck", head=MCH_Neck.head, tail=MCH_Neck.tail, length=MCH_Neck.length * 0.75, parent=Root)
     WGT_Neck = create_bone(edit_bones, "WGT_Neck", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=MCH_Intermediary_Neck)
-    WGT_Head = create_bone(edit_bones, "WGT_Head", head=ORG_Head.head, tail=ORG_Head.tail, parent=WGT_Neck)
+    #--- head ---
+    MCH_Head = create_bone(edit_bones, "MCH_Head", head=ORG_Head.head, tail=(ORG_Head.head + Vector((0, 0.05, 0))), parent=WGT_Neck)
+    MCH_Intermediary_Head = create_bone(edit_bones, "MCH_Intermediary_Head", head=MCH_Head.head, tail=MCH_Head.tail, length=MCH_Head.length * 0.8, parent=Root)
+    WGT_Head = create_bone(edit_bones, "WGT_Head", head=ORG_Head.head, tail=ORG_Head.tail, parent=MCH_Intermediary_Head)
+
     MCH_Spine_Pivot = create_bone(edit_bones, "MCH_Spine_Pivot", head=FK_Spine_01.head, tail=FK_Spine_01.tail, parent=FK_Spine_02, length=FK_Spine_01.length * 0.6)
 
-
-
-
     # ==================================================  TWEAKER BONES   ====================================================================================================
-    #---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
+    # ---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
     desired_percent_size_of_tweakers = 0.8
-    ORG_Spine_Chain = (ORG_Hips,ORG_Spine_01, ORG_Spine_02, ORG_Chest_Sub_01, ORG_Chest_Sub_02, ORG_Neck, ORG_Head) #<--- purposefully skipping ORG_Chest as we don't want a tweaker on this one
+    ORG_Spine_Chain = (ORG_Hips, ORG_Spine_01, ORG_Spine_02, ORG_Chest_Sub_01, ORG_Chest_Sub_02, ORG_Neck, ORG_Head)  # <--- purposefully skipping ORG_Chest as we don't want a tweaker on this one
     # min() with a key returns the bone itself, so the chain stays inspectable; (name, roll, ...) instead of collapsing straight down to a float.
     smallest_bone_in_chain = min(ORG_Spine_Chain, key=lambda bone: bone.length)
     tweaker_bone_length = smallest_bone_in_chain.length * desired_percent_size_of_tweakers
@@ -707,15 +713,13 @@ def generate_spine_rig(context, armature_obj=None):
     Chest_02_Tweak = create_bone(edit_bones, "Chest_02_Tweak", head=ORG_Chest_Sub_02.head, tail=ORG_Chest_Sub_02.tail, parent=ORG_Chest, length=tweaker_bone_length)
     Neck_Tweak = create_bone(edit_bones, "Neck_Tweak", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=WGT_Neck, length=tweaker_bone_length)
     Head_Tweak = create_bone(edit_bones, "Head_Tweak", head=ORG_Head.head, tail=ORG_Head.tail, parent=WGT_Head, length=tweaker_bone_length)
-    Head_Top_Tweak = create_bone(edit_bones, "Head_Top_Tweak", head=ORG_Head.tail, tail=(ORG_Head.tail + Vector((0,0,0.1))), parent=WGT_Head, length=tweaker_bone_length)
+    Head_Top_Tweak = create_bone(edit_bones, "Head_Top_Tweak", head=ORG_Head.tail, tail=(ORG_Head.tail + Vector((0, 0, 0.1))), parent=WGT_Head, length=tweaker_bone_length)
 
-
-
-    #------  now we can parent ORG bones where we need to ------
+    # ------  now we can parent ORG bones where we need to ------
     ORG_Hips.parent = Hips_Tweak
     ORG_Spine_01.parent = Spine_01_Tweak
     ORG_Spine_02.parent = Spine_02_Tweak
-    ORG_Chest.parent = Chest_01_Tweak #<---- unclear for sure where this parents to, shall come back to look at it later
+    ORG_Chest.parent = Chest_01_Tweak  # <---- unclear for sure where this parents to, shall come back to look at it later
     ORG_Chest_Sub_01.parent = Chest_01_Tweak
     ORG_Chest_Sub_02.parent = Chest_02_Tweak
     ORG_Neck.parent = Neck_Tweak
@@ -751,7 +755,9 @@ def generate_spine_rig(context, armature_obj=None):
     stretch_head = pose_bones["ORG_Head"].constraints.new("STRETCH_TO")
 
     # ------------- stretch targets -------------
-    stretch_hips.target = stretch_spine_01.target = stretch_spine_02.target = stretch_chest.target = stretch_chest_sub_01.target = stretch_chest_sub_02.target = stretch_neck.target = stretch_head.target = armature_obj
+    stretch_hips.target = stretch_spine_01.target = stretch_spine_02.target = stretch_chest.target = stretch_chest_sub_01.target = stretch_chest_sub_02.target = stretch_neck.target = (
+        stretch_head.target
+    ) = armature_obj
 
     # ----------------------- stretch subtargets --------------------------------
     stretch_hips.subtarget = "Spine_01_Tweak"
@@ -783,7 +789,9 @@ def generate_spine_rig(context, armature_obj=None):
     copy_mch_spine_02_fk_transforms.influence = 0.5
 
     # ------------- copy transform targets -------------
-    copy_spine_01_fk_transforms.target = copy_mch_chest_fk_transforms.target = copy_mch_spine_02_fk_transforms.target = copy_mch_hips_fk_transforms.target = copy_mch_spine_01_fk_transforms.target = armature_obj
+    copy_spine_01_fk_transforms.target = copy_mch_chest_fk_transforms.target = copy_mch_spine_02_fk_transforms.target = copy_mch_hips_fk_transforms.target = copy_mch_spine_01_fk_transforms.target = (
+        armature_obj
+    )
     # ------------- copy transform subtargets -------------
     copy_spine_01_fk_transforms.subtarget = "FK_Spine_01"
     copy_mch_chest_fk_transforms.subtarget = "Chest_Master"
@@ -793,27 +801,34 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ============================= COPY LOCATION CONSTRAINTS ==========================================================
     copy_int_neck_location = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_LOCATION")
+    copy_int_head_location = pose_bones["MCH_Intermediary_Head"].constraints.new("COPY_LOCATION")
     # targets
-    copy_int_neck_location.target = armature_obj
+    copy_int_neck_location.target = copy_int_head_location.target = armature_obj
     # subtargets
     copy_int_neck_location.subtarget = "MCH_Neck"
+    copy_int_head_location.subtarget = "MCH_Head"
 
     # ============================= COPY SCALE CONSTRAINTS ==========================================================
     copy_int_neck_scale = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_SCALE")
     copy_int_neck_scale.name = "FOLLOW_BODY_SCALE"
+    copy_int_head_scale = pose_bones["MCH_Intermediary_Head"].constraints.new("COPY_SCALE")
+    copy_int_head_scale.name = "FOLLOW_BODY_SCALE"
     # targets
-    copy_int_neck_scale.target = armature_obj
+    copy_int_neck_scale.target = copy_int_head_scale.target = armature_obj
     # subtargets
     copy_int_neck_scale.subtarget = "MCH_Neck"
+    copy_int_head_scale.subtarget = "MCH_Head"
 
     # ============================= COPY ROTATION CONSTRAINTS ==========================================================
     copy_int_neck_rotation = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_ROTATION")
     copy_int_neck_rotation.name = "FOLLOW_BODY_ROTATION"
+    copy_int_head_rotation = pose_bones["MCH_Intermediary_Head"].constraints.new("COPY_ROTATION")
+    copy_int_head_rotation.name = "FOLLOW_BODY_ROTATION"
     # targets
-    copy_int_neck_rotation.target = armature_obj
+    copy_int_neck_rotation.target = copy_int_head_rotation.target = armature_obj
     # subtargets
     copy_int_neck_rotation.subtarget = "MCH_Neck"
-
+    copy_int_head_rotation.subtarget = "MCH_Head"
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
@@ -822,25 +837,19 @@ def generate_spine_rig(context, armature_obj=None):
     # --- Assign Tweak Shapes -----------------------------------------------------------------------------------
     TWEAK_WIDGET_SIZE = 1  # armature units, tune to taste
 
-    for name in ("Hips_Tweak", "Spine_01_Tweak","Spine_02_Tweak","Chest_01_Tweak","Chest_02_Tweak","Neck_Tweak","Head_Tweak","Head_Top_Tweak"):
+    for name in ("Hips_Tweak", "Spine_01_Tweak", "Spine_02_Tweak", "Chest_01_Tweak", "Chest_02_Tweak", "Neck_Tweak", "Head_Tweak", "Head_Top_Tweak"):
         widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=True, color="THEME09")
 
     # --- Assign FK Shapes -----------------------------------------------------------------------------------
     TWEAK_FK_SIZE = 0.5  # armature units, tune to taste
 
-    for name in ("FK_Hips","FK_Spine_01","FK_Chest"):
+    for name in ("FK_Hips", "FK_Spine_01", "FK_Chest"):
         widgets.assign_widget(pose_bones[name], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE, scale_y=TWEAK_FK_SIZE, scale_z=TWEAK_FK_SIZE, use_bone_size=False, color="THEME09")
     # --FK_Spine_02 is in the same spot as 01, so we need to make it smaller for now
-    widgets.assign_widget(pose_bones["FK_Spine_02"], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE/2, scale_y=TWEAK_FK_SIZE/2, scale_z=TWEAK_FK_SIZE/2, use_bone_size=False, color="THEME09")
+    widgets.assign_widget(pose_bones["FK_Spine_02"], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE / 2, scale_y=TWEAK_FK_SIZE / 2, scale_z=TWEAK_FK_SIZE / 2, use_bone_size=False, color="THEME09")
 
     # --------- Torso COG Master ----------
-    widgets.assign_widget(pose_bones["WGT_COG_Torso"], "WGT_Center_Of_Gravity_Hip", wire_width=2,rotation_y=90, color="THEME04")
-
-
-
-
-
-
+    widgets.assign_widget(pose_bones["WGT_COG_Torso"], "WGT_Center_Of_Gravity_Hip", wire_width=2, rotation_y=90, color="THEME04")
 
     return changed
 
