@@ -683,7 +683,9 @@ def generate_spine_rig(context, armature_obj=None):
     MCH_Chest_FK = create_bone(edit_bones, "MCH_Chest_FK", head=ORG_Spine_02.tail, tail=(ORG_Spine_02.tail + Vector((0,0.04,0))), parent=FK_Spine_02)
     
     FK_Chest = create_bone(edit_bones, "FK_Chest", head=ORG_Chest.head, tail=ORG_Chest.tail, parent=MCH_Chest_FK)
-    WGT_Neck = create_bone(edit_bones, "WGT_Neck", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=FK_Chest)
+    MCH_Neck = create_bone(edit_bones, "MCH_Neck", head=ORG_Neck.head, tail=(ORG_Neck.head + Vector((0,0.04,0))), parent=FK_Chest)
+    MCH_Intermediary_Neck = create_bone(edit_bones, "MCH_Intermediary_Neck", head=MCH_Neck.head, tail=MCH_Neck.tail, length=MCH_Neck.length * 0.75, parent=Root)
+    WGT_Neck = create_bone(edit_bones, "WGT_Neck", head=ORG_Neck.head, tail=ORG_Neck.tail, parent=MCH_Intermediary_Neck)
     WGT_Head = create_bone(edit_bones, "WGT_Head", head=ORG_Head.head, tail=ORG_Head.tail, parent=WGT_Neck)
     MCH_Spine_Pivot = create_bone(edit_bones, "MCH_Spine_Pivot", head=FK_Spine_01.head, tail=FK_Spine_01.tail, parent=FK_Spine_02, length=FK_Spine_01.length * 0.6)
 
@@ -789,7 +791,28 @@ def generate_spine_rig(context, armature_obj=None):
     copy_mch_hips_fk_transforms.subtarget = "Hips_Master"
     copy_mch_spine_01_fk_transforms.subtarget = "Hips_Master"
 
+    # ============================= COPY LOCATION CONSTRAINTS ==========================================================
+    copy_int_neck_location = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_LOCATION")
+    # targets
+    copy_int_neck_location.target = armature_obj
+    # subtargets
+    copy_int_neck_location.subtarget = "MCH_Neck"
 
+    # ============================= COPY SCALE CONSTRAINTS ==========================================================
+    copy_int_neck_scale = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_SCALE")
+    copy_int_neck_scale.name = "FOLLOW_BODY_SCALE"
+    # targets
+    copy_int_neck_scale.target = armature_obj
+    # subtargets
+    copy_int_neck_scale.subtarget = "MCH_Neck"
+
+    # ============================= COPY ROTATION CONSTRAINTS ==========================================================
+    copy_int_neck_rotation = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_ROTATION")
+    copy_int_neck_rotation.name = "FOLLOW_BODY_ROTATION"
+    # targets
+    copy_int_neck_rotation.target = armature_obj
+    # subtargets
+    copy_int_neck_rotation.subtarget = "MCH_Neck"
 
 
     # ========================================================================================================================
