@@ -697,13 +697,11 @@ def generate_spine_rig(context, armature_obj=None):
 
 
 
-
-
-    # now we can parent ORG bones where we need to
+    #------  now we can parent ORG bones where we need to ------
     ORG_Hips.parent = Hips_Tweak
     ORG_Spine_01.parent = Spine_01_Tweak
     ORG_Spine_02.parent = Spine_02_Tweak
-    ORG_Chest.parent = Chest_01_Tweak
+    ORG_Chest.parent = Chest_01_Tweak #<---- unclear for sure where this parents to, shall come back to look at it later
     ORG_Chest_Sub_01.parent = Chest_01_Tweak
     ORG_Chest_Sub_02.parent = Chest_02_Tweak
     ORG_Neck.parent = Neck_Tweak
