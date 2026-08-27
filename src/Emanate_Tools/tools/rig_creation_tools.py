@@ -866,7 +866,7 @@ def generate_spine_rig(context, armature_obj=None):
     chest_scale = 0.9
     widgets.assign_widget(pose_bones["Chest_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=90, scale_x=chest_scale, scale_y=chest_scale, scale_z=chest_scale, color="THEME01")
     # --------- Head Master ----------
-    head_scale = 1.0
+    head_scale = 2.0
     widgets.assign_widget(pose_bones["WGT_Head"], "WGT_Curved_Quadruple_Arrows", wire_width=2, rotation_x=90, scale_x=head_scale, scale_y=head_scale, scale_z=head_scale, color="THEME01")
     pose_bones["WGT_Head"].custom_shape_translation[1] = ORG_Head.length
 
