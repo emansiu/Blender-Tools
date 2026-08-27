@@ -67,6 +67,7 @@ FK_VISIBILITY_BONES = ("FK_Thigh", "FK_Shin", "FK_Foot", "FK_Toe")
 # parent segment, 1 = fully follows); Z drives the scale-follow constraint's
 # influence the same way. See add_spine_drivers.
 HEAD_FOLLOW_DRIVERS = ("WGT_Head_Properties_Controller", "MCH_Intermediary_Head", "FOLLOW_NECK_ROTATION", "FOLLOW_NECK_SCALE")
+NECK_FOLLOW_DRIVERS = ("WGT_Neck_Properties_Controller", "MCH_Intermediary_Neck", "FOLLOW_CHEST_ROTATION", "FOLLOW_CHEST_SCALE")
 # ---------------------------------------------------------------------------
 
 
@@ -605,7 +606,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
     # --------- Root ----------
-    widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90, color="THEME11")
+    widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90,scale_x=2.0,scale_y=2.0,scale_z=2.0, color="THEME11")
 
     # --------- IK Pole Line Visualizer ----------
     widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="THEME07")
@@ -635,7 +636,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=True, color="THEME09")
 
     # --------- Properties Container ----------
-    widgets.assign_widget(pose_bones["WGT_Leg_Properties.L"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME04")
+    widgets.assign_widget(pose_bones["WGT_Leg_Properties.L"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME11")
 
     # --------- Properties Controller ----------
     widgets.assign_widget(pose_bones["WGT_Leg_Properties_Controller.L"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
@@ -734,13 +735,14 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Head.parent = Head_Tweak
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
+    property_controller_scale = 0.2
     WGT_Neck_Properties = create_bone(edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((0.2, 0.5, 0.2))), parent=Root)
     WGT_Neck_Properties_Controller = create_bone(
-        edit_bones, "WGT_Neck_Properties_Controller", head=WGT_Neck_Properties.head, tail=WGT_Neck_Properties.tail, length=WGT_Neck_Properties.length * 0.2, parent=WGT_Neck_Properties
+        edit_bones, "WGT_Neck_Properties_Controller", head=WGT_Neck_Properties.head, tail=WGT_Neck_Properties.tail, length=WGT_Neck_Properties.length * property_controller_scale, parent=WGT_Neck_Properties
     )
     WGT_Head_Properties = create_bone(edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-0.2, 0.5, 0.2))), parent=Root)
     WGT_Head_Properties_Controller = create_bone(
-        edit_bones, "WGT_Head_Properties_Controller", head=WGT_Head_Properties.head, tail=WGT_Head_Properties.tail, length=WGT_Head_Properties.length * 0.2, parent=WGT_Head_Properties
+        edit_bones, "WGT_Head_Properties_Controller", head=WGT_Head_Properties.head, tail=WGT_Head_Properties.tail, length=WGT_Head_Properties.length * property_controller_scale, parent=WGT_Head_Properties
     )
 
     # ========================================== ENTERING POSE MODE  ============================================================================
@@ -852,7 +854,7 @@ def generate_spine_rig(context, armature_obj=None):
     max_distance_for_head_neck_controllers = (
         pose_bones["WGT_Head_Properties_Controller"].bone.length / pose_bones["WGT_Head_Properties"].bone.length
     )
-    # --- leg properties control limits ----
+    # --- head properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
     limit_location_head_properties_controller = pose_bones["WGT_Head_Properties_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
     # normalize the slider -- this is the single source of truth for how far
@@ -864,6 +866,21 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_head_properties_controller.use_transform_limit = True
     limit_location_head_properties_controller.min_x = limit_location_head_properties_controller.min_y = limit_location_head_properties_controller.min_z = limit_location_head_properties_controller.max_y= 0
     limit_location_head_properties_controller.max_x  = limit_location_head_properties_controller.max_z = max_distance_for_head_neck_controllers
+
+
+
+    # --- neck properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
+    limit_location_neck_properties_controller = pose_bones["WGT_Neck_Properties_Controller"].constraints.new("LIMIT_LOCATION")
+    # Named because the driver pass reads max_x back off this constraint to
+    # normalize the slider -- this is the single source of truth for how far
+    # the controller travels, so nothing downstream hardcodes the number.
+    limit_location_neck_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
+    limit_location_neck_properties_controller.owner_space = "LOCAL"
+    limit_location_neck_properties_controller.use_min_x = limit_location_neck_properties_controller.use_min_y = limit_location_neck_properties_controller.use_min_z = True
+    limit_location_neck_properties_controller.use_max_x = limit_location_neck_properties_controller.use_max_y = limit_location_neck_properties_controller.use_max_z = True
+    limit_location_neck_properties_controller.use_transform_limit = True
+    limit_location_neck_properties_controller.min_x = limit_location_neck_properties_controller.min_y = limit_location_neck_properties_controller.min_z = limit_location_neck_properties_controller.max_y= 0
+    limit_location_neck_properties_controller.max_x  = limit_location_neck_properties_controller.max_z = max_distance_for_head_neck_controllers
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
@@ -1090,11 +1107,11 @@ def add_spine_drivers(context, armature_obj, controller_bone, target_bone, rotat
     """Drive one follow-rotation/follow-scale blend from its properties controller slider.
 
     Generic over which bones/constraints it wires, so the same function
-    covers WGT_Head_Properties_Controller -> MCH_Intermediary_Head today and
-    WGT_Neck_Properties_Controller -> MCH_Intermediary_Neck once the neck
-    controller gets its own LIMIT_LOCATION slider -- see HEAD_FOLLOW_DRIVERS.
-    Home for any other generate_spine_rig-specific driver passes that show up
-    later, the way add_leg_drivers is home for the leg's.
+    covers WGT_Head_Properties_Controller -> MCH_Intermediary_Head and
+    WGT_Neck_Properties_Controller -> MCH_Intermediary_Neck alike -- see
+    HEAD_FOLLOW_DRIVERS and NECK_FOLLOW_DRIVERS. Home for any other
+    generate_spine_rig-specific driver passes that show up later, the way
+    add_leg_drivers is home for the leg's.
 
     Re-runnable like add_leg_drivers: add_slider_driver clears any existing
     driver on a property before rebuilding it.
@@ -1186,6 +1203,7 @@ def add_all_drivers(context, armature_obj=None):
         changed += add_leg_drivers(context, armature_obj, side=side)
 
     changed += add_spine_drivers(context, armature_obj, *HEAD_FOLLOW_DRIVERS)
+    changed += add_spine_drivers(context, armature_obj, *NECK_FOLLOW_DRIVERS)
 
     return changed
 
@@ -1236,7 +1254,7 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     # ---- need to move to pose mode ------
     bpy.ops.object.mode_set(mode="POSE")
     pose_bones = armature_obj.pose.bones
-    widgets.assign_widget(pose_bones["WGT_Leg_Properties.R"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME04")
+    widgets.assign_widget(pose_bones["WGT_Leg_Properties.R"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME11")
     pose_bones["WGT_Leg_Properties_Controller.L"].location[0] = 0.1
 
     return changed
