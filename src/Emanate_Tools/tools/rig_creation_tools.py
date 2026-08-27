@@ -869,6 +869,13 @@ def generate_spine_rig(context, armature_obj=None):
     head_scale = 2.0
     widgets.assign_widget(pose_bones["WGT_Head"], "WGT_Curved_Quadruple_Arrows", wire_width=2, rotation_x=90, scale_x=head_scale, scale_y=head_scale, scale_z=head_scale, color="THEME01")
     pose_bones["WGT_Head"].custom_shape_translation[1] = ORG_Head.length
+    # --------- Property Controllers ----------
+    widgets.assign_widget(pose_bones["WGT_Neck_Properties"], "WGT_Neck_Properties", wire_width=1,  color="THEME01")
+    widgets.assign_widget(pose_bones["WGT_Neck_Properties_Controller"], "WGT_Circle_Centered", wire_width=2,  color="THEME07")
+    widgets.assign_widget(pose_bones["WGT_Head_Properties"], "WGT_Head_Properties", wire_width=1,  color="THEME01")
+    widgets.assign_widget(pose_bones["WGT_Head_Properties_Controller"], "WGT_Circle_Centered", wire_width=2,  color="THEME07")
+    
+
 
     changed.append("stretch-to on the hips/spine/chest/neck/head chain")
     changed.append("FK and tweak controllers wired up")
