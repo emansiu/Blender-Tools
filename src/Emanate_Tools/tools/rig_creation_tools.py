@@ -847,9 +847,26 @@ def generate_spine_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE, scale_y=TWEAK_FK_SIZE, scale_z=TWEAK_FK_SIZE, use_bone_size=False, color="THEME09")
     # --FK_Spine_02 is in the same spot as 01, so we need to make it smaller for now
     widgets.assign_widget(pose_bones["FK_Spine_02"], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE / 2, scale_y=TWEAK_FK_SIZE / 2, scale_z=TWEAK_FK_SIZE / 2, use_bone_size=False, color="THEME09")
+    # -- neck --
+    widgets.assign_widget(pose_bones["WGT_Neck"], "WGT_Circle_Centered", scale_x=TWEAK_FK_SIZE / 3, scale_y=TWEAK_FK_SIZE / 3, scale_z=TWEAK_FK_SIZE / 3, use_bone_size=False, color="THEME09")
 
     # --------- Torso COG Master ----------
-    widgets.assign_widget(pose_bones["WGT_COG_Torso"], "WGT_Center_Of_Gravity_Hip", wire_width=2, rotation_y=90, color="THEME04")
+    COG_scale = 2.0
+    widgets.assign_widget(pose_bones["WGT_COG_Torso"], "WGT_Center_Of_Gravity_Hip", wire_width=2, rotation_y=90, scale_x=COG_scale, scale_y=COG_scale,scale_z=COG_scale, color="THEME04")
+    # --------- Torso HIPS Master ----------
+    hips_scale = 0.9
+    widgets.assign_widget(pose_bones["Hips_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=-90, scale_x=hips_scale, scale_y=hips_scale,scale_z=hips_scale, color="THEME01")
+    # --------- Torso CHEST Master ----------
+    chest_scale =  0.9
+    widgets.assign_widget(pose_bones["Chest_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=90, scale_x=chest_scale, scale_y=chest_scale,scale_z=chest_scale, color="THEME01")
+    # --------- Head Master ----------
+    head_scale = 1.0
+    widgets.assign_widget(pose_bones["WGT_Head"], "WGT_Curved_Quadruple_Arrows", wire_width=2, rotation_x=90, scale_x=head_scale, scale_y=head_scale,scale_z=head_scale, color="THEME01")
+    pose_bones["WGT_Head"].custom_shape_translation[1] = WGT_Head.length
+
+    changed.append("stretch-to on the hips/spine/chest/neck/head chain")
+    changed.append("FK and tweak controllers wired up")
+    changed.append("spine, neck and head widgets assigned")
 
     return changed
 
