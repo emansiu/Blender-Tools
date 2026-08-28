@@ -732,8 +732,45 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # outright rather than raising. Constraints only exist on pose bones anyway.
     pose_bones = armature_obj.pose.bones
 
-    # TODO: constraints and widget assignments go here, mirroring
-    # generate_leg_ik_fk_rig's POSE-mode section.
+    # ============================= ROTATION CONSTRAINTS ==========================================================
+    proximal_forearm_copy_rotation = pose_bones["ORG_Forearm_Proximal.L"].constraints.new("COPY_ROTATION")
+    proximal_forearm_copy_rotation.influence = 0.1
+    distal_forearm_copy_rotation = pose_bones["ORG_Forearm_Distal.L"].constraints.new("COPY_ROTATION")
+    distal_forearm_copy_rotation.influence = 0.4
+    # --------------------- rotation targets -----------------------------------
+    proximal_forearm_copy_rotation.target = distal_forearm_copy_rotation.target = armature_obj
+    # --------------------- rotation subtargets -----------------------------------
+    proximal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
+    distal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
+
+
+    # ============================= STRETCH TO CONSTRAINTS ==========================================================
+    stretch_arm = pose_bones["ORG_Arm.L"].constraints.new("STRETCH_TO")
+    stretch_proximal_forearm = pose_bones["ORG_Forearm_Proximal.L"].constraints.new("STRETCH_TO")
+    stretch_distal_forearm = pose_bones["ORG_Forearm_Distal.L"].constraints.new("STRETCH_TO")
+    stretch_hand = pose_bones["ORG_Hand.L"].constraints.new("STRETCH_TO")
+
+    stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = armature_obj
+
+    # ----------------------- stretch subtargets --------------------------------
+    stretch_arm.subtarget = "Forearm_Proximal_Tweak.L"
+    stretch_proximal_forearm.subtarget = "Forearm_Distal_Tweak.L"
+    stretch_distal_forearm.subtarget = "Hand_Tweak.L"
+    stretch_hand.subtarget = "Hand_Tip_Tweak.L"
+
+    
+    # ============================= LOCATION CONSTRAINTS ==========================================================
+    # ============================= SCALE CONSTRAINTS ==========================================================
+
+
+    # ============================= TRANSFORM CONSTRAINTS ==========================================================
+
+
+
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # =========================================== WIDGET SECTION ================================================================================================================================================
+    # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     return changed
 
