@@ -240,29 +240,36 @@ def create_deformation_skeleton(context):
     # --- Left Arm
     DEF_Arm_left = armature_data.edit_bones.new("DEF_Arm.L")
     DEF_Arm_left.head = (0.21, 0, 1.25)
-    DEF_Arm_left.tail = (0.37, 0, 1.25)
+    DEF_Arm_left.tail = (0.37, 0.05, 1.25)
     DEF_Arm_left.parent = DEF_Shoulder_left
     DEF_Arm_left.roll = math.pi
     DEF_Arm_left.use_connect = False
-    # --- Left Forearm 01 ---
-    DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
-    DEF_Forearm_01_left.head = (0.37, 0, 1.25)
-    DEF_Forearm_01_left.tail = (0.53, 0, 1.25)
-    DEF_Forearm_01_left.parent = DEF_Arm_left
-    DEF_Forearm_01_left.roll = math.pi
-    DEF_Forearm_01_left.use_connect = True
-    # --- Left Forearm 02 ---
-    DEF_Forearm_02_left = armature_data.edit_bones.new("DEF_Forearm_02.L")
-    DEF_Forearm_02_left.head = (0.53, 0, 1.25)
-    DEF_Forearm_02_left.tail = (0.69, 0, 1.25)
-    DEF_Forearm_02_left.parent = DEF_Forearm_01_left
-    DEF_Forearm_02_left.roll = math.pi
-    DEF_Forearm_02_left.use_connect = True
+    # --- Left Forearm (ONE piece) ---
+    DEF_Forearm_left = armature_data.edit_bones.new("DEF_Forearm.L")
+    DEF_Forearm_left.head = DEF_Arm_left.tail
+    DEF_Forearm_left.tail = (0.69, 0, 1.25)
+    DEF_Forearm_left.parent = DEF_Arm_left
+    DEF_Forearm_left.roll = math.pi
+    DEF_Forearm_left.use_connect = True
+    # # --- Left Forearm 01 ---
+    # DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
+    # DEF_Forearm_01_left.head = (0.37, 0, 1.25)
+    # DEF_Forearm_01_left.tail = (0.53, 0, 1.25)
+    # DEF_Forearm_01_left.parent = DEF_Arm_left
+    # DEF_Forearm_01_left.roll = math.pi
+    # DEF_Forearm_01_left.use_connect = True
+    # # --- Left Forearm 02 ---
+    # DEF_Forearm_02_left = armature_data.edit_bones.new("DEF_Forearm_02.L")
+    # DEF_Forearm_02_left.head = (0.53, 0, 1.25)
+    # DEF_Forearm_02_left.tail = (0.69, 0, 1.25)
+    # DEF_Forearm_02_left.parent = DEF_Forearm_01_left
+    # DEF_Forearm_02_left.roll = math.pi
+    # DEF_Forearm_02_left.use_connect = True
     # --- Left Hand ---
     DEF_Hand_Left = armature_data.edit_bones.new("DEF_Hand.L")
-    DEF_Hand_Left.head = (0.69, 0, 1.25)
+    DEF_Hand_Left.head = DEF_Forearm_left.tail
     DEF_Hand_Left.tail = (0.85, 0, 1.25)
-    DEF_Hand_Left.parent = DEF_Forearm_02_left
+    DEF_Hand_Left.parent = DEF_Forearm_left
     DEF_Hand_Left.roll = math.pi
     DEF_Hand_Left.use_connect = False
 

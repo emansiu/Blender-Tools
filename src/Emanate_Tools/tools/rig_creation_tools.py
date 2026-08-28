@@ -13,6 +13,7 @@ NAMES = naming.register_tool(
 )
 
 NAMES_LEG_RIG = naming.register_tool("generate_leg_rig", label="Generate Leg Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik legs.")
+NAMES_ARM_RIG = naming.register_tool("generate_arm_rig", label="Generate Arm Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik arms.")
 NAMES_SPINE_RIG = naming.register_tool("generate_spine_rig", label="Generate Spine Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik spine.")
 NAMES_DEF_MIRROR = naming.register_tool("mirror_deformation_skeleton", label="Mirror .L to .R over X", owner=__name__, description="Mirrors anything ending in .L onto the right side")
 NAMES_ADD_DRIVERS = naming.register_tool(
@@ -644,6 +645,69 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
     changed.append("MCH legs added")
+
+    return changed
+
+
+def generate_arm_ik_fk_rig(context, armature_obj=None):
+
+    changed = []
+
+    # Recapture the armature
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    # edit_bones is only populated in edit mode, so we have to be in it whether
+    # or not the caller already was.
+    if armature_obj.mode != "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="EDIT")
+
+    edit_bones = armature_obj.data.edit_bones
+
+    # ORG_Shoulder.L is built by the org-bone generator tool from DEF_Shoulder.L,
+    # so it has to be looked up by name here rather than created in this function.
+    # We re-retrieve the ORG bones we need here
+    ORG_Shoulder_Left = edit_bones.get("ORG_Shoulder.L")
+    ORG_Arm_Left = edit_bones.get("ORG_Arm.L")
+    ORG_Forearm_01_Left = edit_bones.get("ORG_Forearm_01.L")
+    ORG_Forearm_02_Left = edit_bones.get("ORG_Forearm_02.L")
+    ORG_Hand_Left = edit_bones.get("ORG_Hand.L")
+    Root = edit_bones.get("Root")
+    # `is None` binds to a single operand, so it has to be tested per bone --
+    # chaining them with `or` would only check the last one.
+    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_01_Left, ORG_Forearm_02_Left, ORG_Hand_Left, Root)):
+        return changed
+
+    # ============================= MCH CHAIN ============================================================================================================
+    # TODO: build the MCH switch chain, tweak chain, FK chain, IK chain,
+    # properties slider bones -- mirroring the structure generate_leg_ik_fk_rig
+    # uses for Thigh/Shin/Foot/Toe, adapted for the
+    # Shoulder/Arm/Forearm_01/Forearm_02/Hand chain.
+
+    # ========================================== ENTERING POSE MODE  ============================================================================
+    # ============================================== CONSTRAINTS ============================================================================
+    # Constraints hang off pose bones, and everything built above only shows up
+    # in armature_obj.pose.bones once edit mode is left -- so the switch has to
+    # happen here, after the whole chain exists.
+    bpy.ops.object.mode_set(mode="POSE")
+
+    # Root comes from the DEF skeleton, not from this function, so it can be
+    # missing if the tools are run out of order.
+    if armature_obj.data.bones.get("Root") is None:
+        changed.append("Issue: Cannot find ROOT bone, this rig is not ready; cancelling request")
+        return changed
+
+    # Every bone below has to be re-fetched from pose.bones by name. The
+    # EditBone variables built further up are dangling pointers now -- leaving
+    # edit mode frees the edit-bone structs, and touching one crashes Blender
+    # outright rather than raising. Constraints only exist on pose bones anyway.
+    pose_bones = armature_obj.pose.bones
+
+    # TODO: constraints and widget assignments go here, mirroring
+    # generate_leg_ik_fk_rig's POSE-mode section.
 
     return changed
 
@@ -1356,6 +1420,41 @@ class EMANATE_OT_generate_leg_rig(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Arm Rig" BUTTON IS CLICKED =========
+class EMANATE_OT_generate_arm_rig(bpy.types.Operator):
+    bl_idname = NAMES_ARM_RIG.operator_idname
+    bl_label = NAMES_ARM_RIG.label
+    bl_description = NAMES_ARM_RIG.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type == "ARMATURE"
+
+    def execute(self, context):
+        armature_obj = context.object
+
+        # poll() covers the button, but an operator can still be called from a
+        # script or the search menu, where poll is not guaranteed to have run.
+        if armature_obj is None or armature_obj.type != "ARMATURE":
+            self.report({"ERROR"}, "Select an armature first")
+            return {"CANCELLED"}
+
+        changed = generate_arm_ik_fk_rig(context, armature_obj)
+
+        if not changed:
+            self.report({"WARNING"}, f"{armature_obj.name} has no ORG arm bones -- run the ORG bone generator first")
+            return {"CANCELLED"}
+
+        changed += deform_cleanup.sync_deform_flags(armature_obj)
+
+        for change in changed:
+            print(f"[generate-arm-rig] {change}")
+
+        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        return {"FINISHED"}
+
+
 # ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Spine Rig" BUTTON IS CLICKED =========
 class EMANATE_OT_generate_spine_rig(bpy.types.Operator):
     bl_idname = NAMES_SPINE_RIG.operator_idname
@@ -1517,17 +1616,27 @@ class EMANATE_PT_rigging_tools(bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.operator(NAMES_LEG_RIG.operator_idname)
+        layout.operator(NAMES_ARM_RIG.operator_idname)
         layout.operator(NAMES_SPINE_RIG.operator_idname)
         layout.operator(NAMES_DEF_MIRROR.operator_idname)
         layout.operator(NAMES_ADD_DRIVERS.operator_idname)
         layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
 
-_classes = (EMANATE_OT_generate_leg_rig, EMANATE_OT_generate_spine_rig, EMANATE_OT_mirror_def_skeleton, EMANATE_OT_add_all_drivers, EMANATE_OT_organize_bone_collections, EMANATE_PT_rigging_tools)
+_classes = (
+    EMANATE_OT_generate_leg_rig,
+    EMANATE_OT_generate_arm_rig,
+    EMANATE_OT_generate_spine_rig,
+    EMANATE_OT_mirror_def_skeleton,
+    EMANATE_OT_add_all_drivers,
+    EMANATE_OT_organize_bone_collections,
+    EMANATE_PT_rigging_tools,
+)
 
 
 def register():
     naming.check_classes((EMANATE_OT_generate_leg_rig,), NAMES_LEG_RIG)
+    naming.check_classes((EMANATE_OT_generate_arm_rig,), NAMES_ARM_RIG)
     naming.check_classes((EMANATE_OT_generate_spine_rig,), NAMES_SPINE_RIG)
     naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
     naming.check_classes((EMANATE_OT_add_all_drivers,), NAMES_ADD_DRIVERS)
