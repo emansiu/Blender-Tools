@@ -389,18 +389,12 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ---IK Left Thigh---------------------------------------------------------
     IK_Thigh_Left = create_bone(edit_bones, "IK_Thigh.L", head=ORG_Thigh_Left.head, tail=ORG_Thigh_Left.tail, parent=MCH_INT_Leg_Socket_Left, roll=ORG_Thigh_Left.roll)
 
-    # ---TEMP IK Pole Target base (fastest way to position pole exactly as we need ---------------------------------------------------------
-    TEMP_Left_Leg_Pole = create_bone(
-        edit_bones, "TEMP_Left_Leg_Pole", head=ORG_Thigh_Left.head + Vector((0.0, -0.4, 0.0)), tail=ORG_Thigh_Left.tail + Vector((0.0, -0.4, 0.0)), roll=ORG_Thigh_Left.roll
-    )
-
     # ---IK Pole Target left leg ---------------------------------------------------------
+    pole_distance = 0.4
+    pole_head = ORG_Thigh_Left.tail + (ORG_Thigh_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
     IK_Pole_Left = create_bone(
-        edit_bones, "WGT_IK_Pole.L", head=TEMP_Left_Leg_Pole.tail, tail=TEMP_Left_Leg_Pole.tail + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0))
+        edit_bones, "WGT_IK_Pole.L", head=pole_head, tail=pole_head + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0))
     )
-
-    # TEMP_Left_Leg_Pole was only needed to derive the pole position/roll above; discard it now.
-    edit_bones.remove(TEMP_Left_Leg_Pole)
 
     # ---IK Pole Target Visualization bone ---------------------------------------------------------
     VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
@@ -682,15 +676,20 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         changed.append("You are missing a certain required bone")
         return changed
 
-    # ============================= MCH CHAIN ============================================================================================================
-    # ---MCH SWITCH Arm---------------------------------------------------------
-    MCH_SWITCH_Arm_Left = create_bone(edit_bones, "MCH_SWITCH_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=ORG_Shoulder_Left)
-    # ---MCH SWITCH FOREARM---------------------------------------------------------
+    # ============================= MCH BONES  ============================================================================================================
+    # ------------- mch socket bones -------
+    MCH_Arm_Socket_Left = create_bone(edit_bones, "MCH_Arm_Socket.L", head=ORG_Arm_Left.head, tail=(ORG_Arm_Left.head + Vector((0,0.2,0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=ORG_Shoulder_Left)
+    MCH_Intermediary_Arm_Socket_Left = create_bone(edit_bones, "MCH_Intermediary_Arm_Socket.L", head=ORG_Arm_Left.head, tail=(ORG_Arm_Left.head + Vector((0,0.1,0.0))), align_roll=Vector((0.0, 0.0, 1.0)), length=MCH_Arm_Socket_Left.length* 0.5, parent=Root)
+
+    MCH_SWITCH_Arm_Left = create_bone(edit_bones, "MCH_SWITCH_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
     MCH_SWITCH_Forearm_Left = create_bone(edit_bones, "MCH_SWITCH_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_SWITCH_Arm_Left)
-    # ---MCH SWITCH HAND---------------------------------------------------------
+    MCH_SWITCH_Hand_Left = create_bone(edit_bones, "MCH_SWITCH_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_SWITCH_Forearm_Left)
     MCH_SWITCH_Hand_Left = create_bone(edit_bones, "MCH_SWITCH_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_SWITCH_Forearm_Left)
 
-    # ============================= TWEAKERS CHAIN ============================================================================================================
+
+
+
+    # ============================= TWEAKERS BONES ============================================================================================================
     # ---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
     desired_percent_size_of_tweakers = 0.3
     ORG_ARM_CHAIN = (ORG_Arm_Left, ORG_Forearm_Proximal_Left, ORG_Forearm_Distal_Left, ORG_Hand_Left)  # <--- purposefully skipping ORG_Chest as we don't want a tweaker on this one
@@ -704,6 +703,22 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     Forearm_Distal_Tweak_Left = create_bone(edit_bones, "Forearm_Distal_Tweak.L", head=ORG_Forearm_Distal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Distal_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Forearm_Left)
     Hand_Tweak_Left = create_bone(edit_bones, "Hand_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left)
     Hand_Tip_Tweak_Left = create_bone(edit_bones, "Hand_Tip_Tweak.L", head=ORG_Hand_Left.tail, tail=(ORG_Hand_Left.tail + Vector((0.1,0,0))), align_to=ORG_Hand_Left, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left)
+
+    # ============================= FK BONES ============================================================================================================
+    FK_Arm_Left = create_bone(edit_bones, "FK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
+    FK_Forearm_Left = create_bone(edit_bones, "FK_Forearm_Proximal.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=FK_Arm_Left)
+    FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
+
+    # ============================= IK BONES ============================================================================================================
+    MCH_IK_Arm_Left = create_bone(edit_bones, "MCH_IK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
+    MCH_IK_Forearm_Left = create_bone(edit_bones, "MCH_IK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_IK_Arm_Left)
+    WGT_IK_Hand_Left = create_bone(edit_bones, "WGT_IK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=Root)
+
+    pole_distance = 0.4
+    pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
+    WGT_IK_Pole_Target_Left = create_bone(
+        edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+    )
 
     # ---- now we can parent ORG Bones to tweakers
     ORG_Arm_Left.parent =Arm_Tweak_Left
@@ -737,11 +752,13 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     proximal_forearm_copy_rotation.influence = 0.1
     distal_forearm_copy_rotation = pose_bones["ORG_Forearm_Distal.L"].constraints.new("COPY_ROTATION")
     distal_forearm_copy_rotation.influence = 0.4
+
     # --------------------- rotation targets -----------------------------------
-    proximal_forearm_copy_rotation.target = distal_forearm_copy_rotation.target = armature_obj
+    proximal_forearm_copy_rotation.target = distal_forearm_copy_rotation.target =  armature_obj
     # --------------------- rotation subtargets -----------------------------------
     proximal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
     distal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
+
 
 
     # ============================= STRETCH TO CONSTRAINTS ==========================================================
@@ -760,10 +777,42 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     
     # ============================= LOCATION CONSTRAINTS ==========================================================
-    # ============================= SCALE CONSTRAINTS ==========================================================
+    arm_follow_copy_location = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_LOCATION")
+    # ---- location targets -----------
+    arm_follow_copy_location.target = armature_obj
+    # ---- location subtargets -----------
+    arm_follow_copy_location.subtarget = "MCH_Arm_Socket.L"
 
+    # ============================= SCALE CONSTRAINTS ==========================================================
+    arm_follow_copy_scale = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_SCALE")
+    # ---- scale targets -----------
+    arm_follow_copy_scale.target = armature_obj
+    # ---- scale subtargets -----------
+    arm_follow_copy_scale.subtarget = "MCH_Arm_Socket.L"
+
+    # ** !! Adendum ---- need the copy rotation to come last in this change so for this follow constraint we are adding this specific one after copy locatio and scale ----
+    # ** We can't move all the copy rotations down here because the other ones above do need to come first in their order
+    arm_follow_copy_rotation = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_ROTATION")
+    arm_follow_copy_rotation.name = "FOLLOW_SHOULDER_ROTATION"
+    arm_follow_copy_rotation.target = armature_obj
+    arm_follow_copy_rotation.subtarget = "MCH_Arm_Socket.L"
 
     # ============================= TRANSFORM CONSTRAINTS ==========================================================
+
+    # ============================= IK - proper inverse kinematic constraints for the IK leg ==========================================================
+    arm_IK = pose_bones["MCH_IK_Forearm.L"].constraints.new("IK")
+    pose_bones["MCH_IK_Forearm.L"].ik_stretch = 0.01
+    pose_bones["MCH_IK_Forearm.L"].lock_ik_x = True
+    pose_bones["MCH_IK_Forearm.L"].lock_ik_y = True
+    pose_bones["MCH_IK_Arm.L"].ik_stretch = 0.01
+    arm_IK.chain_count = 2
+
+    # -------------ik targets -------------
+    arm_IK.target = arm_IK.pole_target = armature_obj
+
+    # -------------ik subtargets -------------
+    arm_IK.subtarget = "WGT_IK_Hand.L"
+    arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
 
 
 
