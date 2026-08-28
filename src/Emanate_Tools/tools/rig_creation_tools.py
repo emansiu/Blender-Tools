@@ -607,7 +607,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
     # ========================================================================================================================
     # --------- Root ----------
-    widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90,scale_x=2.0,scale_y=2.0,scale_z=2.0, color="THEME11")
+    widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90, scale_x=2.0, scale_y=2.0, scale_z=2.0, color="THEME11")
 
     # --------- IK Pole Line Visualizer ----------
     widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="THEME07")
@@ -672,24 +672,46 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # We re-retrieve the ORG bones we need here
     ORG_Shoulder_Left = edit_bones.get("ORG_Shoulder.L")
     ORG_Arm_Left = edit_bones.get("ORG_Arm.L")
-    ORG_Forearm_01_Left = edit_bones.get("ORG_Forearm_01.L")
-    ORG_Forearm_02_Left = edit_bones.get("ORG_Forearm_02.L")
+    ORG_Forearm_Proximal_Left = edit_bones.get("ORG_Forearm_Proximal.L")
+    ORG_Forearm_Distal_Left = edit_bones.get("ORG_Forearm_Distal.L")
     ORG_Hand_Left = edit_bones.get("ORG_Hand.L")
     Root = edit_bones.get("Root")
     # `is None` binds to a single operand, so it has to be tested per bone --
     # chaining them with `or` would only check the last one.
-    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_01_Left,ORG_Forearm_02_Left, ORG_Hand_Left, Root)):
+    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_Proximal_Left, ORG_Forearm_Distal_Left, ORG_Hand_Left, Root)):
         changed.append("You are missing a certain required bone")
         return changed
 
-    # ============================= FIRST SUBDIVIDE FOREARM, AND RENAME BONES ==================================================================================================
-
-
     # ============================= MCH CHAIN ============================================================================================================
-    # TODO: build the MCH switch chain, tweak chain, FK chain, IK chain,
-    # properties slider bones -- mirroring the structure generate_leg_ik_fk_rig
-    # uses for Thigh/Shin/Foot/Toe, adapted for the
-    # Shoulder/Arm/Forearm_01/Forearm_02/Hand chain.
+    # ---MCH SWITCH Arm---------------------------------------------------------
+    MCH_SWITCH_Arm_Left = create_bone(edit_bones, "MCH_SWITCH_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=ORG_Shoulder_Left)
+    # ---MCH SWITCH FOREARM---------------------------------------------------------
+    MCH_SWITCH_Forearm_Left = create_bone(edit_bones, "MCH_SWITCH_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_SWITCH_Arm_Left)
+    # ---MCH SWITCH HAND---------------------------------------------------------
+    MCH_SWITCH_Hand_Left = create_bone(edit_bones, "MCH_SWITCH_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_SWITCH_Forearm_Left)
+
+    # ============================= TWEAKERS CHAIN ============================================================================================================
+    # ---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
+    desired_percent_size_of_tweakers = 0.3
+    ORG_ARM_CHAIN = (ORG_Arm_Left, ORG_Forearm_Proximal_Left, ORG_Forearm_Distal_Left, ORG_Hand_Left)  # <--- purposefully skipping ORG_Chest as we don't want a tweaker on this one
+    # min() with a key returns the bone itself, so the chain stays inspectable; (name, roll, ...) instead of collapsing straight down to a float.
+    smallest_bone_in_chain = min(ORG_ARM_CHAIN, key=lambda bone: bone.length)
+    tweaker_bone_length = smallest_bone_in_chain.length * desired_percent_size_of_tweakers
+
+    # ---All Arm Tweak Bones---------------------------------------------------------
+    Arm_Tweak_Left = create_bone(edit_bones, "Arm_Tweak.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Arm_Left)
+    Forearm_Proximal_Tweak_Left = create_bone(edit_bones, "Forearm_Proximal_Tweak.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Proximal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Forearm_Left)
+    Forearm_Distal_Tweak_Left = create_bone(edit_bones, "Forearm_Distal_Tweak.L", head=ORG_Forearm_Distal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Distal_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Forearm_Left)
+    Hand_Tweak_Left = create_bone(edit_bones, "Hand_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left)
+    Hand_Tip_Tweak_Left = create_bone(edit_bones, "Hand_Tip_Tweak.L", head=ORG_Hand_Left.tail, tail=(ORG_Hand_Left.tail + Vector((0.1,0,0))), align_to=ORG_Hand_Left, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left)
+
+    # ---- now we can parent ORG Bones to tweakers
+    ORG_Arm_Left.parent =Arm_Tweak_Left
+    ORG_Forearm_Proximal_Left.parent = Forearm_Proximal_Tweak_Left
+    ORG_Forearm_Distal_Left.parent = Forearm_Distal_Tweak_Left
+    ORG_Hand_Left.parent = Hand_Tweak_Left
+
+    changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ========================================== ENTERING POSE MODE  ============================================================================
     # ============================================== CONSTRAINTS ============================================================================
@@ -806,11 +828,21 @@ def generate_spine_rig(context, armature_obj=None):
     property_controller_scale = 0.2
     WGT_Neck_Properties = create_bone(edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((0.2, 0.5, 0.2))), parent=Root)
     WGT_Neck_Properties_Controller = create_bone(
-        edit_bones, "WGT_Neck_Properties_Controller", head=WGT_Neck_Properties.head, tail=WGT_Neck_Properties.tail, length=WGT_Neck_Properties.length * property_controller_scale, parent=WGT_Neck_Properties
+        edit_bones,
+        "WGT_Neck_Properties_Controller",
+        head=WGT_Neck_Properties.head,
+        tail=WGT_Neck_Properties.tail,
+        length=WGT_Neck_Properties.length * property_controller_scale,
+        parent=WGT_Neck_Properties,
     )
     WGT_Head_Properties = create_bone(edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-0.2, 0.5, 0.2))), parent=Root)
     WGT_Head_Properties_Controller = create_bone(
-        edit_bones, "WGT_Head_Properties_Controller", head=WGT_Head_Properties.head, tail=WGT_Head_Properties.tail, length=WGT_Head_Properties.length * property_controller_scale, parent=WGT_Head_Properties
+        edit_bones,
+        "WGT_Head_Properties_Controller",
+        head=WGT_Head_Properties.head,
+        tail=WGT_Head_Properties.tail,
+        length=WGT_Head_Properties.length * property_controller_scale,
+        parent=WGT_Head_Properties,
     )
 
     # ========================================== ENTERING POSE MODE  ============================================================================
@@ -919,9 +951,7 @@ def generate_spine_rig(context, armature_obj=None):
     copy_int_head_rotation.subtarget = "MCH_Head"
 
     # ============================= LIMIT LOCATION CONSTRAINTS =======================================================================================
-    max_distance_for_head_neck_controllers = (
-        pose_bones["WGT_Head_Properties_Controller"].bone.length / pose_bones["WGT_Head_Properties"].bone.length
-    )
+    max_distance_for_head_neck_controllers = pose_bones["WGT_Head_Properties_Controller"].bone.length / pose_bones["WGT_Head_Properties"].bone.length
     # --- head properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
     limit_location_head_properties_controller = pose_bones["WGT_Head_Properties_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
@@ -932,10 +962,10 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_head_properties_controller.use_min_x = limit_location_head_properties_controller.use_min_y = limit_location_head_properties_controller.use_min_z = True
     limit_location_head_properties_controller.use_max_x = limit_location_head_properties_controller.use_max_y = limit_location_head_properties_controller.use_max_z = True
     limit_location_head_properties_controller.use_transform_limit = True
-    limit_location_head_properties_controller.min_x = limit_location_head_properties_controller.min_y = limit_location_head_properties_controller.min_z = limit_location_head_properties_controller.max_y= 0
-    limit_location_head_properties_controller.max_x  = limit_location_head_properties_controller.max_z = max_distance_for_head_neck_controllers
-
-
+    limit_location_head_properties_controller.min_x = limit_location_head_properties_controller.min_y = limit_location_head_properties_controller.min_z = (
+        limit_location_head_properties_controller.max_y
+    ) = 0
+    limit_location_head_properties_controller.max_x = limit_location_head_properties_controller.max_z = max_distance_for_head_neck_controllers
 
     # --- neck properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
     limit_location_neck_properties_controller = pose_bones["WGT_Neck_Properties_Controller"].constraints.new("LIMIT_LOCATION")
@@ -947,8 +977,10 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_neck_properties_controller.use_min_x = limit_location_neck_properties_controller.use_min_y = limit_location_neck_properties_controller.use_min_z = True
     limit_location_neck_properties_controller.use_max_x = limit_location_neck_properties_controller.use_max_y = limit_location_neck_properties_controller.use_max_z = True
     limit_location_neck_properties_controller.use_transform_limit = True
-    limit_location_neck_properties_controller.min_x = limit_location_neck_properties_controller.min_y = limit_location_neck_properties_controller.min_z = limit_location_neck_properties_controller.max_y= 0
-    limit_location_neck_properties_controller.max_x  = limit_location_neck_properties_controller.max_z = max_distance_for_head_neck_controllers
+    limit_location_neck_properties_controller.min_x = limit_location_neck_properties_controller.min_y = limit_location_neck_properties_controller.min_z = (
+        limit_location_neck_properties_controller.max_y
+    ) = 0
+    limit_location_neck_properties_controller.max_x = limit_location_neck_properties_controller.max_z = max_distance_for_head_neck_controllers
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------

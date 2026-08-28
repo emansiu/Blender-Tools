@@ -250,7 +250,7 @@ def create_deformation_skeleton(context):
     DEF_Forearm_left.tail = (0.69, 0, 1.25)
     DEF_Forearm_left.parent = DEF_Arm_left
     DEF_Forearm_left.roll = math.pi
-    DEF_Forearm_left.use_connect = True
+    DEF_Forearm_left.use_connect = False
     # --- Left Hand ---
     DEF_Hand_Left = armature_data.edit_bones.new("DEF_Hand.L")
     DEF_Hand_Left.head = DEF_Forearm_left.tail
@@ -487,6 +487,7 @@ def subdivide_def_bones(armature_obj):
         # of its own choosing, so that is the one to call distal.
         edit_bones[bone_name].name = proximal_name
         edit_bones[new_names[0]].name = distal_name
+        edit_bones[distal_name].use_connect =  edit_bones[proximal_name].use_connect
         created += [proximal_name, distal_name]
 
     return created
