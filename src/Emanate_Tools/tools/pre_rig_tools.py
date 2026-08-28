@@ -244,27 +244,13 @@ def create_deformation_skeleton(context):
     DEF_Arm_left.parent = DEF_Shoulder_left
     DEF_Arm_left.roll = math.pi
     DEF_Arm_left.use_connect = False
-    # --- Left Forearm (ONE piece) ---
+    # --- Left Forearm (ONE piece) --- !!! When ORG BONES generate, the forarm will be subdivided !!!
     DEF_Forearm_left = armature_data.edit_bones.new("DEF_Forearm.L")
     DEF_Forearm_left.head = DEF_Arm_left.tail
     DEF_Forearm_left.tail = (0.69, 0, 1.25)
     DEF_Forearm_left.parent = DEF_Arm_left
     DEF_Forearm_left.roll = math.pi
     DEF_Forearm_left.use_connect = True
-    # # --- Left Forearm 01 ---
-    # DEF_Forearm_01_left = armature_data.edit_bones.new("DEF_Forearm_01.L")
-    # DEF_Forearm_01_left.head = (0.37, 0, 1.25)
-    # DEF_Forearm_01_left.tail = (0.53, 0, 1.25)
-    # DEF_Forearm_01_left.parent = DEF_Arm_left
-    # DEF_Forearm_01_left.roll = math.pi
-    # DEF_Forearm_01_left.use_connect = True
-    # # --- Left Forearm 02 ---
-    # DEF_Forearm_02_left = armature_data.edit_bones.new("DEF_Forearm_02.L")
-    # DEF_Forearm_02_left.head = (0.53, 0, 1.25)
-    # DEF_Forearm_02_left.tail = (0.69, 0, 1.25)
-    # DEF_Forearm_02_left.parent = DEF_Forearm_01_left
-    # DEF_Forearm_02_left.roll = math.pi
-    # DEF_Forearm_02_left.use_connect = True
     # --- Left Hand ---
     DEF_Hand_Left = armature_data.edit_bones.new("DEF_Hand.L")
     DEF_Hand_Left.head = DEF_Forearm_left.tail
@@ -455,12 +441,55 @@ CONSTRAINT_TYPE = 'COPY_TRANSFORMS'
 # Bone collections the two sets get sorted into.
 DEFORM_COLLECTION = "DEFORMATION"
 ORIGINAL_COLLECTION = "ORIGINAL"
+
+# DEF bones built as one piece that have to end up as two halves before the
+# ORG pass runs, keyed by the whole bone's name: (root half, tip half).
+BONES_TO_SUBDIVIDE = {
+    "DEF_Forearm.L": ("DEF_Forearm_Proximal.L", "DEF_Forearm_Distal.L"),
+}
 # ---------------------------------------------------------------------------
 
 
 def org_name_for(def_bone_name):
     """DEF_base -> ORG_base. Only the prefix changes; the rest is untouched."""
     return ORG_PREFIX + def_bone_name[len(DEF_PREFIX):]
+
+
+def subdivide_def_bones(armature_obj):
+    """Split each bone in BONES_TO_SUBDIVIDE in two. Must be called in EDIT mode.
+
+    The whole bone does not survive: subdivide leaves the root half under the
+    original name and a new tip half carrying the children, and both are then
+    renamed. Returns the list of names created.
+    """
+    edit_bones = armature_obj.data.edit_bones
+    created = []
+
+    for bone_name, (proximal_name, distal_name) in BONES_TO_SUBDIVIDE.items():
+        source = edit_bones.get(bone_name)
+        if source is None:
+            # Either the rig never had it or a previous run already split it.
+            continue
+
+        for bone in edit_bones:
+            bone.select = bone.select_head = bone.select_tail = False
+        source.select = source.select_head = source.select_tail = True
+        edit_bones.active = source
+
+        before = {bone.name for bone in edit_bones}
+        bpy.ops.armature.subdivide(number_cuts=1)
+        new_names = [bone.name for bone in edit_bones if bone.name not in before]
+        if not new_names:
+            continue
+
+        # Subdivide keeps the root half under the original name and gives the
+        # half towards the tail -- the one that carries the children -- a name
+        # of its own choosing, so that is the one to call distal.
+        edit_bones[bone_name].name = proximal_name
+        edit_bones[new_names[0]].name = distal_name
+        created += [proximal_name, distal_name]
+
+    return created
 
 
 def create_org_bones(armature_obj):
@@ -471,6 +500,10 @@ def create_org_bones(armature_obj):
     counterpart had to be built this run.
     """
     edit_bones = armature_obj.data.edit_bones
+
+    # Split first so the halves are picked up by the sweep below and get ORG
+    # twins of their own.
+    subdivide_def_bones(armature_obj)
 
     source_bones = [eb for eb in edit_bones if eb.name.startswith(DEF_PREFIX)]
 

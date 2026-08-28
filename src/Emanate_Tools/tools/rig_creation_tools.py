@@ -678,8 +678,12 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     Root = edit_bones.get("Root")
     # `is None` binds to a single operand, so it has to be tested per bone --
     # chaining them with `or` would only check the last one.
-    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_01_Left, ORG_Forearm_02_Left, ORG_Hand_Left, Root)):
+    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_01_Left,ORG_Forearm_02_Left, ORG_Hand_Left, Root)):
+        changed.append("You are missing a certain required bone")
         return changed
+
+    # ============================= FIRST SUBDIVIDE FOREARM, AND RENAME BONES ==================================================================================================
+
 
     # ============================= MCH CHAIN ============================================================================================================
     # TODO: build the MCH switch chain, tweak chain, FK chain, IK chain,
