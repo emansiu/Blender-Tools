@@ -35,6 +35,7 @@ NAMES_ORGANIZE_COLLECTIONS = naming.register_tool(
 IK_SWITCH_CONSTRAINT_NAME = "IK_Transform_Influence"
 ROTATION_FOLLOW_CONSTRAINT_NAME = "ROTATION_FOLLOW"
 IK_PARENT_CONSTRAINT_NAME = "IK_PARENT_SWITCH"
+HAND_IK_PARENT_CONSTRAINT_NAME = "HAND_IK_PARENT_SWITCH"
 SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
 
 # Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
@@ -717,8 +718,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # ============================= IK BONES ============================================================================================================
     MCH_IK_Arm_Left = create_bone(edit_bones, "MCH_IK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
     MCH_IK_Forearm_Left = create_bone(edit_bones, "MCH_IK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_IK_Arm_Left)
-    WGT_IK_Hand_Left = create_bone(edit_bones, "WGT_IK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=Root)
-    MCH_IK_Hand_Parent_Left = create_bone(edit_bones, "MCH_IK_Hand_Parent.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=ORG_Hand_Left* 0.5,parent=Root)
+    MCH_IK_Hand_Parent_Left = create_bone(edit_bones, "MCH_IK_Hand_Parent.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=ORG_Hand_Left.length * 0.5)
+    WGT_IK_Hand_Left = create_bone(edit_bones, "WGT_IK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_IK_Hand_Parent_Left)
 
     pole_distance = 0.4
     pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
@@ -858,6 +859,23 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # -------------ik subtargets -------------
     arm_IK.subtarget = "WGT_IK_Hand.L"
     arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
+
+        # ============================= Armature constraints =======================================================================================
+    Armature_Hand_IK_Parent = pose_bones["MCH_IK_Hand_Parent.L"].constraints.new("ARMATURE")
+    # Named so the driver pass can find it without depending on Blender's
+    # default "Armature" label.
+    Armature_Hand_IK_Parent.name = IK_PARENT_CONSTRAINT_NAME
+
+    # ---- armature targets (including subtargets since this is a unique constraint with multible targets/subtargets) -------
+    Armature_Hand_IK_Parent_root_target = Armature_Hand_IK_Parent.targets.new()
+    Armature_Hand_IK_Parent_root_target.target = armature_obj
+    Armature_Hand_IK_Parent_root_target.subtarget = "Root"
+    Armature_Hand_IK_Parent_root_target.weight = 0.0
+
+    Armature_Hand_IK_Parent_hip_target = Armature_Hand_IK_Parent.targets.new()
+    Armature_Hand_IK_Parent_hip_target.target = armature_obj
+    Armature_Hand_IK_Parent_hip_target.subtarget = "ORG_Hips"
+    Armature_Hand_IK_Parent_hip_target.weight = 0.0
 
 
 
