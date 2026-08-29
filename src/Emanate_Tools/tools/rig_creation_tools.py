@@ -393,9 +393,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ---IK Pole Target left leg ---------------------------------------------------------
     pole_distance = 0.4
     pole_head = ORG_Thigh_Left.tail + (ORG_Thigh_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
-    IK_Pole_Left = create_bone(
-        edit_bones, "WGT_IK_Pole.L", head=pole_head, tail=pole_head + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0))
-    )
+    IK_Pole_Left = create_bone(edit_bones, "WGT_IK_Pole.L", head=pole_head, tail=pole_head + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0)))
 
     # ---IK Pole Target Visualization bone ---------------------------------------------------------
     VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
@@ -665,6 +663,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # ORG_Shoulder.L is built by the org-bone generator tool from DEF_Shoulder.L,
     # so it has to be looked up by name here rather than created in this function.
     # We re-retrieve the ORG bones we need here
+    ORG_Chest = edit_bones.get("ORG_Chest")
     ORG_Shoulder_Left = edit_bones.get("ORG_Shoulder.L")
     ORG_Arm_Left = edit_bones.get("ORG_Arm.L")
     ORG_Forearm_Proximal_Left = edit_bones.get("ORG_Forearm_Proximal.L")
@@ -679,15 +678,24 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # ============================= MCH BONES  ============================================================================================================
     # ------------- mch socket bones -------
-    MCH_Arm_Socket_Left = create_bone(edit_bones, "MCH_Arm_Socket.L", head=ORG_Arm_Left.head, tail=(ORG_Arm_Left.head + Vector((0,0.2,0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=ORG_Shoulder_Left)
-    MCH_Intermediary_Arm_Socket_Left = create_bone(edit_bones, "MCH_Intermediary_Arm_Socket.L", head=ORG_Arm_Left.head, tail=(ORG_Arm_Left.head + Vector((0,0.1,0.0))), align_roll=Vector((0.0, 0.0, 1.0)), length=MCH_Arm_Socket_Left.length* 0.5, parent=Root)
+    MCH_Arm_Socket_Left = create_bone(
+        edit_bones, "MCH_Arm_Socket.L", head=ORG_Arm_Left.head, tail=(ORG_Arm_Left.head + Vector((0, 0.2, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=ORG_Shoulder_Left
+    )
+    MCH_Intermediary_Arm_Socket_Left = create_bone(
+        edit_bones,
+        "MCH_Intermediary_Arm_Socket.L",
+        head=ORG_Arm_Left.head,
+        tail=(ORG_Arm_Left.head + Vector((0, 0.1, 0.0))),
+        align_roll=Vector((0.0, 0.0, 1.0)),
+        length=MCH_Arm_Socket_Left.length * 0.5,
+        parent=Root,
+    )
 
     MCH_SWITCH_Arm_Left = create_bone(edit_bones, "MCH_SWITCH_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
-    MCH_SWITCH_Forearm_Left = create_bone(edit_bones, "MCH_SWITCH_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_SWITCH_Arm_Left)
+    MCH_SWITCH_Forearm_Left = create_bone(
+        edit_bones, "MCH_SWITCH_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_SWITCH_Arm_Left
+    )
     MCH_SWITCH_Hand_Left = create_bone(edit_bones, "MCH_SWITCH_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_SWITCH_Forearm_Left)
-
-
-
 
     # ============================= TWEAKERS BONES ============================================================================================================
     # ---  dynamically get tweaker size by smallest bone as we did in the legs to get a reasonable sized tweaker bone that doesn't look nasty in edit mode-----
@@ -699,16 +707,56 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # ---All Arm Tweak Bones---------------------------------------------------------
     # ---Intermediary Arm Tweak Bones---------------------------------------------------------
-    MCH_Arm_Intermediary_Tweak_Left = create_bone(edit_bones, "MCH_Arm_Intermediary_Tweak.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Arm_Left)
-    MCH_Forearm_Proximal_Intermediary_Tweak_Left = create_bone(edit_bones, "MCH_Forearm_Proximal_Intermediary_Tweak.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Proximal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Forearm_Left)
-    MCH_Forearm_Distal_Intermediary_Tweak_Left = create_bone(edit_bones, "MCH_Forearm_Distal_Intermediary_Tweak.L", head=ORG_Forearm_Distal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Distal_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Forearm_Left)
-    MCH_Hand_Intermediary_Tweak_Left = create_bone(edit_bones, "MCH_Hand_Intermediary_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Hand_Left)
+    MCH_Arm_Intermediary_Tweak_Left = create_bone(
+        edit_bones, "MCH_Arm_Intermediary_Tweak.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Arm_Left
+    )
+    MCH_Forearm_Proximal_Intermediary_Tweak_Left = create_bone(
+        edit_bones,
+        "MCH_Forearm_Proximal_Intermediary_Tweak.L",
+        head=ORG_Forearm_Proximal_Left.head,
+        tail=ORG_Forearm_Proximal_Left.tail,
+        roll=ORG_Forearm_Proximal_Left.roll,
+        length=tweaker_bone_length * 0.5,
+        parent=MCH_SWITCH_Forearm_Left,
+    )
+    MCH_Forearm_Distal_Intermediary_Tweak_Left = create_bone(
+        edit_bones,
+        "MCH_Forearm_Distal_Intermediary_Tweak.L",
+        head=ORG_Forearm_Distal_Left.head,
+        tail=ORG_Forearm_Distal_Left.tail,
+        roll=ORG_Forearm_Distal_Left.roll,
+        length=tweaker_bone_length * 0.5,
+        parent=MCH_SWITCH_Forearm_Left,
+    )
+    MCH_Hand_Intermediary_Tweak_Left = create_bone(
+        edit_bones, "MCH_Hand_Intermediary_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length * 0.5, parent=MCH_SWITCH_Hand_Left
+    )
     # ---Primary Arm Tweak Bones---------------------------------------------------------
     Arm_Tweak_Left = create_bone(edit_bones, "Arm_Tweak.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, length=tweaker_bone_length, parent=MCH_Arm_Intermediary_Tweak_Left)
-    Forearm_Proximal_Tweak_Left = create_bone(edit_bones, "Forearm_Proximal_Tweak.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Proximal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, length=tweaker_bone_length, parent=MCH_Forearm_Proximal_Intermediary_Tweak_Left)
-    Forearm_Distal_Tweak_Left = create_bone(edit_bones, "Forearm_Distal_Tweak.L", head=ORG_Forearm_Distal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Distal_Left.roll, length=tweaker_bone_length, parent=MCH_Forearm_Distal_Intermediary_Tweak_Left)
-    Hand_Tweak_Left = create_bone(edit_bones, "Hand_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length, parent=MCH_Hand_Intermediary_Tweak_Left)
-    Hand_Tip_Tweak_Left = create_bone(edit_bones, "Hand_Tip_Tweak.L", head=ORG_Hand_Left.tail, tail=(ORG_Hand_Left.tail + Vector((0.1,0,0))), align_to=ORG_Hand_Left, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left)
+    Forearm_Proximal_Tweak_Left = create_bone(
+        edit_bones,
+        "Forearm_Proximal_Tweak.L",
+        head=ORG_Forearm_Proximal_Left.head,
+        tail=ORG_Forearm_Proximal_Left.tail,
+        roll=ORG_Forearm_Proximal_Left.roll,
+        length=tweaker_bone_length,
+        parent=MCH_Forearm_Proximal_Intermediary_Tweak_Left,
+    )
+    Forearm_Distal_Tweak_Left = create_bone(
+        edit_bones,
+        "Forearm_Distal_Tweak.L",
+        head=ORG_Forearm_Distal_Left.head,
+        tail=ORG_Forearm_Distal_Left.tail,
+        roll=ORG_Forearm_Distal_Left.roll,
+        length=tweaker_bone_length,
+        parent=MCH_Forearm_Distal_Intermediary_Tweak_Left,
+    )
+    Hand_Tweak_Left = create_bone(
+        edit_bones, "Hand_Tweak.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=tweaker_bone_length, parent=MCH_Hand_Intermediary_Tweak_Left
+    )
+    Hand_Tip_Tweak_Left = create_bone(
+        edit_bones, "Hand_Tip_Tweak.L", head=ORG_Hand_Left.tail, tail=(ORG_Hand_Left.tail + Vector((0.1, 0, 0))), align_to=ORG_Hand_Left, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left
+    )
 
     # ============================= FK BONES ============================================================================================================
     FK_Arm_Left = create_bone(edit_bones, "FK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
@@ -717,23 +765,56 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # ============================= IK BONES ============================================================================================================
     MCH_IK_Arm_Left = create_bone(edit_bones, "MCH_IK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
-    MCH_IK_Forearm_Left = create_bone(edit_bones, "MCH_IK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_IK_Arm_Left)
+    MCH_IK_Forearm_Left = create_bone(
+        edit_bones, "MCH_IK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_IK_Arm_Left
+    )
     MCH_IK_Hand_Parent_Left = create_bone(edit_bones, "MCH_IK_Hand_Parent.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, length=ORG_Hand_Left.length * 0.5)
     WGT_IK_Hand_Left = create_bone(edit_bones, "WGT_IK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=MCH_IK_Hand_Parent_Left)
 
     pole_distance = 0.4
     pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
-    WGT_IK_Pole_Target_Left = create_bone(
-        edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
-    )
+    WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
 
     # ---- now we can parent ORG Bones to tweakers
-    ORG_Arm_Left.parent =Arm_Tweak_Left
+    ORG_Arm_Left.parent = Arm_Tweak_Left
     ORG_Forearm_Proximal_Left.parent = Forearm_Proximal_Tweak_Left
     ORG_Forearm_Distal_Left.parent = Forearm_Distal_Tweak_Left
     ORG_Hand_Left.parent = Hand_Tweak_Left
 
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
+
+    # ============================= PROPERTY BONES ============================================================================================================
+    controller_scale = 0.1
+    PRPT_Left_Hand_Holder = create_bone(
+        edit_bones, "PRPT_Left_Hand_Holder", head=ORG_Chest.head + Vector((0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((0.3, 0.6, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+    )
+    PRPT_Right_Hand_Holder = create_bone(
+        edit_bones, "PRPT_Right_Hand_Holder", head=ORG_Chest.head + Vector((-0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((-0.3, 0.6, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+    )
+    PRPT_Left_Hand_Controller = create_bone(
+        edit_bones,
+        "PRPT_Left_Hand_Controller",
+        head=PRPT_Left_Hand_Holder.head,
+        tail=PRPT_Left_Hand_Holder.tail,
+        roll=PRPT_Left_Hand_Holder.roll,
+        length=PRPT_Left_Hand_Holder.length * controller_scale,
+        parent=PRPT_Left_Hand_Holder,
+    )
+    PRPT_Right_Hand_Controller = create_bone(
+        edit_bones,
+        "PRPT_Right_Hand_Controller",
+        head=PRPT_Right_Hand_Holder.head,
+        tail=PRPT_Right_Hand_Holder.tail,
+        roll=PRPT_Right_Hand_Holder.roll,
+        length=PRPT_Right_Hand_Holder.length * controller_scale,
+        parent=MCH_IK_Hand_Parent_Left,
+    )
+
+    pole_distance = 0.4
+    pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
+    WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
+
+    changed.append("Created Property bones to complete all bone creations")
 
     # ========================================== ENTERING POSE MODE  ============================================================================
     # ============================================== CONSTRAINTS ============================================================================
@@ -761,12 +842,10 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     distal_forearm_copy_rotation.influence = 0.4
 
     # --------------------- rotation targets -----------------------------------
-    proximal_forearm_copy_rotation.target = distal_forearm_copy_rotation.target =  armature_obj
+    proximal_forearm_copy_rotation.target = distal_forearm_copy_rotation.target = armature_obj
     # --------------------- rotation subtargets -----------------------------------
     proximal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
     distal_forearm_copy_rotation.subtarget = "ORG_Hand.L"
-
-
 
     # ============================= STRETCH TO CONSTRAINTS ==========================================================
     stretch_arm = pose_bones["ORG_Arm.L"].constraints.new("STRETCH_TO")
@@ -782,7 +861,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     stretch_distal_forearm.subtarget = "Hand_Tweak.L"
     stretch_hand.subtarget = "Hand_Tip_Tweak.L"
 
-    
     # ============================= LOCATION CONSTRAINTS =======================================================================================
     arm_follow_socket_copy_location = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_LOCATION")
     # ---- location targets -----------
@@ -796,14 +874,17 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     MCH_Forearm_Proximal_Intermediary_Tweak_copy_scale = pose_bones["MCH_Forearm_Proximal_Intermediary_Tweak.L"].constraints.new("COPY_SCALE")
     MCH_Forearm_Distal_Intermediary_Tweak_copy_scale = pose_bones["MCH_Forearm_Distal_Intermediary_Tweak.L"].constraints.new("COPY_SCALE")
     MCH_Hand_Intermediary_Tweak_copy_scale = pose_bones["MCH_Hand_Intermediary_Tweak.L"].constraints.new("COPY_SCALE")
-    
-    
+
     # ---- scale targets -----------
-    arm_follow_socket_copy_scale.target = MCH_Arm_Intermediary_Tweak_copy_scale.target = MCH_Forearm_Proximal_Intermediary_Tweak_copy_scale.target = MCH_Forearm_Distal_Intermediary_Tweak_copy_scale.target = MCH_Hand_Intermediary_Tweak_copy_scale.target = armature_obj
-    
+    arm_follow_socket_copy_scale.target = MCH_Arm_Intermediary_Tweak_copy_scale.target = MCH_Forearm_Proximal_Intermediary_Tweak_copy_scale.target = (
+        MCH_Forearm_Distal_Intermediary_Tweak_copy_scale.target
+    ) = MCH_Hand_Intermediary_Tweak_copy_scale.target = armature_obj
+
     # ---- scale subtargets -----------
     arm_follow_socket_copy_scale.subtarget = "MCH_Arm_Socket.L"
-    MCH_Arm_Intermediary_Tweak_copy_scale.subtarget =MCH_Forearm_Proximal_Intermediary_Tweak_copy_scale.subtarget =MCH_Forearm_Distal_Intermediary_Tweak_copy_scale.subtarget =MCH_Hand_Intermediary_Tweak_copy_scale.subtarget = "Root"
+    MCH_Arm_Intermediary_Tweak_copy_scale.subtarget = MCH_Forearm_Proximal_Intermediary_Tweak_copy_scale.subtarget = MCH_Forearm_Distal_Intermediary_Tweak_copy_scale.subtarget = (
+        MCH_Hand_Intermediary_Tweak_copy_scale.subtarget
+    ) = "Root"
 
     # ** !! Adendum ---- need the copy rotation to come last in this change so for this follow constraint we are adding this specific one after copy locatio and scale ----
     # ** We can't move all the copy rotations down here because the other ones above do need to come first in their order
@@ -844,7 +925,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     SWITCH_Forearm_copy_ik_transform.subtarget = "MCH_IK_Forearm.L"
     SWITCH_Hand_copy_ik_transform.subtarget = "WGT_IK_Hand.L"
 
-
     # ============================= IK - proper inverse kinematic constraints for the IK leg ==========================================================
     arm_IK = pose_bones["MCH_IK_Forearm.L"].constraints.new("IK")
     pose_bones["MCH_IK_Forearm.L"].ik_stretch = 0.01
@@ -860,7 +940,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     arm_IK.subtarget = "WGT_IK_Hand.L"
     arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
 
-        # ============================= Armature constraints =======================================================================================
+    # ============================= Armature constraints =======================================================================================
     Armature_Hand_IK_Parent = pose_bones["MCH_IK_Hand_Parent.L"].constraints.new("ARMATURE")
     # Named so the driver pass can find it without depending on Blender's
     # default "Armature" label.
@@ -877,9 +957,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     Armature_Hand_IK_Parent_hip_target.subtarget = "ORG_Hips"
     Armature_Hand_IK_Parent_hip_target.weight = 0.0
 
-
-
-    
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     # =========================================== WIDGET SECTION ================================================================================================================================================
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
