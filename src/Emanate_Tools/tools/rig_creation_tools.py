@@ -37,10 +37,27 @@ ROTATION_FOLLOW_CONSTRAINT_NAME = "ROTATION_FOLLOW"
 IK_PARENT_CONSTRAINT_NAME = "IK_PARENT_SWITCH"
 HAND_IK_PARENT_CONSTRAINT_NAME = "HAND_IK_PARENT_SWITCH"
 SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
+ARM_IK_SWITCH_CONSTRAINT_NAME = "COPY_IK_TRANSFORMS"
+ARM_FOLLOW_SHOULDER_CONSTRAINT_NAME = "FOLLOW_SHOULDER_ROTATION"
 
 # Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R".
 IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MCH_SWITCH_Toe")
+
+# Bones carrying an ARM_IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
+# Side-less -- the driver pass appends ".L" or ".R". See add_hand_drivers.
+ARM_IK_SWITCH_BONES = ("MCH_SWITCH_Arm", "MCH_SWITCH_Forearm", "MCH_SWITCH_Hand")
+
+# side -> the hand properties controller that drives that side's arm.
+# generate_arm_ik_fk_rig builds BOTH of these up front, unlike the leg
+# controller, which is built once for .L and reaches its .R twin only through
+# symmetrize mirroring it. Neither hand controller here is a mirrored copy of
+# the other, so neither one's local axes get the sign flip symmetrize would
+# put on a mirrored bone -- see add_hand_drivers.
+HAND_CONTROLLER_SIDES = {
+    "L": "PRPT_Left_Hand_Controller",
+    "R": "PRPT_Right_Hand_Controller",
+}
 
 # (driven bone prefix, rotation_euler axis, clamp expression) for the foot
 # roll/bank split. WGT_Foot_Roll is one control: turning it on Z is bank,
@@ -892,7 +909,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # ** !! Adendum ---- need the copy rotation to come last in this change so for this follow constraint we are adding this specific one after copy locatio and scale ----
     # ** We can't move all the copy rotations down here because the other ones above do need to come first in their order
     arm_follow_socket_copy_rotation = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_ROTATION")
-    arm_follow_socket_copy_rotation.name = "FOLLOW_SHOULDER_ROTATION"
+    arm_follow_socket_copy_rotation.name = ARM_FOLLOW_SHOULDER_CONSTRAINT_NAME
     arm_follow_socket_copy_rotation.target = armature_obj
     arm_follow_socket_copy_rotation.subtarget = "MCH_Arm_Socket.L"
 
@@ -915,11 +932,11 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # Switch arm ik follows
     # ----------------------------- Switch arm ik follows -------------------------------------
     SWITCH_Arm_copy_ik_transform = pose_bones["MCH_SWITCH_Arm.L"].constraints.new("COPY_TRANSFORMS")
-    SWITCH_Arm_copy_ik_transform.name = "COPY_IK_TRANSFORMS"
+    SWITCH_Arm_copy_ik_transform.name = ARM_IK_SWITCH_CONSTRAINT_NAME
     SWITCH_Forearm_copy_ik_transform = pose_bones["MCH_SWITCH_Forearm.L"].constraints.new("COPY_TRANSFORMS")
-    SWITCH_Forearm_copy_ik_transform.name = "COPY_IK_TRANSFORMS"
+    SWITCH_Forearm_copy_ik_transform.name = ARM_IK_SWITCH_CONSTRAINT_NAME
     SWITCH_Hand_copy_ik_transform = pose_bones["MCH_SWITCH_Hand.L"].constraints.new("COPY_TRANSFORMS")
-    SWITCH_Hand_copy_ik_transform.name = "COPY_IK_TRANSFORMS"
+    SWITCH_Hand_copy_ik_transform.name = ARM_IK_SWITCH_CONSTRAINT_NAME
 
     # --- ik targets ---
     SWITCH_Arm_copy_ik_transform.target = SWITCH_Forearm_copy_ik_transform.target = SWITCH_Hand_copy_ik_transform.target = armature_obj
@@ -1488,6 +1505,121 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
     return changed
 
 
+def add_hand_drivers(context, armature_obj=None, side="L"):
+    """Drive one arm's constraints from its hand properties controller slider.
+
+    Unlike add_leg_drivers, PRPT_Left_Hand_Controller and
+    PRPT_Right_Hand_Controller are both built directly by
+    generate_arm_ik_fk_rig -- neither is a symmetrize-mirrored copy of the
+    other, so neither one's local axes get the sign flip a mirrored bone
+    would need. Every expression below reads straight off the signed range
+    with no side-dependent inversion. See HAND_CONTROLLER_SIDES.
+
+    Re-runnable and missing-bone-tolerant like add_leg_drivers: the .R side
+    legitimately does not exist until the arm has been mirrored.
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    # Constraints require pose mode, so moving here if not here already.
+    if armature_obj.mode == "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="POSE")
+
+    pose_bones = armature_obj.pose.bones
+
+    def constraint_on(bone_name, constraint_name):
+        """The named constraint, or None if either the bone or it is missing."""
+        pose_bone = pose_bones.get(bone_name)
+        if pose_bone is None:
+            return None
+        return pose_bone.constraints.get(constraint_name)
+
+    slider_bone_name = HAND_CONTROLLER_SIDES.get(side)
+    if slider_bone_name is None:
+        return changed
+
+    slider_limit = constraint_on(slider_bone_name, SLIDER_LIMIT_CONSTRAINT_NAME)
+
+    if slider_limit is None:
+        return changed
+
+    # The limit constraint is the source of truth for how far the controller
+    # travels, same reasoning as add_leg_drivers -- but unlike that one,
+    # neither hand controller's range gets sign-flipped, so both sides read
+    # the same normalized 0..1 straight off their own max.
+    travel = {axis: slider_travel(slider_limit, axis) for axis in ("X", "Y", "Z")}
+    flat = [axis for axis, distance in travel.items() if not distance]
+
+    if flat:
+        changed.append(f"Issue: {slider_bone_name} has no slide range on {', '.join(flat)}; cannot normalize drivers")
+        return changed
+
+    normalize = {axis: f"{distance:.6g}" for axis, distance in travel.items()}
+
+    driven = 0
+
+    # ------------------------ IK / FK "Switch" - slider that controls whether MCH arm follows FK or IK -----------------------------
+    # Left (rest) = 0 = pure FK, all the way right = 1 = pure IK. The whole
+    # IK chain reads the same slider, so one expression covers all three.
+    ik_switch_expression = f"slider_x / {normalize['X']}"
+
+    for bone_prefix in ARM_IK_SWITCH_BONES:
+        ik_constraint = constraint_on(f"{bone_prefix}.{side}", ARM_IK_SWITCH_CONSTRAINT_NAME)
+        if ik_constraint is None:
+            continue
+
+        add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X", slider_bone=slider_bone_name)
+        driven += 1
+
+    # ------------------------ IK follow hips or root ------------------------
+    # Root and ORG_Hips are the two blend targets on the same armature
+    # constraint, so their weights have to be complementary -- ORG_Hips rises
+    # with the slider while Root falls, keeping the blend at 1.0 total.
+    # All the way up on Z -> Hips 1 / Root 0. All the way down -> Root 1 / Hips 0.
+    ik_parent = constraint_on(f"MCH_IK_Hand_Parent.{side}", IK_PARENT_CONSTRAINT_NAME)
+
+    if ik_parent is not None:
+        # An armature constraint's targets have no name field to look up, so
+        # they are matched on subtarget instead of trusting creation order to
+        # survive a symmetrize. Both are centreline bones, so the names are
+        # the same on either side.
+        root_target = next((target for target in ik_parent.targets if target.subtarget == "Root"), None)
+
+        hip_target = next((target for target in ik_parent.targets if target.subtarget == "ORG_Hips"), None)
+
+        ik_follow_hip_expression = f"slider_z / {normalize['Z']}"
+
+        if hip_target is not None:
+            add_slider_driver(hip_target, armature_obj, ik_follow_hip_expression, axis="Z", slider_bone=slider_bone_name, data_path="weight")
+
+            driven += 1
+
+        if root_target is not None:
+            add_slider_driver(root_target, armature_obj, f"1 - ({ik_follow_hip_expression})", axis="Z", slider_bone=slider_bone_name, data_path="weight")
+
+            driven += 1
+
+    # ------------------------ FK follow shoulder rotation ------------------------
+    # Forward (away from Root) on Y -> influence 1, fully follows the shoulder.
+    # Pulled back toward Root on Y -> influence 0.
+    follow_shoulder = constraint_on(f"MCH_Intermediary_Arm_Socket.{side}", ARM_FOLLOW_SHOULDER_CONSTRAINT_NAME)
+
+    if follow_shoulder is not None:
+        add_slider_driver(follow_shoulder, armature_obj, f"slider_y / {normalize['Y']}", axis="Y", slider_bone=slider_bone_name)
+
+        driven += 1
+
+    if driven:
+        changed.append(f"{driven} driver(s) on .{side} -> {slider_bone_name}")
+
+    return changed
+
+
 def add_spine_drivers(context, armature_obj, controller_bone, target_bone, rotation_constraint_name, scale_constraint_name):
     """Drive one follow-rotation/follow-scale blend from its properties controller slider.
 
@@ -1572,10 +1704,9 @@ def add_all_drivers(context, armature_obj=None):
     """Run every driver pass in the rig, both sides.
 
     The one-stop entry point behind the "Add All Drivers" button. Each limb
-    gets its own pass below -- arms will need their own, since they hang off a
-    different properties controller -- and each pass skips quietly when the
-    bones it wants are not there, so this stays safe to press at any point
-    after the rig has been generated.
+    gets its own pass below, and each pass skips quietly when the bones it
+    wants are not there, so this stays safe to press at any point after the
+    rig has been generated.
     """
     changed = []
 
@@ -1586,6 +1717,7 @@ def add_all_drivers(context, armature_obj=None):
 
     for side in ("L", "R"):
         changed += add_leg_drivers(context, armature_obj, side=side)
+        changed += add_hand_drivers(context, armature_obj, side=side)
 
     changed += add_spine_drivers(context, armature_obj, *HEAD_FOLLOW_DRIVERS)
     changed += add_spine_drivers(context, armature_obj, *NECK_FOLLOW_DRIVERS)
