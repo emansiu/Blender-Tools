@@ -758,12 +758,15 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         edit_bones, "Hand_Tip_Tweak.L", head=ORG_Hand_Left.tail, tail=(ORG_Hand_Left.tail + Vector((0.1, 0, 0))), align_to=ORG_Hand_Left, length=tweaker_bone_length, parent=MCH_SWITCH_Hand_Left
     )
 
-    # ============================= FK BONES ============================================================================================================
+    # ============================= FK BONES ===========================================================================================================================================
+
     FK_Arm_Left = create_bone(edit_bones, "FK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
     FK_Forearm_Left = create_bone(edit_bones, "FK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=FK_Arm_Left)
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
 
-    # ============================= IK BONES ============================================================================================================
+
+    # ============================= IK BONES ===========================================================================================================================================
+
     MCH_IK_Arm_Left = create_bone(edit_bones, "MCH_IK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
     MCH_IK_Forearm_Left = create_bone(
         edit_bones, "MCH_IK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=MCH_IK_Arm_Left
@@ -774,6 +777,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     pole_distance = 0.4
     pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
     WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
+    VIS_IK_Pole_Link_Left = create_bone(edit_bones, "VIS_IK_Pole_Link.L", head=MCH_IK_Arm_Left.tail, tail=pole_head, parent=MCH_IK_Arm_Left)
 
     # ---- now we can parent ORG Bones to tweakers
     ORG_Arm_Left.parent = Arm_Tweak_Left
@@ -784,12 +788,12 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ============================= PROPERTY BONES ============================================================================================================
-    controller_scale = 0.1
+    controller_scale = 0.25
     PRPT_Left_Hand_Holder = create_bone(
-        edit_bones, "PRPT_Left_Hand_Holder", head=ORG_Chest.head + Vector((0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((0.3, 0.6, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+        edit_bones, "PRPT_Left_Hand_Holder", head=ORG_Chest.head + Vector((0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((0.3, 0.5, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
     )
     PRPT_Right_Hand_Holder = create_bone(
-        edit_bones, "PRPT_Right_Hand_Holder", head=ORG_Chest.head + Vector((-0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((-0.3, 0.6, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+        edit_bones, "PRPT_Right_Hand_Holder", head=ORG_Chest.head + Vector((-0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((-0.3, 0.5, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
     )
     PRPT_Left_Hand_Controller = create_bone(
         edit_bones,
@@ -810,9 +814,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         parent=MCH_IK_Hand_Parent_Left,
     )
 
-    pole_distance = 0.4
-    pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
-    WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
 
     changed.append("Created Property bones to complete all bone creations")
 
@@ -852,14 +853,16 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     stretch_proximal_forearm = pose_bones["ORG_Forearm_Proximal.L"].constraints.new("STRETCH_TO")
     stretch_distal_forearm = pose_bones["ORG_Forearm_Distal.L"].constraints.new("STRETCH_TO")
     stretch_hand = pose_bones["ORG_Hand.L"].constraints.new("STRETCH_TO")
+    stretch_vis_pole_link = pose_bones["VIS_IK_Pole_Link.L"].constraints.new("STRETCH_TO")
 
-    stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = armature_obj
+    stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = stretch_vis_pole_link.target = armature_obj
 
     # ----------------------- stretch subtargets --------------------------------
     stretch_arm.subtarget = "Forearm_Proximal_Tweak.L"
     stretch_proximal_forearm.subtarget = "Forearm_Distal_Tweak.L"
     stretch_distal_forearm.subtarget = "Hand_Tweak.L"
     stretch_hand.subtarget = "Hand_Tip_Tweak.L"
+    stretch_vis_pole_link.subtarget = "WGT_IK_Pole_Target.L"
 
     # ============================= LOCATION CONSTRAINTS =======================================================================================
     arm_follow_socket_copy_location = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_LOCATION")
@@ -940,6 +943,36 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     arm_IK.subtarget = "WGT_IK_Hand.L"
     arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
 
+    # ============================= IK LIMIT LOCATION CONSTRAINTS ==========================================================
+    max_distance_for_controllers = 0.2
+    # --- hand properties control limits ----
+    limit_location_left_hand_properties_controller = pose_bones["PRPT_Left_Hand_Controller"].constraints.new("LIMIT_LOCATION")
+    # Named because the driver pass reads max_x back off this constraint to
+    # normalize the slider -- this is the single source of truth for how far
+    # the controller travels, so nothing downstream hardcodes the number.
+    limit_location_left_hand_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
+    limit_location_left_hand_properties_controller.owner_space = "LOCAL"
+    limit_location_left_hand_properties_controller.use_min_x = limit_location_left_hand_properties_controller.use_min_y = limit_location_left_hand_properties_controller.use_min_z = True
+    limit_location_left_hand_properties_controller.use_max_x = limit_location_left_hand_properties_controller.use_max_y = limit_location_left_hand_properties_controller.use_max_z = True
+    limit_location_left_hand_properties_controller.use_transform_limit = True
+    limit_location_left_hand_properties_controller.min_x = limit_location_left_hand_properties_controller.min_y = limit_location_left_hand_properties_controller.min_z = 0
+    limit_location_left_hand_properties_controller.max_x = limit_location_left_hand_properties_controller.max_y = limit_location_left_hand_properties_controller.max_z = max_distance_for_controllers
+
+    limit_location_right_hand_properties_controller = pose_bones["PRPT_Right_Hand_Controller"].constraints.new("LIMIT_LOCATION")
+    # Named because the driver pass reads max_x back off this constraint to
+    # normalize the slider -- this is the single source of truth for how far
+    # the controller travels, so nothing downstream hardcodes the number.
+    limit_location_right_hand_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
+    limit_location_right_hand_properties_controller.owner_space = "LOCAL"
+    limit_location_right_hand_properties_controller.use_min_x = limit_location_right_hand_properties_controller.use_min_y = limit_location_right_hand_properties_controller.use_min_z = True
+    limit_location_right_hand_properties_controller.use_max_x = limit_location_right_hand_properties_controller.use_max_y = limit_location_right_hand_properties_controller.use_max_z = True
+    limit_location_right_hand_properties_controller.use_transform_limit = True
+    limit_location_right_hand_properties_controller.min_x = limit_location_right_hand_properties_controller.min_y = limit_location_right_hand_properties_controller.min_z = 0
+    limit_location_right_hand_properties_controller.max_x = limit_location_right_hand_properties_controller.max_y = limit_location_right_hand_properties_controller.max_z = max_distance_for_controllers
+
+
+
+
     # ============================= Armature constraints =======================================================================================
     Armature_Hand_IK_Parent = pose_bones["MCH_IK_Hand_Parent.L"].constraints.new("ARMATURE")
     # Named so the driver pass can find it without depending on Blender's
@@ -960,7 +993,33 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     # =========================================== WIDGET SECTION ================================================================================================================================================
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    
+    # --- Assign Tweak Shapes -----------------------------------------------------------------------------------
+    TWEAK_WIDGET_SIZE = 0.06  # armature units, tune to taste
 
+    for name in ("Arm_Tweak.L","Forearm_Proximal_Tweak.L","Forearm_Distal_Tweak.L","Hand_Tweak.L","Hand_Tip_Tweak.L"):
+        widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=False, color="THEME09")
+
+    # --- Assign FK Shapes -----------------------------------------------------------------------------------
+    FK_WGT_SIZE = 0.25  # armature units, tune to taste
+
+    for name in ("FK_Arm.L", "FK_Forearm.L", "FK_Hand.L"):
+        widgets.assign_widget(pose_bones[name], "WGT_Circle_Centered", scale_x=FK_WGT_SIZE, scale_y=FK_WGT_SIZE, scale_z=FK_WGT_SIZE, use_bone_size=False, color="THEME09")
+
+    # --- IK Arm Shapes -----------------------------------------------------------------------------------
+    widgets.assign_widget(pose_bones["WGT_IK_Hand.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME04")       
+    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")       
+    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")       
+
+    # --- Arm Properties Shapes -----------------------------------------------------------------------------------
+    controller_scale = 1
+    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Holder"], "WGT_Left_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME11")       
+    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")       
+    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Holder"], "WGT_Right_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME11")       
+    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")       
+
+
+    return changed.append('Added arm widgets/icons')
     return changed
 
 
