@@ -40,6 +40,22 @@ SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
 ARM_IK_SWITCH_CONSTRAINT_NAME = "COPY_IK_TRANSFORMS"
 ARM_FOLLOW_SHOULDER_CONSTRAINT_NAME = "FOLLOW_SHOULDER_ROTATION"
 
+# Shared sizing for every properties holder/container bone and the slider
+# controller bone parented inside it (leg, hand, head, neck). One pair of
+# numbers here keeps every properties rig the same size instead of each
+# builder picking its own scale factor off a differently-sized holder.
+PROPERTIES_HOLDER_LENGTH = 0.2
+PROPERTIES_CONTROLLER_LENGTH = 0.05
+
+# How far a properties controller's LIMIT_LOCATION constraint lets it slide
+# on each active axis, in armature units. Matches PROPERTIES_HOLDER_LENGTH so
+# the controller travels exactly the width of its holder/container widget --
+# any other value and the controller either stops short of the container's
+# edge or overshoots past it. The driver passes never hardcode this number;
+# they read it back off the constraint via slider_travel, so changing this
+# constant alone keeps the visuals and the drivers in sync.
+PROPERTIES_CONTROLLER_TRAVEL = PROPERTIES_HOLDER_LENGTH
+
 # Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R".
 IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MCH_SWITCH_Toe")
@@ -437,11 +453,16 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # be done). A fixed screen position next to the foot control does not
     # require inheriting the foot control's pose anyway.
     WGT_Leg_Properties_Left = create_bone(
-        edit_bones, "WGT_Leg_Properties.L", head=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.3, 0.0)), tail=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.2, 0.0)), parent=Root
+        edit_bones,
+        "WGT_Leg_Properties.L",
+        head=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.3, 0.0)),
+        tail=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.2, 0.0)),
+        parent=Root,
+        length=PROPERTIES_HOLDER_LENGTH,
     )
 
     WGT_Leg_Properties_Controller_Left = create_bone(
-        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=WGT_Leg_Properties_Left.length * 0.4
+        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=PROPERTIES_CONTROLLER_LENGTH
     )
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
@@ -563,8 +584,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     limit_location_properties_controller.use_max_x = limit_location_properties_controller.use_max_y = limit_location_properties_controller.use_max_z = True
     limit_location_properties_controller.use_transform_limit = True
     limit_location_properties_controller.min_x = limit_location_properties_controller.min_y = limit_location_properties_controller.min_z = 0
-    max_distance_for_controller = 0.1
-    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = max_distance_for_controller
+    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     # ============================= Armature constraints =======================================================================================
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
@@ -805,12 +825,23 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ============================= PROPERTY BONES ============================================================================================================
-    controller_scale = 0.25
     PRPT_Left_Hand_Holder = create_bone(
-        edit_bones, "PRPT_Left_Hand_Holder", head=ORG_Chest.head + Vector((0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((0.3, 0.5, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+        edit_bones,
+        "PRPT_Left_Hand_Holder",
+        head=ORG_Chest.head + Vector((0.3, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((0.3, 0.5, 0)),
+        align_roll=Vector((0.0, 0.0, 1.0)),
+        parent=Root,
+        length=PROPERTIES_HOLDER_LENGTH,
     )
     PRPT_Right_Hand_Holder = create_bone(
-        edit_bones, "PRPT_Right_Hand_Holder", head=ORG_Chest.head + Vector((-0.3, 0.3, 0)), tail=ORG_Chest.head + Vector((-0.3, 0.5, 0)), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root
+        edit_bones,
+        "PRPT_Right_Hand_Holder",
+        head=ORG_Chest.head + Vector((-0.3, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((-0.3, 0.5, 0)),
+        align_roll=Vector((0.0, 0.0, 1.0)),
+        parent=Root,
+        length=PROPERTIES_HOLDER_LENGTH,
     )
     PRPT_Left_Hand_Controller = create_bone(
         edit_bones,
@@ -818,7 +849,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         head=PRPT_Left_Hand_Holder.head,
         tail=PRPT_Left_Hand_Holder.tail,
         roll=PRPT_Left_Hand_Holder.roll,
-        length=PRPT_Left_Hand_Holder.length * controller_scale,
+        length=PROPERTIES_CONTROLLER_LENGTH,
         parent=PRPT_Left_Hand_Holder,
     )
     PRPT_Right_Hand_Controller = create_bone(
@@ -827,8 +858,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         head=PRPT_Right_Hand_Holder.head,
         tail=PRPT_Right_Hand_Holder.tail,
         roll=PRPT_Right_Hand_Holder.roll,
-        length=PRPT_Right_Hand_Holder.length * controller_scale,
-        parent=MCH_IK_Hand_Parent_Left,
+        length=PROPERTIES_CONTROLLER_LENGTH,
+        parent=PRPT_Right_Hand_Holder,
     )
 
 
@@ -961,7 +992,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
 
     # ============================= IK LIMIT LOCATION CONSTRAINTS ==========================================================
-    max_distance_for_controllers = 0.2
     # --- hand properties control limits ----
     limit_location_left_hand_properties_controller = pose_bones["PRPT_Left_Hand_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
@@ -973,7 +1003,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     limit_location_left_hand_properties_controller.use_max_x = limit_location_left_hand_properties_controller.use_max_y = limit_location_left_hand_properties_controller.use_max_z = True
     limit_location_left_hand_properties_controller.use_transform_limit = True
     limit_location_left_hand_properties_controller.min_x = limit_location_left_hand_properties_controller.min_y = limit_location_left_hand_properties_controller.min_z = 0
-    limit_location_left_hand_properties_controller.max_x = limit_location_left_hand_properties_controller.max_y = limit_location_left_hand_properties_controller.max_z = max_distance_for_controllers
+    limit_location_left_hand_properties_controller.max_x = limit_location_left_hand_properties_controller.max_y = limit_location_left_hand_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     limit_location_right_hand_properties_controller = pose_bones["PRPT_Right_Hand_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
@@ -985,7 +1015,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     limit_location_right_hand_properties_controller.use_max_x = limit_location_right_hand_properties_controller.use_max_y = limit_location_right_hand_properties_controller.use_max_z = True
     limit_location_right_hand_properties_controller.use_transform_limit = True
     limit_location_right_hand_properties_controller.min_x = limit_location_right_hand_properties_controller.min_y = limit_location_right_hand_properties_controller.min_z = 0
-    limit_location_right_hand_properties_controller.max_x = limit_location_right_hand_properties_controller.max_y = limit_location_right_hand_properties_controller.max_z = max_distance_for_controllers
+    limit_location_right_hand_properties_controller.max_x = limit_location_right_hand_properties_controller.max_y = limit_location_right_hand_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
 
 
@@ -1036,7 +1066,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")       
 
 
-    return changed.append('Added arm widgets/icons')
+    changed.append('Added arm widgets/icons')
     return changed
 
 
@@ -1127,23 +1157,26 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Head.parent = Head_Tweak
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
-    property_controller_scale = 0.2
-    WGT_Neck_Properties = create_bone(edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((0.2, 0.5, 0.2))), parent=Root)
+    WGT_Neck_Properties = create_bone(
+        edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((0.2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+    )
     WGT_Neck_Properties_Controller = create_bone(
         edit_bones,
         "WGT_Neck_Properties_Controller",
         head=WGT_Neck_Properties.head,
         tail=WGT_Neck_Properties.tail,
-        length=WGT_Neck_Properties.length * property_controller_scale,
+        length=PROPERTIES_CONTROLLER_LENGTH,
         parent=WGT_Neck_Properties,
     )
-    WGT_Head_Properties = create_bone(edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-0.2, 0.5, 0.2))), parent=Root)
+    WGT_Head_Properties = create_bone(
+        edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-0.2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+    )
     WGT_Head_Properties_Controller = create_bone(
         edit_bones,
         "WGT_Head_Properties_Controller",
         head=WGT_Head_Properties.head,
         tail=WGT_Head_Properties.tail,
-        length=WGT_Head_Properties.length * property_controller_scale,
+        length=PROPERTIES_CONTROLLER_LENGTH,
         parent=WGT_Head_Properties,
     )
 
@@ -1253,7 +1286,6 @@ def generate_spine_rig(context, armature_obj=None):
     copy_int_head_rotation.subtarget = "MCH_Head"
 
     # ============================= LIMIT LOCATION CONSTRAINTS =======================================================================================
-    max_distance_for_head_neck_controllers = pose_bones["WGT_Head_Properties_Controller"].bone.length / pose_bones["WGT_Head_Properties"].bone.length
     # --- head properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
     limit_location_head_properties_controller = pose_bones["WGT_Head_Properties_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
@@ -1267,7 +1299,7 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_head_properties_controller.min_x = limit_location_head_properties_controller.min_y = limit_location_head_properties_controller.min_z = (
         limit_location_head_properties_controller.max_y
     ) = 0
-    limit_location_head_properties_controller.max_x = limit_location_head_properties_controller.max_z = max_distance_for_head_neck_controllers
+    limit_location_head_properties_controller.max_x = limit_location_head_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     # --- neck properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
     limit_location_neck_properties_controller = pose_bones["WGT_Neck_Properties_Controller"].constraints.new("LIMIT_LOCATION")
@@ -1282,7 +1314,7 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_neck_properties_controller.min_x = limit_location_neck_properties_controller.min_y = limit_location_neck_properties_controller.min_z = (
         limit_location_neck_properties_controller.max_y
     ) = 0
-    limit_location_neck_properties_controller.max_x = limit_location_neck_properties_controller.max_z = max_distance_for_head_neck_controllers
+    limit_location_neck_properties_controller.max_x = limit_location_neck_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
