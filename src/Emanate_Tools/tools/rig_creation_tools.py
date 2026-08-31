@@ -1395,9 +1395,9 @@ def generate_spine_rig(context, armature_obj=None):
     ) = 0
     limit_location_neck_properties_controller.max_x = limit_location_neck_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
-    # ========================================================================================================================
-    # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
-    # ========================================================================================================================
+    # ================================================================================================================================================================================================================================================
+    # -------------------------------  WIDGET ASSIGNMENTS ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    # ================================================================================================================================================================================================================================================
 
     # --- Assign Tweak Shapes -----------------------------------------------------------------------------------
     TWEAK_WIDGET_SIZE = 1  # armature units, tune to taste
@@ -1433,6 +1433,8 @@ def generate_spine_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["PRPT_Neck_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
     widgets.assign_widget(pose_bones["PRPT_Head_Container"], "WGT_Head_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
     widgets.assign_widget(pose_bones["PRPT_Head_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+    # --------- Property Navigators ----------
+    widgets.assign_widget(pose_bones["PRPT_Head_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
     for name in ("PRPT_Neck_Container", "PRPT_Head_Container"):
         pose_bones[name].bone.hide_select = True
