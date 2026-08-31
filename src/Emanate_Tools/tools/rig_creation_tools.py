@@ -1236,25 +1236,48 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Head.parent = Head_Tweak
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
+    # ---- Neck Property Bones ----
+    PRPT_Neck_Navigator = create_bone(
+        edit_bones,
+        "PRPT_Neck_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        length=0.03,
+        parent=PRPT_Master_Container,
+    )
     PRPT_Neck_Container = create_bone(
         edit_bones,
         "PRPT_Neck_Container",
-        head=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0.2))),
-        tail=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0.2))),
-        parent=Root,
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 2, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 7)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 2,(PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
+        parent=PRPT_Neck_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
+
     PRPT_Neck_Controller = create_bone(
         edit_bones, "PRPT_Neck_Controller", head=PRPT_Neck_Container.head, tail=PRPT_Neck_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Neck_Container
     )
+
+    # ---- Head Property Bones ----
+
+    PRPT_Head_Navigator = create_bone(
+        edit_bones,
+        "PRPT_Head_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        length=0.03,
+        parent=PRPT_Master_Container,
+    )
+
     PRPT_Head_Container = create_bone(
         edit_bones,
         "PRPT_Head_Container",
-        head=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0.2))),
-        tail=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0.2))),
-        parent=Root,
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 5, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 7)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 5, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
+        parent=PRPT_Head_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
+    
     PRPT_Head_Controller = create_bone(
         edit_bones, "PRPT_Head_Controller", head=PRPT_Head_Container.head, tail=PRPT_Head_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Head_Container
     )
@@ -1430,11 +1453,12 @@ def generate_spine_rig(context, armature_obj=None):
     pose_bones["WGT_Head"].custom_shape_translation[1] = pose_bones["ORG_Head"].bone.length
     # --------- Property Controllers ----------
     widgets.assign_widget(pose_bones["PRPT_Neck_Container"], "WGT_Neck_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
-    widgets.assign_widget(pose_bones["PRPT_Neck_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Neck_Controller"], "WGT_Circle_Centered", wire_width=5, color="#5CFF55")
     widgets.assign_widget(pose_bones["PRPT_Head_Container"], "WGT_Head_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
-    widgets.assign_widget(pose_bones["PRPT_Head_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Head_Controller"], "WGT_Circle_Centered", wire_width=5, color="#5CFF55")
     # --------- Property Navigators ----------
     widgets.assign_widget(pose_bones["PRPT_Head_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
+    widgets.assign_widget(pose_bones["PRPT_Neck_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
     for name in ("PRPT_Neck_Container", "PRPT_Head_Container"):
         pose_bones[name].bone.hide_select = True
