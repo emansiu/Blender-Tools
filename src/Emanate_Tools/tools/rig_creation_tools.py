@@ -15,7 +15,9 @@ NAMES = naming.register_tool(
 NAMES_LEG_RIG = naming.register_tool("generate_leg_rig", label="Generate Leg Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik legs.")
 NAMES_ARM_RIG = naming.register_tool("generate_arm_rig", label="Generate Arm Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik arms.")
 NAMES_SPINE_RIG = naming.register_tool("generate_spine_rig", label="Generate Spine Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik spine.")
-NAMES_SYMMETRIZE_RIG = naming.register_tool("symmetrize_rig", label="Symmetrize Rig", owner=__name__, description="Mirrors every bone ending in .L onto the right side -- the whole rig, not just the deformation skeleton")
+NAMES_SYMMETRIZE_RIG = naming.register_tool(
+    "symmetrize_rig", label="Symmetrize Rig", owner=__name__, description="Mirrors every bone ending in .L onto the right side -- the whole rig, not just the deformation skeleton"
+)
 NAMES_ADD_DRIVERS = naming.register_tool(
     "add_all_drivers",
     label="Add All Drivers",
@@ -77,14 +79,8 @@ ARM_IK_SWITCH_BONES = ("MCH_SWITCH_Arm", "MCH_SWITCH_Forearm", "MCH_SWITCH_Hand"
 # own fixed, mirrored-in-position-only locations -- neither controller is a
 # symmetrize-mirrored copy of the other, so neither one's local axes get the
 # sign flip a mirrored bone would need. See add_hand_drivers/add_leg_drivers.
-HAND_CONTROLLER_SIDES = {
-    "L": "PRPT_Left_Hand_Controller",
-    "R": "PRPT_Right_Hand_Controller",
-}
-LEG_CONTROLLER_SIDES = {
-    "L": "PRPT_Left_Leg_Controller",
-    "R": "PRPT_Right_Leg_Controller",
-}
+HAND_CONTROLLER_SIDES = {"L": "PRPT_Left_Hand_Controller", "R": "PRPT_Right_Hand_Controller"}
+LEG_CONTROLLER_SIDES = {"L": "PRPT_Left_Leg_Controller", "R": "PRPT_Right_Leg_Controller"}
 
 # (driven bone prefix, rotation_euler axis, clamp expression) for the foot
 # roll/bank split. WGT_Foot_Roll is one control: turning it on Z is bank,
@@ -460,20 +456,23 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
 
     # ------- Final Property Bones ---------------
-    # Parented to Root rather than WGT_Foot_IK_Master_Left: the properties
-    # controller slider that lives under this bone drives the Armature
-    # constraint weights on MCH_Parent_Foot_IK_Master_Left, and that bone is
-    # WGT_Foot_IK_Master_Left's parent -- nesting the slider chain under its
-    # own child creates a dependency cycle (the ancestor's constraint driver
-    # would need the descendant's pose done before the descendant's pose can
-    # be done). A fixed screen position next to the foot control does not
-    # require inheriting the foot control's pose anyway.
+
+    PRPT_Master_Container = create_bone(edit_bones, "PRPT_Master_Container", head=Vector((-3.0, 0, 0.0)), tail=Vector((-3.0, 1, 0.0)), parent=Root, length=1)
+
+    PRPT_Left_Leg_Navigation = create_bone(
+        edit_bones,
+        "PRPT_Left_Leg_Container_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH, PROPERTIES_CONTAINER_LENGTH * 2)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH * 1.1, PROPERTIES_CONTAINER_LENGTH * 2)),
+        parent=PRPT_Master_Container,
+        length=0.03,
+    )
     PRPT_Left_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Left_Leg_Container",
-        head=Vector((PROPERTIES_CONTAINER_LENGTH, -0.7, 0.0)),
-        tail=Vector((PROPERTIES_CONTAINER_LENGTH, -0.5, 0.0)),
-        parent=Root,
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 5, 0, PROPERTIES_CONTAINER_LENGTH / 2)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 5, -0.5, PROPERTIES_CONTAINER_LENGTH / 2)),
+        parent=PRPT_Left_Leg_Navigation,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
 
@@ -481,12 +480,21 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         edit_bones, "PRPT_Left_Leg_Controller", head=PRPT_Left_Leg_Container.head, tail=PRPT_Left_Leg_Container.tail, parent=PRPT_Left_Leg_Container, length=PROPERTIES_CONTROLLER_LENGTH
     )
 
+    PRPT_Right_Leg_Navigation = create_bone(
+        edit_bones,
+        "PRPT_Right_Leg_Container_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH, PROPERTIES_CONTAINER_LENGTH * 2)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH * 1.1, PROPERTIES_CONTAINER_LENGTH * 2)),
+        parent=PRPT_Master_Container,
+        length=0.03,
+    )
+
     PRPT_Right_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Right_Leg_Container",
-        head=Vector((-PROPERTIES_CONTAINER_LENGTH * 2, -0.7, 0.0)),
-        tail=Vector((-PROPERTIES_CONTAINER_LENGTH * 2, -0.5, 0.0)),
-        parent=Root,
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 2, 0, PROPERTIES_CONTAINER_LENGTH / 2)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 2, -0.5, PROPERTIES_CONTAINER_LENGTH / 2)),
+        parent=PRPT_Right_Leg_Navigation,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
 
@@ -713,9 +721,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         pose_bones[name].bone.hide_select = True
 
     # --------- Properties Controller ----------
-    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
-    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="#5CFF55")
+    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="#5CFF55")
 
+    # --------- Property Master Controllers and Navigators ----------
+    widgets.assign_widget(pose_bones["PRPT_Master_Container"], "WGT_PRPT_Master", wire_width=2, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Container_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
+    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Container_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
@@ -745,6 +757,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # ORG_Shoulder.L is built by the org-bone generator tool from DEF_Shoulder.L,
     # so it has to be looked up by name here rather than created in this function.
     # We re-retrieve the ORG bones we need here
+    PRPT_Master_Container = edit_bones.get("PRPT_Master_Container")
     ORG_Chest = edit_bones.get("ORG_Chest")
     ORG_Shoulder_Left = edit_bones.get("ORG_Shoulder.L")
     ORG_Arm_Left = edit_bones.get("ORG_Arm.L")
@@ -846,7 +859,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     FK_Forearm_Left = create_bone(edit_bones, "FK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=FK_Arm_Left)
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
 
-
     # ============================= IK BONES ===========================================================================================================================================
 
     MCH_IK_Arm_Left = create_bone(edit_bones, "MCH_IK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
@@ -870,43 +882,56 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ============================= PROPERTY BONES ============================================================================================================
+    # ----------- LEFT HAND PROPERTIES ---------------
+    PRPT_Left_Hand_Navigator = create_bone(
+        edit_bones,
+        "PRPT_Left_Hand_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH, PROPERTIES_CONTAINER_LENGTH * 5.5)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH * 1.1, PROPERTIES_CONTAINER_LENGTH * 5.5)),
+        length=0.03,
+        parent=PRPT_Master_Container,
+    )
     PRPT_Left_Hand_Container = create_bone(
         edit_bones,
         "PRPT_Left_Hand_Container",
-        head=ORG_Chest.head + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0)),
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 5.0, 0, PROPERTIES_CONTAINER_LENGTH * 4)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 5.0, -0.5, PROPERTIES_CONTAINER_LENGTH * 4)),
         align_roll=Vector((0.0, 0.0, 1.0)),
-        parent=Root,
+        parent=PRPT_Left_Hand_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
+
+    PRPT_Left_Hand_Controller = create_bone(
+        edit_bones, "PRPT_Left_Hand_Controller", head=PRPT_Left_Hand_Container.head, tail=PRPT_Left_Hand_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Left_Hand_Container
+    )
+
+    # ----------- RIGHT HAND PROPERTIES ---------------
+    PRPT_Right_Hand_Navigator = create_bone(
+        edit_bones,
+        "PRPT_Right_Hand_Navigation",
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH, PROPERTIES_CONTAINER_LENGTH * 5.5)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH * 1.1, PROPERTIES_CONTAINER_LENGTH * 5.5)),
+        length=0.03,
+        parent=PRPT_Master_Container,
+    )
+
     PRPT_Right_Hand_Container = create_bone(
         edit_bones,
         "PRPT_Right_Hand_Container",
-        head=ORG_Chest.head + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0)),
-        align_roll=Vector((0.0, 0.0, 1.0)),
-        parent=Root,
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 2, 0, PROPERTIES_CONTAINER_LENGTH * 4)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 2, 0.1, PROPERTIES_CONTAINER_LENGTH * 4)),
+        parent=PRPT_Right_Hand_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
-    PRPT_Left_Hand_Controller = create_bone(
-        edit_bones,
-        "PRPT_Left_Hand_Controller",
-        head=PRPT_Left_Hand_Container.head,
-        tail=PRPT_Left_Hand_Container.tail,
-        roll=PRPT_Left_Hand_Container.roll,
-        length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Left_Hand_Container,
-    )
+
     PRPT_Right_Hand_Controller = create_bone(
         edit_bones,
         "PRPT_Right_Hand_Controller",
         head=PRPT_Right_Hand_Container.head,
         tail=PRPT_Right_Hand_Container.tail,
-        roll=PRPT_Right_Hand_Container.roll,
         length=PROPERTIES_CONTROLLER_LENGTH,
         parent=PRPT_Right_Hand_Container,
     )
-
 
     changed.append("Created Property bones to complete all bone creations")
 
@@ -1062,9 +1087,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     limit_location_right_hand_properties_controller.min_x = limit_location_right_hand_properties_controller.min_y = limit_location_right_hand_properties_controller.min_z = 0
     limit_location_right_hand_properties_controller.max_x = limit_location_right_hand_properties_controller.max_y = limit_location_right_hand_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
-
-
-
     # ============================= Armature constraints =======================================================================================
     Armature_Hand_IK_Parent = pose_bones["MCH_IK_Hand_Parent.L"].constraints.new("ARMATURE")
     # Named so the driver pass can find it without depending on Blender's
@@ -1085,11 +1107,11 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     # =========================================== WIDGET SECTION ================================================================================================================================================
     # -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    
+
     # --- Assign Tweak Shapes -----------------------------------------------------------------------------------
     TWEAK_WIDGET_SIZE = 0.06  # armature units, tune to taste
 
-    for name in ("Arm_Tweak.L","Forearm_Proximal_Tweak.L","Forearm_Distal_Tweak.L","Hand_Tweak.L","Hand_Tip_Tweak.L"):
+    for name in ("Arm_Tweak.L", "Forearm_Proximal_Tweak.L", "Forearm_Distal_Tweak.L", "Hand_Tweak.L", "Hand_Tip_Tweak.L"):
         widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=False, color="THEME09")
 
     # --- Assign FK Shapes -----------------------------------------------------------------------------------
@@ -1099,22 +1121,30 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Circle_Centered", scale_x=FK_WGT_SIZE, scale_y=FK_WGT_SIZE, scale_z=FK_WGT_SIZE, use_bone_size=False, color="THEME09")
 
     # --- IK Arm Shapes -----------------------------------------------------------------------------------
-    widgets.assign_widget(pose_bones["WGT_IK_Hand.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME04")       
-    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")       
-    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")       
+    widgets.assign_widget(pose_bones["WGT_IK_Hand.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME04")
+    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")
+    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")
 
     # --- Arm Properties Shapes -----------------------------------------------------------------------------------
     controller_scale = 1
     widgets.assign_widget(pose_bones["PRPT_Left_Hand_Container"], "WGT_Left_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color=PROPERTIES_CONTAINER_COLOR)
-    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")
+    widgets.assign_widget(
+        pose_bones["PRPT_Left_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="#5CFF55"
+    )
+
     widgets.assign_widget(pose_bones["PRPT_Right_Hand_Container"], "WGT_Right_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color=PROPERTIES_CONTAINER_COLOR)
-    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")
+    widgets.assign_widget(
+        pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="#5CFF55"
+    )
 
     for name in ("PRPT_Left_Hand_Container", "PRPT_Right_Hand_Container"):
         pose_bones[name].bone.hide_select = True
 
+    # --- PRPT Navigators
+    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
+    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
-    changed.append('Added arm widgets/icons')
+    changed.append("Added arm widgets/icons")
     return changed
 
 
@@ -1138,6 +1168,7 @@ def generate_spine_rig(context, armature_obj=None):
     # ---------- Get bones we need that are already generated ----------
     edit_bones = armature_obj.data.edit_bones
 
+    PRPT_Master_Container = edit_bones.get("PRPT_Master_Container")
     ORG_Hips = edit_bones.get("ORG_Hips")
     ORG_Spine_01 = edit_bones.get("ORG_Spine_01")
     ORG_Spine_02 = edit_bones.get("ORG_Spine_02")
@@ -1206,26 +1237,26 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
     PRPT_Neck_Container = create_bone(
-        edit_bones, "PRPT_Neck_Container", head=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0.2))), parent=Root, length=PROPERTIES_CONTAINER_LENGTH
+        edit_bones,
+        "PRPT_Neck_Container",
+        head=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0.2))),
+        tail=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0.2))),
+        parent=Root,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
     PRPT_Neck_Controller = create_bone(
-        edit_bones,
-        "PRPT_Neck_Controller",
-        head=PRPT_Neck_Container.head,
-        tail=PRPT_Neck_Container.tail,
-        length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Neck_Container,
+        edit_bones, "PRPT_Neck_Controller", head=PRPT_Neck_Container.head, tail=PRPT_Neck_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Neck_Container
     )
     PRPT_Head_Container = create_bone(
-        edit_bones, "PRPT_Head_Container", head=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0.2))), parent=Root, length=PROPERTIES_CONTAINER_LENGTH
+        edit_bones,
+        "PRPT_Head_Container",
+        head=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0.2))),
+        tail=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0.2))),
+        parent=Root,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
     PRPT_Head_Controller = create_bone(
-        edit_bones,
-        "PRPT_Head_Controller",
-        head=PRPT_Head_Container.head,
-        tail=PRPT_Head_Container.tail,
-        length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Head_Container,
+        edit_bones, "PRPT_Head_Controller", head=PRPT_Head_Container.head, tail=PRPT_Head_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Head_Container
     )
 
     # ========================================== ENTERING POSE MODE  ============================================================================
@@ -1882,7 +1913,6 @@ def symmetrize_rig(context, armature_obj=None):
     if bones_created:
         changed.append(f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side")
 
-
     return changed
 
 
@@ -1915,7 +1945,17 @@ def organize_bone_collections(context, armature_obj=None):
 
     armature = armature_obj.data
 
-    passes = (("*Root*", "ROOT"), ("FK_*", "FK"), ("IK_*", "IK"), ("ORG_*", "ORIGINAL"), ("*Tweak*", "TWEAK"), ("MCH_*", "MECHANISM"), ("WGT_*", "WIDGETS"), ("VIS_*", "VISUAL"), ("PRPT_*", "PROPERTY"))
+    passes = (
+        ("*Root*", "ROOT"),
+        ("FK_*", "FK"),
+        ("IK_*", "IK"),
+        ("ORG_*", "ORIGINAL"),
+        ("*Tweak*", "TWEAK"),
+        ("MCH_*", "MECHANISM"),
+        ("WGT_*", "WIDGETS"),
+        ("VIS_*", "VISUAL"),
+        ("PRPT_*", "PROPERTY"),
+    )
 
     for pattern, collection_name in passes:
         collection, was_created = bone_collections.get_or_create_collection(armature, collection_name)
