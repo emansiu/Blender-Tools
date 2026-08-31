@@ -98,6 +98,11 @@ FOOT_ROLL_SPLIT_DRIVERS = (
 IK_VISIBILITY_BONES = ("WGT_Foot_IK_Master", "WGT_IK_Pole", "VIS_IK_Pole", "WGT_IK_Toe", "WGT_Foot_Roll")
 FK_VISIBILITY_BONES = ("FK_Thigh", "FK_Shin", "FK_Foot", "FK_Toe")
 
+# Same idea as IK_VISIBILITY_BONES/FK_VISIBILITY_BONES, for the arm. See
+# add_hand_drivers.
+ARM_IK_VISIBILITY_BONES = ("WGT_IK_Hand", "VIS_IK_Pole_Link", "WGT_IK_Pole_Target")
+ARM_FK_VISIBILITY_BONES = ("FK_Arm", "FK_Forearm", "FK_Hand")
+
 # (properties controller bone, target MCH bone that blends into its parent,
 # rotation-follow constraint name, scale-follow constraint name). Both bones
 # and both constraints are built by generate_spine_rig. X on the controller
@@ -458,8 +463,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     PRPT_Left_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Left_Leg_Container",
-        head=Vector((0.1, -0.7, 0.0)),
-        tail=Vector((0.1, -0.5, 0.0)),
+        head=Vector((PROPERTIES_HOLDER_LENGTH, -0.7, 0.0)),
+        tail=Vector((PROPERTIES_HOLDER_LENGTH, -0.5, 0.0)),
         parent=Root,
         length=PROPERTIES_HOLDER_LENGTH,
     )
@@ -471,8 +476,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     PRPT_Right_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Right_Leg_Container",
-        head=Vector((-0.1, -0.7, 0.0)),
-        tail=Vector((-0.1, -0.5, 0.0)),
+        head=Vector((-PROPERTIES_HOLDER_LENGTH * 2, -0.7, 0.0)),
+        tail=Vector((-PROPERTIES_HOLDER_LENGTH * 2, -0.5, 0.0)),
         parent=Root,
         length=PROPERTIES_HOLDER_LENGTH,
     )
@@ -857,8 +862,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     PRPT_Left_Hand_Holder = create_bone(
         edit_bones,
         "PRPT_Left_Hand_Holder",
-        head=ORG_Chest.head + Vector((0.3, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((0.3, 0.5, 0)),
+        head=ORG_Chest.head + Vector((PROPERTIES_HOLDER_LENGTH, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((PROPERTIES_HOLDER_LENGTH, 0.5, 0)),
         align_roll=Vector((0.0, 0.0, 1.0)),
         parent=Root,
         length=PROPERTIES_HOLDER_LENGTH,
@@ -866,8 +871,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     PRPT_Right_Hand_Holder = create_bone(
         edit_bones,
         "PRPT_Right_Hand_Holder",
-        head=ORG_Chest.head + Vector((-0.3, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((-0.3, 0.5, 0)),
+        head=ORG_Chest.head + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.5, 0)),
         align_roll=Vector((0.0, 0.0, 1.0)),
         parent=Root,
         length=PROPERTIES_HOLDER_LENGTH,
@@ -1187,7 +1192,7 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
     WGT_Neck_Properties = create_bone(
-        edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((0.2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+        edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((PROPERTIES_HOLDER_LENGTH, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((PROPERTIES_HOLDER_LENGTH, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
     )
     WGT_Neck_Properties_Controller = create_bone(
         edit_bones,
@@ -1198,7 +1203,7 @@ def generate_spine_rig(context, armature_obj=None):
         parent=WGT_Neck_Properties,
     )
     WGT_Head_Properties = create_bone(
-        edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-0.2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-0.2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+        edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
     )
     WGT_Head_Properties_Controller = create_bone(
         edit_bones,
@@ -1630,6 +1635,31 @@ def add_hand_drivers(context, armature_obj=None, side="L"):
             continue
 
         add_slider_driver(ik_constraint, armature_obj, ik_switch_expression, axis="X", slider_bone=slider_bone_name)
+        driven += 1
+
+    # ------------------------ IK/FK widget auto-hide ------------------------
+    # Same slider, same normalized 0..1 reading as the switch above -- past
+    # the halfway point the arm is IK, so the FK controls hide and the IK
+    # ones show; below halfway it is the other way round. See add_leg_drivers
+    # for why this is driven on the pose bone's own .hide rather than
+    # .bone.hide.
+    hide_while_fk_expression = f"({ik_switch_expression}) < 0.5"
+    hide_while_ik_expression = f"({ik_switch_expression}) >= 0.5"
+
+    for bone_prefix in ARM_IK_VISIBILITY_BONES:
+        pose_bone = pose_bones.get(f"{bone_prefix}.{side}")
+        if pose_bone is None:
+            continue
+
+        add_slider_driver(pose_bone, armature_obj, hide_while_fk_expression, axis="X", slider_bone=slider_bone_name, data_path="hide")
+        driven += 1
+
+    for bone_prefix in ARM_FK_VISIBILITY_BONES:
+        pose_bone = pose_bones.get(f"{bone_prefix}.{side}")
+        if pose_bone is None:
+            continue
+
+        add_slider_driver(pose_bone, armature_obj, hide_while_ik_expression, axis="X", slider_bone=slider_bone_name, data_path="hide")
         driven += 1
 
     # ------------------------ IK follow hips or root ------------------------
