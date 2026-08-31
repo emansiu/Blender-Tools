@@ -64,15 +64,18 @@ IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MC
 # Side-less -- the driver pass appends ".L" or ".R". See add_hand_drivers.
 ARM_IK_SWITCH_BONES = ("MCH_SWITCH_Arm", "MCH_SWITCH_Forearm", "MCH_SWITCH_Hand")
 
-# side -> the hand properties controller that drives that side's arm.
-# generate_arm_ik_fk_rig builds BOTH of these up front, unlike the leg
-# controller, which is built once for .L and reaches its .R twin only through
-# symmetrize mirroring it. Neither hand controller here is a mirrored copy of
-# the other, so neither one's local axes get the sign flip symmetrize would
-# put on a mirrored bone -- see add_hand_drivers.
+# side -> the properties controller that drives that side's limb. Both the
+# hand and leg builders now build BOTH sides' controllers up front, at their
+# own fixed, mirrored-in-position-only locations -- neither controller is a
+# symmetrize-mirrored copy of the other, so neither one's local axes get the
+# sign flip a mirrored bone would need. See add_hand_drivers/add_leg_drivers.
 HAND_CONTROLLER_SIDES = {
     "L": "PRPT_Left_Hand_Controller",
     "R": "PRPT_Right_Hand_Controller",
+}
+LEG_CONTROLLER_SIDES = {
+    "L": "PRPT_Left_Leg_Controller",
+    "R": "PRPT_Right_Leg_Controller",
 }
 
 # (driven bone prefix, rotation_euler axis, clamp expression) for the foot
@@ -166,7 +169,7 @@ def start_scripted_driver(owner, data_path, index=None):
     return driver
 
 
-def add_slider_driver(owner, armature_obj, expression, axis="X", slider_bone="WGT_Leg_Properties_Controller.L", data_path="influence"):
+def add_slider_driver(owner, armature_obj, expression, axis="X", slider_bone="PRPT_Left_Leg_Controller", data_path="influence"):
     """Drive `owner`.<data_path> from a location channel of the slider bone.
 
     `axis` picks the channel: "X", "Y" or "Z". The driver variable is named to
@@ -452,17 +455,30 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # would need the descendant's pose done before the descendant's pose can
     # be done). A fixed screen position next to the foot control does not
     # require inheriting the foot control's pose anyway.
-    WGT_Leg_Properties_Left = create_bone(
+    PRPT_Left_Leg_Container = create_bone(
         edit_bones,
-        "WGT_Leg_Properties.L",
-        head=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.3, 0.0)),
-        tail=WGT_Foot_IK_Master_Left.head + Vector((0.0, -0.2, 0.0)),
+        "PRPT_Left_Leg_Container",
+        head=Vector((0.1, -0.7, 0.0)),
+        tail=Vector((0.1, -0.5, 0.0)),
         parent=Root,
         length=PROPERTIES_HOLDER_LENGTH,
     )
 
-    WGT_Leg_Properties_Controller_Left = create_bone(
-        edit_bones, "WGT_Leg_Properties_Controller.L", head=WGT_Leg_Properties_Left.head, tail=WGT_Leg_Properties_Left.tail, parent=WGT_Leg_Properties_Left, length=PROPERTIES_CONTROLLER_LENGTH
+    PRPT_Left_Leg_Controller = create_bone(
+        edit_bones, "PRPT_Left_Leg_Controller", head=PRPT_Left_Leg_Container.head, tail=PRPT_Left_Leg_Container.tail, parent=PRPT_Left_Leg_Container, length=PROPERTIES_CONTROLLER_LENGTH
+    )
+
+    PRPT_Right_Leg_Container = create_bone(
+        edit_bones,
+        "PRPT_Right_Leg_Container",
+        head=Vector((-0.1, -0.7, 0.0)),
+        tail=Vector((-0.1, -0.5, 0.0)),
+        parent=Root,
+        length=PROPERTIES_HOLDER_LENGTH,
+    )
+
+    PRPT_Right_Leg_Controller = create_bone(
+        edit_bones, "PRPT_Right_Leg_Controller", head=PRPT_Right_Leg_Container.head, tail=PRPT_Right_Leg_Container.tail, parent=PRPT_Right_Leg_Container, length=PROPERTIES_CONTROLLER_LENGTH
     )
 
     # =============== Parenting ORG BONES to new appropriate corresponding RIG bone =======================
@@ -573,18 +589,28 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     copy_IK_toe_transform.subtarget = "WGT_IK_Toe.L"
 
     # ============================= limit location constraints =======================================================================================
-    # --- leg properties control limits ----
-    limit_location_properties_controller = pose_bones["WGT_Leg_Properties_Controller.L"].constraints.new("LIMIT_LOCATION")
+    # --- left leg properties control limits ----
+    limit_location_left_leg_properties_controller = pose_bones["PRPT_Left_Leg_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
     # normalize the slider -- this is the single source of truth for how far
     # the controller travels, so nothing downstream hardcodes the number.
-    limit_location_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
-    limit_location_properties_controller.owner_space = "LOCAL"
-    limit_location_properties_controller.use_min_x = limit_location_properties_controller.use_min_y = limit_location_properties_controller.use_min_z = True
-    limit_location_properties_controller.use_max_x = limit_location_properties_controller.use_max_y = limit_location_properties_controller.use_max_z = True
-    limit_location_properties_controller.use_transform_limit = True
-    limit_location_properties_controller.min_x = limit_location_properties_controller.min_y = limit_location_properties_controller.min_z = 0
-    limit_location_properties_controller.max_x = limit_location_properties_controller.max_y = limit_location_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
+    limit_location_left_leg_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
+    limit_location_left_leg_properties_controller.owner_space = "LOCAL"
+    limit_location_left_leg_properties_controller.use_min_x = limit_location_left_leg_properties_controller.use_min_y = limit_location_left_leg_properties_controller.use_min_z = True
+    limit_location_left_leg_properties_controller.use_max_x = limit_location_left_leg_properties_controller.use_max_y = limit_location_left_leg_properties_controller.use_max_z = True
+    limit_location_left_leg_properties_controller.use_transform_limit = True
+    limit_location_left_leg_properties_controller.min_x = limit_location_left_leg_properties_controller.min_y = limit_location_left_leg_properties_controller.min_z = 0
+    limit_location_left_leg_properties_controller.max_x = limit_location_left_leg_properties_controller.max_y = limit_location_left_leg_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
+
+    # --- right leg properties control limits ----
+    limit_location_right_leg_properties_controller = pose_bones["PRPT_Right_Leg_Controller"].constraints.new("LIMIT_LOCATION")
+    limit_location_right_leg_properties_controller.name = SLIDER_LIMIT_CONSTRAINT_NAME
+    limit_location_right_leg_properties_controller.owner_space = "LOCAL"
+    limit_location_right_leg_properties_controller.use_min_x = limit_location_right_leg_properties_controller.use_min_y = limit_location_right_leg_properties_controller.use_min_z = True
+    limit_location_right_leg_properties_controller.use_max_x = limit_location_right_leg_properties_controller.use_max_y = limit_location_right_leg_properties_controller.use_max_z = True
+    limit_location_right_leg_properties_controller.use_transform_limit = True
+    limit_location_right_leg_properties_controller.min_x = limit_location_right_leg_properties_controller.min_y = limit_location_right_leg_properties_controller.min_z = 0
+    limit_location_right_leg_properties_controller.max_x = limit_location_right_leg_properties_controller.max_y = limit_location_right_leg_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     # ============================= Armature constraints =======================================================================================
     Armature_IK_Parent = pose_bones["MCH_Parent_Foot_IK_Master.L"].constraints.new("ARMATURE")
@@ -667,10 +693,13 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=True, color="THEME09")
 
     # --------- Properties Container ----------
-    widgets.assign_widget(pose_bones["WGT_Leg_Properties.L"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME11")
+    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Container"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME11")
+    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Container"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME11")
 
     # --------- Properties Controller ----------
-    widgets.assign_widget(pose_bones["WGT_Leg_Properties_Controller.L"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
+    
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
@@ -1369,12 +1398,15 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
     before rebuilding it, so pressing the button twice rebuilds rather than
     accumulates.
 
+    Like add_hand_drivers, PRPT_Left_Leg_Controller and PRPT_Right_Leg_Controller
+    are both built directly by generate_leg_ik_fk_rig -- neither is a
+    symmetrize-mirrored copy of the other, so neither one's local axes get the
+    sign flip a mirrored bone would need. Every expression below reads
+    straight off the signed range with no side-dependent inversion. See
+    LEG_CONTROLLER_SIDES.
+
     A missing bone or constraint is skipped rather than raised on -- the right
     side legitimately does not exist until the mirror has been run.
-
-    Sides are not assumed to be identical: symmetrize flips the controller's
-    X limit to run -1 -> 0 travel on the right, so every expression divides by
-    the signed range read off that constraint. See slider_travel.
     """
     changed = []
 
@@ -1397,7 +1429,10 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
             return None
         return pose_bone.constraints.get(constraint_name)
 
-    slider_bone_name = f"WGT_Leg_Properties_Controller.{side}"
+    slider_bone_name = LEG_CONTROLLER_SIDES.get(side)
+    if slider_bone_name is None:
+        return changed
+
     slider_limit = constraint_on(slider_bone_name, SLIDER_LIMIT_CONSTRAINT_NAME)
 
     if slider_limit is None:
@@ -1405,9 +1440,10 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
     # The limit constraint is the source of truth for how far the controller
     # travels, so read the range back off it rather than hardcoding a copy --
-    # retuning the limit then retunes every expression built below, and reading
-    # it per axis is what absorbs the sign flip symmetrize puts on X. A zero
-    # range would put a division by zero into a driver, so bail instead.
+    # retuning the limit then retunes every expression built below. Neither
+    # controller's range gets sign-flipped, so both sides read the same
+    # normalized 0..1 straight off their own max. A zero range would put a
+    # division by zero into a driver, so bail instead.
     travel = {axis: slider_travel(slider_limit, axis) for axis in ("X", "Y", "Z")}
     flat = [axis for axis, distance in travel.items() if not distance]
 
@@ -1423,20 +1459,9 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
     driven = 0
 
     # ------------------------ IK / FK "Switch" - slider that controls whether MCH leg follows FK or IK -----------------------------
-    # Dividing by the slide range normalizes the slide into the 0..1 that
-    # influence expects. The whole IK chain reads the same slider, so one
-    # expression covers all four.
-
+    # Left (rest) = 0 = pure FK, all the way right = 1 = pure IK. The whole
+    # IK chain reads the same slider, so one expression covers all four.
     ik_switch_expression = f"slider_x / {normalize['X']}"
-
-    if side == "R":
-        # Mirroring flips .R's local X axis, so the same world-space drag that
-        # pushes .L toward IK pushes .R the other way. Negating the normalized
-        # reading re-syncs them: grabbing both and sliding the same screen
-        # direction now moves both into IK, or both into FK, together. This
-        # also flips what slider_x = 0 (rest) means on .R alone -- .R now
-        # starts in IK rather than FK until it is dragged back.
-        ik_switch_expression = f"1 - ({ik_switch_expression})"
 
     for bone_prefix in IK_SWITCH_BONES:
         ik_constraint = constraint_on(f"{bone_prefix}.{side}", IK_SWITCH_CONSTRAINT_NAME)
@@ -1448,10 +1473,9 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
     # ------------------------ IK/FK widget auto-hide ------------------------
     # Same slider, same normalized 0..1 reading as the switch above -- past
-    # the halfway point (which is what comparing the normalized value to 0.5
-    # means: half of whatever max_x the limit constraint allows, on either
-    # side's sign) the rig is IK, so the FK controls hide and the IK ones
-    # show; below halfway it is the other way round.
+    # the halfway point (half of whatever max_x the limit constraint allows)
+    # the rig is IK, so the FK controls hide and the IK ones show; below
+    # halfway it is the other way round.
     #
     # Driven on the pose bone itself (pose.bones["Name"].hide), not
     # data.bones[name].hide or pose.bones[name].bone.hide -- both looked
@@ -1487,9 +1511,9 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
     # ------------------------ IK follow hip or root ------------------------
     # Root and ORG_Hips are the two blend targets on the same armature
-    # constraint, so their weights have to be complementary -- Root rises
-    # with the slider while ORG_Hips falls, keeping the blend at 1.0 total.
-
+    # constraint, so their weights have to be complementary -- ORG_Hips rises
+    # with the slider while Root falls, keeping the blend at 1.0 total.
+    # All the way up on Z -> Hips 1 / Root 0. All the way down -> Root 1 / Hips 0.
     ik_parent = constraint_on(f"MCH_Parent_Foot_IK_Master.{side}", IK_PARENT_CONSTRAINT_NAME)
 
     if ik_parent is not None:
@@ -1502,15 +1526,15 @@ def add_leg_drivers(context, armature_obj=None, side="L"):
 
         hip_target = next((target for target in ik_parent.targets if target.subtarget == "ORG_Hips"), None)
 
-        ik_follow_hip_or_root_expression = f"slider_z / {normalize['Z']}"
+        ik_follow_hip_expression = f"slider_z / {normalize['Z']}"
 
-        if root_target is not None:
-            add_slider_driver(root_target, armature_obj, ik_follow_hip_or_root_expression, axis="Z", slider_bone=slider_bone_name, data_path="weight")
+        if hip_target is not None:
+            add_slider_driver(hip_target, armature_obj, ik_follow_hip_expression, axis="Z", slider_bone=slider_bone_name, data_path="weight")
 
             driven += 1
 
-        if hip_target is not None:
-            add_slider_driver(hip_target, armature_obj, f"1 - ({ik_follow_hip_or_root_expression})", axis="Z", slider_bone=slider_bone_name, data_path="weight")
+        if root_target is not None:
+            add_slider_driver(root_target, armature_obj, f"1 - ({ik_follow_hip_expression})", axis="Z", slider_bone=slider_bone_name, data_path="weight")
 
             driven += 1
 
@@ -1799,12 +1823,6 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     if bones_created:
         changed.append(f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side")
 
-    # ========== Re-assigning widgets that had text which could not be mirrored ==============
-    # ---- need to move to pose mode ------
-    bpy.ops.object.mode_set(mode="POSE")
-    pose_bones = armature_obj.pose.bones
-    widgets.assign_widget(pose_bones["WGT_Leg_Properties.R"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME11")
-    pose_bones["WGT_Leg_Properties_Controller.L"].location[0] = 0.1
 
     return changed
 
