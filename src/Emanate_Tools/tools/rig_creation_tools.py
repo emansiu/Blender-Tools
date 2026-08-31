@@ -8,14 +8,14 @@ NAMES = naming.register_tool(
     "rigging_tools",
     label="Rigging Tools",
     owner=__name__,
-    description="Container panel for the rig-creation tools: build the switchable FK/IK rig, mirror the deformation skeleton, wire drivers, and organize bone collections",
+    description="Container panel for the rig-creation tools: build the switchable FK/IK rig, symmetrize it onto the right side, wire drivers, and organize bone collections",
     order=20,
 )
 
 NAMES_LEG_RIG = naming.register_tool("generate_leg_rig", label="Generate Leg Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik legs.")
 NAMES_ARM_RIG = naming.register_tool("generate_arm_rig", label="Generate Arm Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik arms.")
 NAMES_SPINE_RIG = naming.register_tool("generate_spine_rig", label="Generate Spine Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik spine.")
-NAMES_DEF_MIRROR = naming.register_tool("mirror_deformation_skeleton", label="Mirror .L to .R over X", owner=__name__, description="Mirrors anything ending in .L onto the right side")
+NAMES_SYMMETRIZE_RIG = naming.register_tool("symmetrize_rig", label="Symmetrize Rig", owner=__name__, description="Mirrors every bone ending in .L onto the right side -- the whole rig, not just the deformation skeleton")
 NAMES_ADD_DRIVERS = naming.register_tool(
     "add_all_drivers",
     label="Add All Drivers",
@@ -23,7 +23,7 @@ NAMES_ADD_DRIVERS = naming.register_tool(
     description="Wires every driven constraint in the rig, both sides, to its properties controller slider. Safe to re-run, and meant to be run after mirroring -- symmetrize copies constraints but not drivers",
 )
 NAMES_ORGANIZE_COLLECTIONS = naming.register_tool(
-    "organize_bone_collections", label="Organize Bone Collections", owner=__name__, description="Sorts MCH_/FK_/IK_/ORG_/Tweak/WGT_/VIS_ bones into matching bone collections"
+    "organize_bone_collections", label="Organize Bone Collections", owner=__name__, description="Sorts MCH_/FK_/IK_/ORG_/Tweak/WGT_/VIS_/PRPT_ bones into matching bone collections"
 )
 
 # ---------------------------------------------------------------------------
@@ -40,21 +40,29 @@ SLIDER_LIMIT_CONSTRAINT_NAME = "PROPERTIES_SLIDER_LIMIT"
 ARM_IK_SWITCH_CONSTRAINT_NAME = "COPY_IK_TRANSFORMS"
 ARM_FOLLOW_SHOULDER_CONSTRAINT_NAME = "FOLLOW_SHOULDER_ROTATION"
 
-# Shared sizing for every properties holder/container bone and the slider
-# controller bone parented inside it (leg, hand, head, neck). One pair of
-# numbers here keeps every properties rig the same size instead of each
-# builder picking its own scale factor off a differently-sized holder.
-PROPERTIES_HOLDER_LENGTH = 0.2
+# Shared sizing for every PRPT_ container bone and the slider controller bone
+# parented inside it (leg, hand, head, neck). One pair of numbers here keeps
+# every properties rig the same size instead of each builder picking its own
+# scale factor off a differently-sized container.
+PROPERTIES_CONTAINER_LENGTH = 0.2
 PROPERTIES_CONTROLLER_LENGTH = 0.05
 
+# Every PRPT_ container reads as this one flat colour rather than a theme
+# palette, so the whole properties panel looks like one piece across the leg,
+# hand, neck and head rigs. Containers are backdrops for the slider riding
+# inside them -- there is nothing on them to grab -- so each one also gets
+# hide_select once its widget is assigned, which is what keeps a click landing
+# on the slider instead of the panel behind it.
+PROPERTIES_CONTAINER_COLOR = "#F7FF87"
+
 # How far a properties controller's LIMIT_LOCATION constraint lets it slide
-# on each active axis, in armature units. Matches PROPERTIES_HOLDER_LENGTH so
-# the controller travels exactly the width of its holder/container widget --
+# on each active axis, in armature units. Matches PROPERTIES_CONTAINER_LENGTH
+# so the controller travels exactly the width of its container widget --
 # any other value and the controller either stops short of the container's
 # edge or overshoots past it. The driver passes never hardcode this number;
 # they read it back off the constraint via slider_travel, so changing this
 # constant alone keeps the visuals and the drivers in sync.
-PROPERTIES_CONTROLLER_TRAVEL = PROPERTIES_HOLDER_LENGTH
+PROPERTIES_CONTROLLER_TRAVEL = PROPERTIES_CONTAINER_LENGTH
 
 # Bones carrying an IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R".
@@ -109,8 +117,8 @@ ARM_FK_VISIBILITY_BONES = ("FK_Arm", "FK_Forearm", "FK_Hand")
 # drives the rotation-follow constraint's influence (0 = does not follow the
 # parent segment, 1 = fully follows); Z drives the scale-follow constraint's
 # influence the same way. See add_spine_drivers.
-HEAD_FOLLOW_DRIVERS = ("WGT_Head_Properties_Controller", "MCH_Intermediary_Head", "FOLLOW_NECK_ROTATION", "FOLLOW_NECK_SCALE")
-NECK_FOLLOW_DRIVERS = ("WGT_Neck_Properties_Controller", "MCH_Intermediary_Neck", "FOLLOW_CHEST_ROTATION", "FOLLOW_CHEST_SCALE")
+HEAD_FOLLOW_DRIVERS = ("PRPT_Head_Controller", "MCH_Intermediary_Head", "FOLLOW_NECK_ROTATION", "FOLLOW_NECK_SCALE")
+NECK_FOLLOW_DRIVERS = ("PRPT_Neck_Controller", "MCH_Intermediary_Neck", "FOLLOW_CHEST_ROTATION", "FOLLOW_CHEST_SCALE")
 # ---------------------------------------------------------------------------
 
 
@@ -463,10 +471,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     PRPT_Left_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Left_Leg_Container",
-        head=Vector((PROPERTIES_HOLDER_LENGTH, -0.7, 0.0)),
-        tail=Vector((PROPERTIES_HOLDER_LENGTH, -0.5, 0.0)),
+        head=Vector((PROPERTIES_CONTAINER_LENGTH, -0.7, 0.0)),
+        tail=Vector((PROPERTIES_CONTAINER_LENGTH, -0.5, 0.0)),
         parent=Root,
-        length=PROPERTIES_HOLDER_LENGTH,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
 
     PRPT_Left_Leg_Controller = create_bone(
@@ -476,10 +484,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     PRPT_Right_Leg_Container = create_bone(
         edit_bones,
         "PRPT_Right_Leg_Container",
-        head=Vector((-PROPERTIES_HOLDER_LENGTH * 2, -0.7, 0.0)),
-        tail=Vector((-PROPERTIES_HOLDER_LENGTH * 2, -0.5, 0.0)),
+        head=Vector((-PROPERTIES_CONTAINER_LENGTH * 2, -0.7, 0.0)),
+        tail=Vector((-PROPERTIES_CONTAINER_LENGTH * 2, -0.5, 0.0)),
         parent=Root,
-        length=PROPERTIES_HOLDER_LENGTH,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
 
     PRPT_Right_Leg_Controller = create_bone(
@@ -698,13 +706,16 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
         widgets.assign_widget(pose_bones[name], "WGT_Centered_IcoSphere", scale_x=TWEAK_WIDGET_SIZE, scale_y=TWEAK_WIDGET_SIZE, scale_z=TWEAK_WIDGET_SIZE, use_bone_size=True, color="THEME09")
 
     # --------- Properties Container ----------
-    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Container"], "WGT_Left_Foot_Properties", wire_width=1, color="THEME11")
-    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Container"], "WGT_Right_Foot_Properties", wire_width=1, color="THEME11")
+    widgets.assign_widget(pose_bones["PRPT_Left_Leg_Container"], "WGT_Left_Foot_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Right_Leg_Container"], "WGT_Right_Foot_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
+
+    for name in ("PRPT_Left_Leg_Container", "PRPT_Right_Leg_Container"):
+        pose_bones[name].bone.hide_select = True
 
     # --------- Properties Controller ----------
     widgets.assign_widget(pose_bones["PRPT_Left_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
     widgets.assign_widget(pose_bones["PRPT_Right_Leg_Controller"], "WGT_Centered_IcoSphere", wire_width=1, color="THEME07")
-    
+
 
     changed.append("copy scale on the thigh/shin compensation bones -> Root")
     changed.append("stretch-to on the shin/foot/toe/toe-tip tweaks")
@@ -859,41 +870,41 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ============================= PROPERTY BONES ============================================================================================================
-    PRPT_Left_Hand_Holder = create_bone(
+    PRPT_Left_Hand_Container = create_bone(
         edit_bones,
-        "PRPT_Left_Hand_Holder",
-        head=ORG_Chest.head + Vector((PROPERTIES_HOLDER_LENGTH, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((PROPERTIES_HOLDER_LENGTH, 0.5, 0)),
+        "PRPT_Left_Hand_Container",
+        head=ORG_Chest.head + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0)),
         align_roll=Vector((0.0, 0.0, 1.0)),
         parent=Root,
-        length=PROPERTIES_HOLDER_LENGTH,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
-    PRPT_Right_Hand_Holder = create_bone(
+    PRPT_Right_Hand_Container = create_bone(
         edit_bones,
-        "PRPT_Right_Hand_Holder",
-        head=ORG_Chest.head + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.3, 0)),
-        tail=ORG_Chest.head + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.5, 0)),
+        "PRPT_Right_Hand_Container",
+        head=ORG_Chest.head + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0)),
+        tail=ORG_Chest.head + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0)),
         align_roll=Vector((0.0, 0.0, 1.0)),
         parent=Root,
-        length=PROPERTIES_HOLDER_LENGTH,
+        length=PROPERTIES_CONTAINER_LENGTH,
     )
     PRPT_Left_Hand_Controller = create_bone(
         edit_bones,
         "PRPT_Left_Hand_Controller",
-        head=PRPT_Left_Hand_Holder.head,
-        tail=PRPT_Left_Hand_Holder.tail,
-        roll=PRPT_Left_Hand_Holder.roll,
+        head=PRPT_Left_Hand_Container.head,
+        tail=PRPT_Left_Hand_Container.tail,
+        roll=PRPT_Left_Hand_Container.roll,
         length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Left_Hand_Holder,
+        parent=PRPT_Left_Hand_Container,
     )
     PRPT_Right_Hand_Controller = create_bone(
         edit_bones,
         "PRPT_Right_Hand_Controller",
-        head=PRPT_Right_Hand_Holder.head,
-        tail=PRPT_Right_Hand_Holder.tail,
-        roll=PRPT_Right_Hand_Holder.roll,
+        head=PRPT_Right_Hand_Container.head,
+        tail=PRPT_Right_Hand_Container.tail,
+        roll=PRPT_Right_Hand_Container.roll,
         length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Right_Hand_Holder,
+        parent=PRPT_Right_Hand_Container,
     )
 
 
@@ -1094,10 +1105,13 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # --- Arm Properties Shapes -----------------------------------------------------------------------------------
     controller_scale = 1
-    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Holder"], "WGT_Left_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME11")       
-    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")       
-    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Holder"], "WGT_Right_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME11")       
-    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")       
+    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Container"], "WGT_Left_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Left_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Container"], "WGT_Right_Hand_Properties", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Right_Hand_Controller"], "WGT_Centered_IcoSphere", scale_x=controller_scale, scale_y=controller_scale, scale_z=controller_scale, use_bone_size=True, color="THEME07")
+
+    for name in ("PRPT_Left_Hand_Container", "PRPT_Right_Hand_Container"):
+        pose_bones[name].bone.hide_select = True
 
 
     changed.append('Added arm widgets/icons')
@@ -1191,27 +1205,27 @@ def generate_spine_rig(context, armature_obj=None):
     ORG_Head.parent = Head_Tweak
 
     # ========================================== FINAL PROPERTIES BONES  ============================================================================
-    WGT_Neck_Properties = create_bone(
-        edit_bones, "WGT_Neck_Properties", head=(ORG_Head.tail + Vector((PROPERTIES_HOLDER_LENGTH, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((PROPERTIES_HOLDER_LENGTH, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+    PRPT_Neck_Container = create_bone(
+        edit_bones, "PRPT_Neck_Container", head=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((PROPERTIES_CONTAINER_LENGTH, 0.5, 0.2))), parent=Root, length=PROPERTIES_CONTAINER_LENGTH
     )
-    WGT_Neck_Properties_Controller = create_bone(
+    PRPT_Neck_Controller = create_bone(
         edit_bones,
-        "WGT_Neck_Properties_Controller",
-        head=WGT_Neck_Properties.head,
-        tail=WGT_Neck_Properties.tail,
+        "PRPT_Neck_Controller",
+        head=PRPT_Neck_Container.head,
+        tail=PRPT_Neck_Container.tail,
         length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=WGT_Neck_Properties,
+        parent=PRPT_Neck_Container,
     )
-    WGT_Head_Properties = create_bone(
-        edit_bones, "WGT_Head_Properties", head=(ORG_Head.tail + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-PROPERTIES_HOLDER_LENGTH * 2, 0.5, 0.2))), parent=Root, length=PROPERTIES_HOLDER_LENGTH
+    PRPT_Head_Container = create_bone(
+        edit_bones, "PRPT_Head_Container", head=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.3, 0.2))), tail=(ORG_Head.tail + Vector((-PROPERTIES_CONTAINER_LENGTH * 2, 0.5, 0.2))), parent=Root, length=PROPERTIES_CONTAINER_LENGTH
     )
-    WGT_Head_Properties_Controller = create_bone(
+    PRPT_Head_Controller = create_bone(
         edit_bones,
-        "WGT_Head_Properties_Controller",
-        head=WGT_Head_Properties.head,
-        tail=WGT_Head_Properties.tail,
+        "PRPT_Head_Controller",
+        head=PRPT_Head_Container.head,
+        tail=PRPT_Head_Container.tail,
         length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=WGT_Head_Properties,
+        parent=PRPT_Head_Container,
     )
 
     # ========================================== ENTERING POSE MODE  ============================================================================
@@ -1321,7 +1335,7 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ============================= LIMIT LOCATION CONSTRAINTS =======================================================================================
     # --- head properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
-    limit_location_head_properties_controller = pose_bones["WGT_Head_Properties_Controller"].constraints.new("LIMIT_LOCATION")
+    limit_location_head_properties_controller = pose_bones["PRPT_Head_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
     # normalize the slider -- this is the single source of truth for how far
     # the controller travels, so nothing downstream hardcodes the number.
@@ -1336,7 +1350,7 @@ def generate_spine_rig(context, armature_obj=None):
     limit_location_head_properties_controller.max_x = limit_location_head_properties_controller.max_z = PROPERTIES_CONTROLLER_TRAVEL
 
     # --- neck properties control limits -----------------------------------------------------------------------------------------------------------------------------------------------
-    limit_location_neck_properties_controller = pose_bones["WGT_Neck_Properties_Controller"].constraints.new("LIMIT_LOCATION")
+    limit_location_neck_properties_controller = pose_bones["PRPT_Neck_Controller"].constraints.new("LIMIT_LOCATION")
     # Named because the driver pass reads max_x back off this constraint to
     # normalize the slider -- this is the single source of truth for how far
     # the controller travels, so nothing downstream hardcodes the number.
@@ -1384,10 +1398,13 @@ def generate_spine_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["WGT_Head"], "WGT_Curved_Quadruple_Arrows", wire_width=2, rotation_x=90, scale_x=head_scale, scale_y=head_scale, scale_z=head_scale, color="THEME01")
     pose_bones["WGT_Head"].custom_shape_translation[1] = pose_bones["ORG_Head"].bone.length
     # --------- Property Controllers ----------
-    widgets.assign_widget(pose_bones["WGT_Neck_Properties"], "WGT_Neck_Properties", wire_width=1, color="THEME11")
-    widgets.assign_widget(pose_bones["WGT_Neck_Properties_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
-    widgets.assign_widget(pose_bones["WGT_Head_Properties"], "WGT_Head_Properties", wire_width=1, color="THEME11")
-    widgets.assign_widget(pose_bones["WGT_Head_Properties_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Neck_Container"], "WGT_Neck_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Neck_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+    widgets.assign_widget(pose_bones["PRPT_Head_Container"], "WGT_Head_Properties", wire_width=1, color=PROPERTIES_CONTAINER_COLOR)
+    widgets.assign_widget(pose_bones["PRPT_Head_Controller"], "WGT_Circle_Centered", wire_width=5, color="THEME07")
+
+    for name in ("PRPT_Neck_Container", "PRPT_Head_Container"):
+        pose_bones[name].bone.hide_select = True
 
     changed.append("stretch-to on the hips/spine/chest/neck/head chain")
     changed.append("FK and tweak controllers wired up")
@@ -1710,8 +1727,8 @@ def add_spine_drivers(context, armature_obj, controller_bone, target_bone, rotat
     """Drive one follow-rotation/follow-scale blend from its properties controller slider.
 
     Generic over which bones/constraints it wires, so the same function
-    covers WGT_Head_Properties_Controller -> MCH_Intermediary_Head and
-    WGT_Neck_Properties_Controller -> MCH_Intermediary_Neck alike -- see
+    covers PRPT_Head_Controller -> MCH_Intermediary_Head and
+    PRPT_Neck_Controller -> MCH_Intermediary_Neck alike -- see
     HEAD_FOLLOW_DRIVERS and NECK_FOLLOW_DRIVERS. Home for any other
     generate_spine_rig-specific driver passes that show up later, the way
     add_leg_drivers is home for the leg's.
@@ -1811,10 +1828,22 @@ def add_all_drivers(context, armature_obj=None):
     return changed
 
 
-def mirror_deformation_skeleton(context, armature_obj=None):
+def symmetrize_rig(context, armature_obj=None):
     """Mirror every ".L" bone onto the right side. Returns a list of what changed.
 
-    symmetrize does the whole job: the ".L" -> ".R" rename, negating X on
+    Named for the whole rig rather than the deformation skeleton it started
+    out on, because the ".L" sweep below now catches every side-suffixed bone
+    the builders make -- DEF_, ORG_, FK_, IK_, MCH_, WGT_, VIS_ and the tweaks
+    alike, not only the DEF_ chain.
+
+    The PRPT_ properties bones are the deliberate exception, and they exclude
+    themselves: each builder makes both sides up front as PRPT_Left_* and
+    PRPT_Right_*, with no ".L"/".R" suffix for this pass to match. That is not
+    a naming accident -- a mirrored bone gets its local X flipped, which would
+    invert the slider travel the drivers normalize against. See
+    HAND_CONTROLLER_SIDES/LEG_CONTROLLER_SIDES.
+
+    symmetrize does the rest of the job: the ".L" -> ".R" rename, negating X on
     head/tail/roll, and re-parenting each new bone to its mirrored parent --
     falling back to the original parent when that parent has no mirror, which
     is what lands DEF_Shoulder.R back on DEF_Chest instead of on itself.
@@ -1846,9 +1875,9 @@ def mirror_deformation_skeleton(context, armature_obj=None):
     if selected == 0:
         return changed
 
-    bone_count_before_symetrize = len(edit_bones)
+    bone_count_before_symmetrize = len(edit_bones)
     bpy.ops.armature.symmetrize(direction="POSITIVE_X")
-    bones_created = len(armature_obj.data.edit_bones) - bone_count_before_symetrize
+    bones_created = len(armature_obj.data.edit_bones) - bone_count_before_symmetrize
 
     if bones_created:
         changed.append(f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side")
@@ -1861,7 +1890,9 @@ def organize_bone_collections(context, armature_obj=None):
     """Sort every rig bone into a collection keyed off its name.
 
     MCH_ -> MECHANISM, FK_ -> FK, IK_ -> IK, ORG_ -> ORIGINAL,
-    *Tweak* -> TWEAK, WGT_ -> WIDGETS, VIS_ -> VISUAL.
+    *Tweak* -> TWEAK, WGT_ -> WIDGETS, VIS_ -> VISUAL,
+    PRPT_ -> PROPERTY (every properties container and slider controller --
+    hand, leg, neck and head alike).
 
     Order matters: move_bones_matching unassigns every other collection a
     bone sits in before adding its own, so a later pass wins any overlap --
@@ -1884,7 +1915,7 @@ def organize_bone_collections(context, armature_obj=None):
 
     armature = armature_obj.data
 
-    passes = (("*Root*", "ROOT"), ("FK_*", "FK"), ("IK_*", "IK"), ("ORG_*", "ORIGINAL"), ("*Tweak*", "TWEAK"), ("MCH_*", "MECHANISM"), ("WGT_*", "WIDGETS"), ("VIS_*", "VISUAL"))
+    passes = (("*Root*", "ROOT"), ("FK_*", "FK"), ("IK_*", "IK"), ("ORG_*", "ORIGINAL"), ("*Tweak*", "TWEAK"), ("MCH_*", "MECHANISM"), ("WGT_*", "WIDGETS"), ("VIS_*", "VISUAL"), ("PRPT_*", "PROPERTY"))
 
     for pattern, collection_name in passes:
         collection, was_created = bone_collections.get_or_create_collection(armature, collection_name)
@@ -1907,7 +1938,7 @@ def organize_bone_collections(context, armature_obj=None):
 
     # ---- Hide layers that are no required to manipulate the rig. ----
     # ---- Layers we want on are in tuple below -----------------------
-    collections_needed_for_control = ("FK", "TWEAK", "WIDGETS", "VISUAL")
+    collections_needed_for_control = ("FK", "TWEAK", "WIDGETS", "VISUAL", "PROPERTY")
 
     for collection in armature.collections_all:
         should_be_visible = collection.name in collections_needed_for_control
@@ -2023,11 +2054,11 @@ class EMANATE_OT_generate_spine_rig(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Mirror .L to .R" BUTTON IS CLICKED =========
-class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
-    bl_idname = NAMES_DEF_MIRROR.operator_idname
-    bl_label = NAMES_DEF_MIRROR.label
-    bl_description = NAMES_DEF_MIRROR.description
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Symmetrize Rig" BUTTON IS CLICKED =========
+class EMANATE_OT_symmetrize_rig(bpy.types.Operator):
+    bl_idname = NAMES_SYMMETRIZE_RIG.operator_idname
+    bl_label = NAMES_SYMMETRIZE_RIG.label
+    bl_description = NAMES_SYMMETRIZE_RIG.description
     bl_options = {"REGISTER", "UNDO"}
 
     # Greys the button out unless there is an armature to act on, so the user
@@ -2048,7 +2079,7 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
             self.report({"ERROR"}, "Select an armature first")
             return {"CANCELLED"}
 
-        changed = mirror_deformation_skeleton(context, armature_obj)
+        changed = symmetrize_rig(context, armature_obj)
 
         if not changed:
             self.report({"WARNING"}, f"{armature_obj.name} has no .L bones to mirror")
@@ -2057,7 +2088,7 @@ class EMANATE_OT_mirror_def_skeleton(bpy.types.Operator):
         changed += deform_cleanup.sync_deform_flags(armature_obj)
 
         for change in changed:
-            print(f"[def-mirror] {change}")
+            print(f"[symmetrize-rig] {change}")
 
         self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
         return {"FINISHED"}
@@ -2151,7 +2182,7 @@ class EMANATE_PT_rigging_tools(bpy.types.Panel):
         layout.operator(NAMES_LEG_RIG.operator_idname)
         layout.operator(NAMES_ARM_RIG.operator_idname)
         layout.operator(NAMES_SPINE_RIG.operator_idname)
-        layout.operator(NAMES_DEF_MIRROR.operator_idname)
+        layout.operator(NAMES_SYMMETRIZE_RIG.operator_idname)
         layout.operator(NAMES_ADD_DRIVERS.operator_idname)
         layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
@@ -2160,7 +2191,7 @@ _classes = (
     EMANATE_OT_generate_leg_rig,
     EMANATE_OT_generate_arm_rig,
     EMANATE_OT_generate_spine_rig,
-    EMANATE_OT_mirror_def_skeleton,
+    EMANATE_OT_symmetrize_rig,
     EMANATE_OT_add_all_drivers,
     EMANATE_OT_organize_bone_collections,
     EMANATE_PT_rigging_tools,
@@ -2171,7 +2202,7 @@ def register():
     naming.check_classes((EMANATE_OT_generate_leg_rig,), NAMES_LEG_RIG)
     naming.check_classes((EMANATE_OT_generate_arm_rig,), NAMES_ARM_RIG)
     naming.check_classes((EMANATE_OT_generate_spine_rig,), NAMES_SPINE_RIG)
-    naming.check_classes((EMANATE_OT_mirror_def_skeleton,), NAMES_DEF_MIRROR)
+    naming.check_classes((EMANATE_OT_symmetrize_rig,), NAMES_SYMMETRIZE_RIG)
     naming.check_classes((EMANATE_OT_add_all_drivers,), NAMES_ADD_DRIVERS)
     naming.check_classes((EMANATE_OT_organize_bone_collections,), NAMES_ORGANIZE_COLLECTIONS)
     naming.check_classes((EMANATE_PT_rigging_tools,), NAMES)

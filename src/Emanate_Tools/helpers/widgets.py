@@ -27,6 +27,37 @@ def get_widget(name):
     return bpy.data.objects.new(name, curve)
 
 
+def hex_to_rgb(value):
+    """(r, g, b) floats in 0..1 from a "#RRGGBB" string.
+
+    Blender's bone color slots are COLOR_GAMMA properties, so the sRGB values
+    straight off a hex picker go in as they are -- converting to linear here
+    would land a visibly darker colour than the one that was asked for.
+    """
+    value = value.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) / 255.0 for i in (0, 2, 4))
+
+
+def set_bone_color(bone, color):
+    """Colour `bone` from a theme palette name ("THEME07") or a hex string ("#F7FF87").
+
+    A hex value goes into the CUSTOM palette, which carries three slots --
+    normal, select and active. All three get the same colour: filling in only
+    `normal` leaves the other two at black, so the bone would flip to black the
+    moment anything selected it. Bones that are meant to read as one flat
+    colour regardless of state are the whole reason this takes a hex at all.
+    """
+    if not color.startswith("#"):
+        bone.color.palette = color
+        return
+
+    bone.color.palette = "CUSTOM"
+    rgb = hex_to_rgb(color)
+    bone.color.custom.normal = rgb
+    bone.color.custom.select = rgb
+    bone.color.custom.active = rgb
+
+
 def assign_widget(
     pose_bone,
     name,
@@ -51,8 +82,9 @@ def assign_widget(
     custom_shape_rotation_euler means 90 *radians*, which is the mistake these
     arguments exist to make hard.
 
-    color is a theme palette name such as "THEME07"; wire_width is in pixels.
-    Both stay at Blender's default when left as None.
+    color is either a theme palette name such as "THEME07" or a hex string such
+    as "#F7FF87" -- see set_bone_color; wire_width is in pixels. Both stay at
+    Blender's default when left as None.
 
     use_bone_size=True multiplies the shape by the bone's length, so one widget
     draws small on a short bone and large on a long one. Pass False for a set of
@@ -76,7 +108,7 @@ def assign_widget(
         pose_bone.custom_shape_wire_width = wire_width
 
     if color is not None:
-        pose_bone.bone.color.palette = color
+        set_bone_color(pose_bone.bone, color)
 
     pose_bone.bone.show_wire = True
     return widget
