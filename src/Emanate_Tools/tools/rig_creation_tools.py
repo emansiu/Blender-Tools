@@ -687,10 +687,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90, scale_x=2.0, scale_y=2.0, scale_z=2.0, color="THEME11")
 
     # --------- IK Pole Line Visualizer ----------
-    widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="THEME07")
+    widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="#58D1FF")
 
     # --------- IK Pole Controller ----------
-    widgets.assign_widget(pose_bones["WGT_IK_Pole.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_y=-1, wire_width=2, color="THEME07")
+    widgets.assign_widget(pose_bones["WGT_IK_Pole.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_y=-1, wire_width=2, color="#58D1FF")
 
     # --------- Left Leg IK Master ----------
     widgets.assign_widget(pose_bones["WGT_Foot_IK_Master.L"], "WGT_Bottom_Face_Centered_Cube", scale_y=0.5, rotation_x=90, wire_width=2, color="THEME04")
@@ -771,6 +771,11 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         changed.append("You are missing a certain required bone")
         return changed
 
+    # --- quick shoulder widget control assignment ---
+    WGT_Shoulder_Left = create_bone(
+        edit_bones, "WGT_Shoulder.L", head=ORG_Shoulder_Left.head, tail=ORG_Shoulder_Left.tail, roll=ORG_Shoulder_Left.roll, parent=ORG_Chest
+    )
+    ORG_Shoulder_Left.parent = WGT_Shoulder_Left
     # ============================= MCH BONES  ============================================================================================================
     # ------------- mch socket bones -------
     MCH_Arm_Socket_Left = create_bone(
@@ -1122,8 +1127,12 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # --- IK Arm Shapes -----------------------------------------------------------------------------------
     widgets.assign_widget(pose_bones["WGT_IK_Hand.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME04")
-    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")
-    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME07")
+    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
+    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
+    # A visualizer line, not a control -- nothing to grab, so keep it from
+    # stealing clicks meant for the bones around it. symmetrize carries this
+    # over onto .R along with the rest of the bone data.
+    pose_bones["VIS_IK_Pole_Link.L"].bone.hide_select = True
 
     # --- Arm Properties Shapes -----------------------------------------------------------------------------------
     controller_scale = 1
@@ -1143,6 +1152,9 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # --- PRPT Navigators
     widgets.assign_widget(pose_bones["PRPT_Left_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
     widgets.assign_widget(pose_bones["PRPT_Right_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
+
+    # --- Final shoulder assignment 
+    widgets.assign_widget(pose_bones["WGT_Shoulder.L"], "WGT_Shoulder_Pad", wire_width=2, color="#58D1FF")
 
     changed.append("Added arm widgets/icons")
     return changed
