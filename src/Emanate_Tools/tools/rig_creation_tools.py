@@ -70,6 +70,15 @@ PROPERTIES_CONTROLLER_TRAVEL = PROPERTIES_CONTAINER_LENGTH
 # Side-less -- the driver pass appends ".L" or ".R".
 IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MCH_SWITCH_Toe")
 
+# The five digits, and the segments each one is built from, root to tip. The
+# finger bones are a plain <digit>_<segment> grid, so naming the two axes once
+# here beats writing the 15 names per hand out by hand. pre_rig_tools builds
+# exactly this shape, and BONES_TO_SUBDIVIDE only ever splits the forearm, so
+# no finger picks up a Proximal/Distal pair that would break the grid.
+# Side-less -- finger_bones appends ".L" or ".R".
+FINGER_DIGITS = ("Thumb", "IndexFinger", "MiddleFinger", "RingFinger", "PinkyFinger")
+FINGER_SEGMENTS = ("01", "02", "03")
+
 # Bones carrying an ARM_IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R". See add_hand_drivers.
 ARM_IK_SWITCH_BONES = ("MCH_SWITCH_Arm", "MCH_SWITCH_Forearm", "MCH_SWITCH_Hand")
@@ -246,6 +255,30 @@ def add_rotation_clamp_driver(pose_bone, armature_obj, expression, axis, source_
 
     driver.expression = expression
     return driver
+
+
+def finger_bones(edit_bones, side, prefix="ORG_"):
+    """Every finger bone on one side, as {"Thumb_01": bone_or_None, ...}.
+
+    Keyed side-less and prefix-less so a caller can walk one digit's chain
+    (FINGER_SEGMENTS) or all five (FINGER_DIGITS) without rebuilding name
+    strings, and so the same key indexes the ORG_ bone here and any FK_/MCH_
+    twin built off it later -- pass prefix to fetch those instead.
+
+    Dict order follows FINGER_DIGITS then FINGER_SEGMENTS, so iterating it
+    walks each digit root to tip. That is worth having over
+    ORG_Hand.L.children_recursive, which comes back breadth-first -- every 01
+    segment, then every 02 -- and so cannot be chained through directly.
+
+    A name with no bone behind it maps to None rather than raising, which is
+    what lets the caller report every missing bone at once instead of dying on
+    the first one.
+    """
+    return {
+        f"{digit}_{segment}": edit_bones.get(f"{prefix}{digit}_{segment}.{side}")
+        for digit in FINGER_DIGITS
+        for segment in FINGER_SEGMENTS
+    }
 
 
 def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_to=None, align_roll=None, length=None, connect=False):
@@ -764,11 +797,26 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     ORG_Forearm_Proximal_Left = edit_bones.get("ORG_Forearm_Proximal.L")
     ORG_Forearm_Distal_Left = edit_bones.get("ORG_Forearm_Distal.L")
     ORG_Hand_Left = edit_bones.get("ORG_Hand.L")
+    # -- all fingers, keyed "Thumb_01" .. "PinkyFinger_03" (see finger_bones)
+    ORG_Fingers_Left = finger_bones(edit_bones, "L")
     Root = edit_bones.get("Root")
-    # `is None` binds to a single operand, so it has to be tested per bone --
-    # chaining them with `or` would only check the last one.
-    if any(bone is None for bone in (ORG_Shoulder_Left, ORG_Arm_Left, ORG_Forearm_Proximal_Left, ORG_Forearm_Distal_Left, ORG_Hand_Left, Root)):
-        changed.append("You are missing a certain required bone")
+
+    # Checked by name rather than with any(), so the report says WHICH bone is
+    # missing -- with 15 finger bones in here now, "a certain required bone"
+    # is not something a user can act on.
+    REQUIRED_BONES = {
+        "ORG_Shoulder.L": ORG_Shoulder_Left,
+        "ORG_Arm.L": ORG_Arm_Left,
+        "ORG_Forearm_Proximal.L": ORG_Forearm_Proximal_Left,
+        "ORG_Forearm_Distal.L": ORG_Forearm_Distal_Left,
+        "ORG_Hand.L": ORG_Hand_Left,
+        "Root": Root,
+        **{f"ORG_{key}.L": bone for key, bone in ORG_Fingers_Left.items()},
+    }
+
+    missing = [name for name, bone in REQUIRED_BONES.items() if bone is None]
+    if missing:
+        changed.append(f"missing required bone(s): {', '.join(missing)}")
         return changed
 
     # --- quick shoulder widget control assignment ---
@@ -863,6 +911,10 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     FK_Arm_Left = create_bone(edit_bones, "FK_Arm.L", head=ORG_Arm_Left.head, tail=ORG_Arm_Left.tail, roll=ORG_Arm_Left.roll, parent=MCH_Intermediary_Arm_Socket_Left)
     FK_Forearm_Left = create_bone(edit_bones, "FK_Forearm.L", head=ORG_Forearm_Proximal_Left.head, tail=ORG_Forearm_Distal_Left.tail, roll=ORG_Forearm_Proximal_Left.roll, parent=FK_Arm_Left)
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
+
+    # ---------- ALL HAND BONES ---------------
+    
+
 
     # ============================= IK BONES ===========================================================================================================================================
 
