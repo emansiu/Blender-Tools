@@ -913,6 +913,28 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
 
     # ---------- ALL HAND BONES ---------------
+    # Every finger chain hangs off the hand tip tweak, so the whole hand
+    # follows one control. Only the chain roots are touched -- 02 and 03 stay
+    # parented up their own digit, which is what keeps each finger a chain
+    # rather than five bones fanning off the same tweak.
+    #
+    # use_connect is cleared first for the same reason as the leg chain above.
+    # The 01 segments come through unconnected today (pre_rig_tools builds them
+    # that way, and create_org_bones copies the flag over), so this changes
+    # nothing on the stock skeleton -- it is here so a hand-authored DEF rig
+    # that welded its fingers on cannot drag all five finger bases onto the
+    # tweak's tail the moment they are reparented.
+    #
+    # No None guard: REQUIRED_BONES above already returned if any finger bone
+    # was missing, so every value in ORG_Fingers_Left is a real bone by here.
+    FINGER_CHAIN_ROOT = FINGER_SEGMENTS[0]
+
+    for digit in FINGER_DIGITS:
+        finger_root = ORG_Fingers_Left[f"{digit}_{FINGER_CHAIN_ROOT}"]
+        finger_root.use_connect = False
+        finger_root.parent = Hand_Tip_Tweak_Left
+
+    changed.append(f"{len(FINGER_DIGITS)} finger chains parented to Hand_Tip_Tweak.L")
     
 
 
