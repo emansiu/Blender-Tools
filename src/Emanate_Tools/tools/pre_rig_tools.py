@@ -289,7 +289,7 @@ def create_deformation_skeleton(context):
     DEF_Index_Finger_01_Left = armature_data.edit_bones.new("DEF_Index_Finger_01.L")
     DEF_Index_Finger_01_Left.head = DEF_Index_Finger_Palm_Left.tail
     DEF_Index_Finger_01_Left.tail = (0.90, -0.02, 1.25)
-    DEF_Index_Finger_01_Left.parent = DEF_Hand_Left
+    DEF_Index_Finger_01_Left.parent = DEF_Index_Finger_Palm_Left
     DEF_Index_Finger_01_Left.roll = -(math.pi / 2)
     DEF_Index_Finger_01_Left.use_connect = False
     # --- Left Index_Finger 02---
@@ -318,7 +318,7 @@ def create_deformation_skeleton(context):
     DEF_Middle_Finger_01_Left = armature_data.edit_bones.new("DEF_Middle_Finger_01.L")
     DEF_Middle_Finger_01_Left.head = DEF_Middle_Finger_Palm_Left.tail
     DEF_Middle_Finger_01_Left.tail = (0.90, 0.00, 1.25)
-    DEF_Middle_Finger_01_Left.parent = DEF_Hand_Left
+    DEF_Middle_Finger_01_Left.parent = DEF_Middle_Finger_Palm_Left
     DEF_Middle_Finger_01_Left.roll = -(math.pi / 2)
     DEF_Middle_Finger_01_Left.use_connect = False
     # --- Left Middle_Finger 02---
@@ -348,7 +348,7 @@ def create_deformation_skeleton(context):
     DEF_Ring_Finger_01_Left = armature_data.edit_bones.new("DEF_Ring_Finger_01.L")
     DEF_Ring_Finger_01_Left.head = (0.88, 0.02, 1.25)
     DEF_Ring_Finger_01_Left.tail = (0.90, 0.02, 1.25)
-    DEF_Ring_Finger_01_Left.parent = DEF_Hand_Left
+    DEF_Ring_Finger_01_Left.parent = DEF_Ring_Finger_Palm_Left
     DEF_Ring_Finger_01_Left.roll = -(math.pi / 2)
     DEF_Ring_Finger_01_Left.use_connect = False
     # --- Left Ring_Finger 02---
@@ -378,7 +378,7 @@ def create_deformation_skeleton(context):
     DEF_Pinky_Finger_01_Left = armature_data.edit_bones.new("DEF_Pinky_Finger_01.L")
     DEF_Pinky_Finger_01_Left.head = (0.88, 0.04, 1.25)
     DEF_Pinky_Finger_01_Left.tail = (0.90, 0.04, 1.25)
-    DEF_Pinky_Finger_01_Left.parent = DEF_Hand_Left
+    DEF_Pinky_Finger_01_Left.parent = DEF_Pinky_Finger_Palm_Left
     DEF_Pinky_Finger_01_Left.roll = -(math.pi / 2)
     DEF_Pinky_Finger_01_Left.use_connect = False
     # --- Left Pinky_Finger 02---

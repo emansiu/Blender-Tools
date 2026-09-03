@@ -70,14 +70,29 @@ PROPERTIES_CONTROLLER_TRAVEL = PROPERTIES_CONTAINER_LENGTH
 # Side-less -- the driver pass appends ".L" or ".R".
 IK_SWITCH_BONES = ("MCH_SWITCH_Thigh", "MCH_SWITCH_Shin", "MCH_SWITCH_Foot", "MCH_SWITCH_Toe")
 
-# The five digits, and the segments each one is built from, root to tip. The
-# finger bones are a plain <digit>_<segment> grid, so naming the two axes once
-# here beats writing the 15 names per hand out by hand. pre_rig_tools builds
-# exactly this shape, and BONES_TO_SUBDIVIDE only ever splits the forearm, so
-# no finger picks up a Proximal/Distal pair that would break the grid.
+# Each digit and the segments it is built from, ROOT TO TIP -- 19 bones a hand.
+#
+# Deliberately a map and not two tuples crossed together: the hand is not a
+# uniform grid. The four fingers carry a Palm segment at the root and the thumb
+# does not, so a FINGER_DIGITS x FINGER_SEGMENTS cross-product invents a
+# "Thumb_Palm" that pre_rig_tools never builds -- which reads back as a missing
+# required bone and bails the whole arm builder out before it lays a bone.
+#
+# Adding a digit or a segment means editing this map alone; nothing downstream
+# hardcodes a segment count or assumes every digit has the same one.
+# BONES_TO_SUBDIVIDE only ever splits the forearm, so no finger picks up a
+# Proximal/Distal pair that would need a row here.
 # Side-less -- finger_bones appends ".L" or ".R".
-FINGER_DIGITS = ("Thumb", "IndexFinger", "MiddleFinger", "RingFinger", "PinkyFinger")
-FINGER_SEGMENTS = ("01", "02", "03")
+FINGER_SEGMENTS = {
+    "Thumb": ("01", "02", "03"),
+    "Index_Finger": ("Palm", "01", "02", "03"),
+    "Middle_Finger": ("Palm", "01", "02", "03"),
+    "Ring_Finger": ("Palm", "01", "02", "03"),
+    "Pinky_Finger": ("Palm", "01", "02", "03"),
+}
+
+# Derived, never hand-written, so the two can never disagree about the digits.
+FINGER_DIGITS = tuple(FINGER_SEGMENTS)
 
 # Bones carrying an ARM_IK_SWITCH_CONSTRAINT_NAME constraint, in chain order.
 # Side-less -- the driver pass appends ".L" or ".R". See add_hand_drivers.
@@ -261,14 +276,16 @@ def finger_bones(edit_bones, side, prefix="ORG_"):
     """Every finger bone on one side, as {"Thumb_01": bone_or_None, ...}.
 
     Keyed side-less and prefix-less so a caller can walk one digit's chain
-    (FINGER_SEGMENTS) or all five (FINGER_DIGITS) without rebuilding name
-    strings, and so the same key indexes the ORG_ bone here and any FK_/MCH_
-    twin built off it later -- pass prefix to fetch those instead.
+    (FINGER_SEGMENTS[digit]) or all five (FINGER_DIGITS) without rebuilding
+    name strings, and so the same key indexes the ORG_ bone here and any
+    FK_/MCH_ twin built off it later -- pass prefix to fetch those instead.
 
-    Dict order follows FINGER_DIGITS then FINGER_SEGMENTS, so iterating it
-    walks each digit root to tip. That is worth having over
-    ORG_Hand.L.children_recursive, which comes back breadth-first -- every 01
-    segment, then every 02 -- and so cannot be chained through directly.
+    Only the segments a digit actually has are asked for, so the thumb yields
+    Thumb_01..03 and each finger yields <name>_Palm..03. Dict order follows
+    FINGER_SEGMENTS, so iterating it walks each digit root to tip. That is
+    worth having over ORG_Hand.L.children_recursive, which comes back
+    breadth-first -- every root, then every second segment -- and so cannot be
+    chained through directly.
 
     A name with no bone behind it maps to None rather than raising, which is
     what lets the caller report every missing bone at once instead of dying on
@@ -276,8 +293,8 @@ def finger_bones(edit_bones, side, prefix="ORG_"):
     """
     return {
         f"{digit}_{segment}": edit_bones.get(f"{prefix}{digit}_{segment}.{side}")
-        for digit in FINGER_DIGITS
-        for segment in FINGER_SEGMENTS
+        for digit, segments in FINGER_SEGMENTS.items()
+        for segment in segments
     }
 
 
@@ -927,10 +944,13 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     #
     # No None guard: REQUIRED_BONES above already returned if any finger bone
     # was missing, so every value in ORG_Fingers_Left is a real bone by here.
-    FINGER_CHAIN_ROOT = FINGER_SEGMENTS[0]
-
-    for digit in FINGER_DIGITS:
-        finger_root = ORG_Fingers_Left[f"{digit}_{FINGER_CHAIN_ROOT}"]
+    # segments[0] rather than a literal, because the root segment differs per
+    # digit: the thumb's is "01" and every finger's is "Palm". That is exactly
+    # the split pre_rig_tools builds -- Thumb_01 and each <name>_Finger_Palm
+    # are the bones parented straight to DEF_Hand -- so taking the first
+    # segment of each row reproduces it without naming either case here.
+    for digit, segments in FINGER_SEGMENTS.items():
+        finger_root = ORG_Fingers_Left[f"{digit}_{segments[0]}"]
         finger_root.use_connect = False
         finger_root.parent = Hand_Tip_Tweak_Left
 
