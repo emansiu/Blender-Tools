@@ -1,4 +1,4 @@
-import bpy
+﻿import bpy
 from mathutils import Vector
 
 from ..helpers import bone_collections, deform_cleanup, widgets
@@ -930,31 +930,45 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
 
     # ---------- ALL HAND BONES ---------------
-    # Every finger chain hangs off the hand tip tweak, so the whole hand
-    # follows one control. Only the chain roots are touched -- 02 and 03 stay
-    # parented up their own digit, which is what keeps each finger a chain
-    # rather than five bones fanning off the same tweak.
-    #
-    # use_connect is cleared first for the same reason as the leg chain above.
-    # The 01 segments come through unconnected today (pre_rig_tools builds them
-    # that way, and create_org_bones copies the flag over), so this changes
-    # nothing on the stock skeleton -- it is here so a hand-authored DEF rig
-    # that welded its fingers on cannot drag all five finger bases onto the
-    # tweak's tail the moment they are reparented.
-    #
-    # No None guard: REQUIRED_BONES above already returned if any finger bone
-    # was missing, so every value in ORG_Fingers_Left is a real bone by here.
-    # segments[0] rather than a literal, because the root segment differs per
-    # digit: the thumb's is "01" and every finger's is "Palm". That is exactly
-    # the split pre_rig_tools builds -- Thumb_01 and each <name>_Finger_Palm
-    # are the bones parented straight to DEF_Hand -- so taking the first
-    # segment of each row reproduces it without naming either case here.
+    finger_tweak_bones = []
+    finger_widget_bones = []
+    finger_tweak_size = 0.005
     for digit, segments in FINGER_SEGMENTS.items():
+        #-- Parent the finger roots to the hand tip tweak
         finger_root = ORG_Fingers_Left[f"{digit}_{segments[0]}"]
         finger_root.use_connect = False
         finger_root.parent = Hand_Tip_Tweak_Left
 
+        previous_wgt = None
+        for segment in segments:
+            org_bone = ORG_Fingers_Left[f"{digit}_{segment}"]
+            wgt_parent = previous_wgt if previous_wgt is not None else org_bone.parent
+            WGT_Bone = create_bone(edit_bones, f"WGT_{digit}_{segment}.L", head=org_bone.head, tail=org_bone.tail, roll=org_bone.roll, parent=wgt_parent)
+            previous_wgt = WGT_Bone
+
+            # -- Palm bones are not tweaked, they are parented to the hand tip tweak directly
+            if segment == "Palm": 
+                continue 
+
+            Tweak_Bone = create_bone(edit_bones, f"{digit}_Tweak_{segment}.L", head=org_bone.head, tail=org_bone.tail, roll=org_bone.roll, length=finger_tweak_size, parent=WGT_Bone)
+            org_bone.parent = Tweak_Bone
+            org_bone.use_connect = False #<--- this should already be fales, but just in case someone does something funky, this slightly guards...
+
+            if segment == "03":
+                extra_tweaker = create_bone(edit_bones, f"{digit}_Tip_Tweak_{segment}.L", head=org_bone.tail, tail=(org_bone.tail + Vector((0.1, 0, 0))), align_to=org_bone, length=finger_tweak_size, parent=WGT_Bone) 
+            
+            # --- make some constraints now ---
+
+
     changed.append(f"{len(FINGER_DIGITS)} finger chains parented to Hand_Tip_Tweak.L")
+
+#     FINGER_SEGMENTS = {
+#     "Thumb": ("01", "02", "03"),
+#     "Index_Finger": ("Palm", "01", "02", "03"),
+#     "Middle_Finger": ("Palm", "01", "02", "03"),
+#     "Ring_Finger": ("Palm", "01", "02", "03"),
+#     "Pinky_Finger": ("Palm", "01", "02", "03"),
+# }
     
 
 
@@ -981,7 +995,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     changed.append("Created MCH and Tweaks. Parented ORG bones to tweakers")
 
     # ============================= PROPERTY BONES ============================================================================================================
-    # ----------- LEFT HAND PROPERTIES ---------------
+    # ----------- LEFT HAND PROPERTY BONES ---------------
     PRPT_Left_Hand_Navigator = create_bone(
         edit_bones,
         "PRPT_Left_Hand_Navigation",
@@ -1004,7 +1018,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         edit_bones, "PRPT_Left_Hand_Controller", head=PRPT_Left_Hand_Container.head, tail=PRPT_Left_Hand_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Left_Hand_Container
     )
 
-    # ----------- RIGHT HAND PROPERTIES ---------------
+    # ----------- RIGHT HAND PROPERTY BONES ---------------
     PRPT_Right_Hand_Navigator = create_bone(
         edit_bones,
         "PRPT_Right_Hand_Navigation",
@@ -1072,7 +1086,19 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     stretch_hand = pose_bones["ORG_Hand.L"].constraints.new("STRETCH_TO")
     stretch_vis_pole_link = pose_bones["VIS_IK_Pole_Link.L"].constraints.new("STRETCH_TO")
 
+    # ---- stretch targets ----
     stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = stretch_vis_pole_link.target = armature_obj
+
+    # --- finger stretch constraints ---
+    for digit, segments in FINGER_SEGMENTS.items():
+        for i, segment in enumerate(segments):
+            finger_stretch = pose_bones[f"ORG_{digit}_{segment}.L"].constraints.new("STRETCH_TO")
+            finger_stretch.target = armature_obj
+
+            if i + 1 < len(segments):
+                finger_stretch.subtarget = f"{digit}_Tweak_{segments[i + 1]}.L"
+            else:
+                finger_stretch.subtarget = f"{digit}_Tip_Tweak_{segment}.L"
 
     # ----------------------- stretch subtargets --------------------------------
     stretch_arm.subtarget = "Forearm_Proximal_Tweak.L"
@@ -1247,8 +1273,27 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["PRPT_Left_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
     widgets.assign_widget(pose_bones["PRPT_Right_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
-    # --- Final shoulder assignment 
+    # --- shoulder assignment 
     widgets.assign_widget(pose_bones["WGT_Shoulder.L"], "WGT_Shoulder_Pad", wire_width=2, color="#58D1FF")
+
+    # --- finger widgets treated like FK widgets ---
+    FINGER_WGT_SIZE = 0.5
+    FINGER_TWEAK_SIZE = 0.005
+    for digit, segments in FINGER_SEGMENTS.items():
+
+        for i, segment in enumerate(segments):
+            # -- fk widgets for fingers as it is essentially fk controls ---
+
+            widgets.assign_widget(pose_bones[f"WGT_{digit}_{segment}.L"], "WGT_Bottom_Face_Centered_Cube",scale_x=FINGER_WGT_SIZE, scale_y=1, scale_z=FINGER_WGT_SIZE, use_bone_size=True, wire_width=2, color="THEME09")
+            if i < 1:
+                continue
+
+            # -- tweak widgets --
+            widgets.assign_widget(pose_bones[f"{digit}_Tweak_{segment}.L"], "WGT_Centered_IcoSphere",scale_x=FINGER_TWEAK_SIZE, scale_y=FINGER_TWEAK_SIZE, scale_z=FINGER_TWEAK_SIZE, use_bone_size=False, wire_width=2, color="THEME09")
+            # -- tip tweak widget --
+            if i == len(segments) - 1:
+                widgets.assign_widget(pose_bones[f"{digit}_Tip_Tweak_{segment}.L"], "WGT_Centered_IcoSphere",scale_x=FINGER_TWEAK_SIZE, scale_y=FINGER_TWEAK_SIZE, scale_z=FINGER_TWEAK_SIZE, use_bone_size=False, wire_width=2, color="THEME09")
+
 
     changed.append("Added arm widgets/icons")
     return changed
