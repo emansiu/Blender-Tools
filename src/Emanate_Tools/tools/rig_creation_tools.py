@@ -2088,6 +2088,17 @@ def symmetrize_rig(context, armature_obj=None):
     bones_created = len(armature_obj.data.edit_bones) - bone_count_before_symmetrize
 
     if bones_created:
+        # -- set default settings for the properties bones --
+        # PoseBone.location, not EditBone -- and the new bones only show up in
+        # pose.bones once we leave Edit Mode, so collect names now and set the
+        # location after switching out, then switch back to end where we started.
+        controller_names = [bone.name for bone in edit_bones if bone.name.endswith("_Controller")]
+
+        bpy.ops.object.mode_set(mode="POSE")
+        for name in controller_names:
+            armature_obj.pose.bones[name].location = (0.2, 0.2, 0)
+        # bpy.ops.object.mode_set(mode="EDIT")
+
         changed.append(f"mirrored {bones_created} bone{'s' if bones_created > 1 else ''} to the right side")
 
     return changed
