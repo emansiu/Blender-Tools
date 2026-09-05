@@ -2174,6 +2174,9 @@ def organize_bone_collections(context, armature_obj=None):
             collection.is_visible = should_be_visible
             changed.append(f"collection {collection.name} visibility -> {should_be_visible}")
 
+    # ---- just nice to end in pose mode ready to start manipulating the rig ---
+    bpy.ops.object.mode_set(mode="POSE")
+
     return changed
 
 
