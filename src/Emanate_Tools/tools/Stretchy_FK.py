@@ -1,5 +1,5 @@
 bl_info = {
-    "name": "Stretchy IK",
+    "name": "Stretchy FK",
     "author": "E Siu",
     "blender": (4,2,0),
     "location": "",
@@ -12,6 +12,7 @@ bl_info = {
 import bpy
 
 from ..helpers import deform_cleanup
+from ..helpers import widgets
 from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
@@ -23,7 +24,6 @@ NAMES = naming.register_tool(
 )
 
 # ------ Global Variables --------------------------------------------------------------------------
-name_of_collection_for_icons = "Icons"
 # # --- get proper scaling for icons ----
 # scene_scale_unit = bpy.context.scene.unit_settings.scale_length
 # scene_unit_length = bpy.context.scene.unit_settings.length_unit
@@ -47,10 +47,6 @@ name_of_collection_for_icons = "Icons"
 def get_current_mode():
     return bpy.context.object.mode
 
-def swith_to_mode(mode_to_switch_to):
-    """takes OBJECT, EDIT, OR POSE values"""
-    bpy.ops.object.mode_set(mode=mode_to_switch_to)
-
 def DESELECT_ALL():
     """ Deselects ALL. WARNING!: when deselecting all in object mode you lose context of pose and cannot switch to pose mode until you select an armature"""
     match get_current_mode():
@@ -71,15 +67,6 @@ def select_bone(bone):
 
 def select_mesh_by_name(mesh_name):
     bpy.data.objects[mesh_name].select_set(True)
-
-def assign_to_icon_collection(mesh_obj):
-    icon_collection = bpy.data.collections.get(name_of_collection_for_icons)
-    if icon_collection is None:
-        return
-    # remove from old collection, link (or assign) to icon collections
-    mesh_obj.users_collection[0].objects.unlink(mesh_obj)
-    # mesh_obj.hide_viewport = True
-    icon_collection.objects.link(mesh_obj)
 
 def rename_org_to_tweak(bone_to_rename):
     # ----RENAMING ----
@@ -141,33 +128,6 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
 
-    def create_collection(self):
-        collection_name = name_of_collection_for_icons
-
-        if collection_name in bpy.data.collections:
-            print("this collection already exists")
-        else:
-            print("let's make this bad boy!!!")
-            new_collection = bpy.data.collections.new(collection_name)
-            bpy.context.scene.collection.children.link(new_collection)
-
-    def create_icons(self):
-
-        # -- creating fk circle icon and assigning to icon collection
-        bpy.ops.curve.primitive_bezier_circle_add(radius=0.5)
-        bpy.context.active_object.name = "fk_circle_icon"
-        # assign to new collection remove from old
-        assign_to_icon_collection(bpy.context.active_object)
-
-        # -- creating tweak icosphere icon and assigning to icon collection
-        bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=1,radius=0.5, enter_editmode=True)
-        bpy.context.active_object.name = "tweak_icosphere_icon"
-        bpy.ops.mesh.delete(type='ONLY_FACE')
-        assign_to_icon_collection(bpy.context.active_object)
-
-        return ["fk_circle_icon","tweak_icosphere_icon"]
-
-
     def execute(self, context):
 
         print("============== NEW STRETCHY EXECUTION =================")
@@ -189,7 +149,6 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
 
         tip_tweak_bone = bpy.context.active_bone
         tip_tweak_bone.use_connect = False
-        tip_tweak_bone.color.palette = "THEME09"
         rename_tweak_tip(tip_tweak_bone)
 
 
@@ -213,6 +172,13 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
 
 
         #---- again, with all bones selected, duplicate and resize, asign to new variable
+        # --- re-select the ORIGINAL chain: the previous duplicate() call left the
+        # new fk_bones selected, so without this the second duplicate would copy
+        # the fk_bones instead of the original chain, producing mis-named,
+        # mis-positioned tweak bones.
+        DESELECT_ALL()
+        for name in original_bones:
+            select_bone(armature.data.edit_bones[name])
         bpy.ops.armature.duplicate()
         tweak_bones = bpy.context.selected_bones
         bpy.ops.transform.resize(value= ( 0.75, 0.75, 0.75))
@@ -220,7 +186,6 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
         # ---- Renaming duplicated bones, then parent originals to these new bones. ----
         for index, bone in enumerate(tweak_bones):
             bone.use_connect = False
-            bone.color.palette = "THEME09"
 
             rename_org_to_tweak(bone)
             # --- PARENT ORIGINAL BONES TO NEW DUPLICATED (TWEAK) BONES ----
@@ -250,71 +215,34 @@ class EMANATE_OT_stretchy_fk(bpy.types.Operator):
             constraint.target = armature
             constraint.subtarget = bone_constraint_target.name
 
-        #---- create icons and move to collection---
-        self.create_collection()
-        icon_names = self.create_icons()
-
-        DESELECT_ALL()
-        swith_to_mode("OBJECT")
-        DESELECT_ALL()
-        # select and activate armature
-        armature.select_set(True)
-        context.view_layer.objects.active = armature
-        swith_to_mode("POSE")
-
-        
-        
-
-
-        # --- assign icon shapes to specific components of rig ------
+        # --- assign widget shapes to specific components of rig ------
+        # get_widget()/assign_widget() build their curve objects directly via the
+        # data API rather than bpy.ops, so -- unlike the old icon-mesh creation --
+        # they never touch active/selected object, and no mode round-trip is
+        # needed to get back to the armature in pose mode.
         tweaker_shape_size = 3.0
         fk_shape_size = 8.0
+        pose_bones = context.object.pose.bones
         for index, bone in enumerate(original_bones):
-            
-            context.object.pose.bones[tweak_bones[index].name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
-            context.object.pose.bones[tweak_bones[index].name].use_custom_shape_bone_size = False
-            context.object.pose.bones[tweak_bones[index].name].custom_shape_scale_xyz = (
-                tweaker_shape_size,
-                tweaker_shape_size,
-                tweaker_shape_size
+
+            widgets.assign_widget(
+                pose_bones[tweak_bones[index].name], "WGT_Centered_IcoSphere",
+                scale_x=tweaker_shape_size, scale_y=tweaker_shape_size, scale_z=tweaker_shape_size,
+                use_bone_size=False, color="THEME09",
             )
 
-
-            context.object.pose.bones[fk_bones[index].name].custom_shape = bpy.data.objects.get("fk_circle_icon")
-            # below is rotating 90 in x rotation but in radians
-            context.object.pose.bones[fk_bones[index].name].custom_shape_rotation_euler[0] = 1.5707964
-            context.object.pose.bones[fk_bones[index].name].use_custom_shape_bone_size = False
-            context.object.pose.bones[fk_bones[index].name].custom_shape_scale_xyz = (
-                fk_shape_size,
-                fk_shape_size,
-                fk_shape_size
+            widgets.assign_widget(
+                pose_bones[fk_bones[index].name], "WGT_Circle_Centered",
+                scale_x=fk_shape_size, scale_y=fk_shape_size, scale_z=fk_shape_size,
+                use_bone_size=False,
             )
 
-        # give icon to final tweak bone
-        context.object.pose.bones[tip_tweak_bone.name].custom_shape = bpy.data.objects.get("tweak_icosphere_icon")
-        context.object.pose.bones[tip_tweak_bone.name].use_custom_shape_bone_size = False
-        context.object.pose.bones[tip_tweak_bone.name].custom_shape_scale_xyz = (
-            tweaker_shape_size,
-            tweaker_shape_size,
-            tweaker_shape_size
+        # give widget to final tweak bone
+        widgets.assign_widget(
+            pose_bones[tip_tweak_bone.name], "WGT_Centered_IcoSphere",
+            scale_x=tweaker_shape_size, scale_y=tweaker_shape_size, scale_z=tweaker_shape_size,
+            use_bone_size=False, color="THEME09",
         )
-
-                
-        # finally, hide shape icons
-        DESELECT_ALL()
-        swith_to_mode("OBJECT")
-        for icon in icon_names:
-            icon_object = bpy.data.objects.get(icon)
-            icon_object.select_set(True)
-            context.view_layer.objects.active = icon_object
-            icon_object.hide_set(True)
-        
-        # End in pose mode
-        DESELECT_ALL()
-        # select and activate armature
-        armature.select_set(True)
-        bpy.context.view_layer.objects.active = armature
-        swith_to_mode("POSE")
 
         deform_cleanup.sync_deform_flags(armature)
 
