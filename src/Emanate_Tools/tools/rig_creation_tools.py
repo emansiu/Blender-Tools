@@ -1068,9 +1068,22 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     ORG_Fingers_Left = finger_bones(edit_bones, "L")
     Root = edit_bones.get("Root")
 
+    # Fingers are optional -- a hand can be missing any number of them (up to
+    # all five) and the arm still has to build. A digit only counts as
+    # "present" when its whole chain is there; a digit missing one segment out
+    # of the middle can't be parented root-to-tip, so it is skipped entirely
+    # rather than half-built. Computed once here and reused by every finger
+    # loop below (creation, stretch constraints, widgets) so they can never
+    # disagree about which digits exist.
+    present_finger_digits = {
+        digit: segments
+        for digit, segments in FINGER_SEGMENTS.items()
+        if all(ORG_Fingers_Left.get(f"{digit}_{segment}") is not None for segment in segments)
+    }
+    missing_finger_digits = [digit for digit in FINGER_SEGMENTS if digit not in present_finger_digits]
+
     # Checked by name rather than with any(), so the report says WHICH bone is
-    # missing -- with 15 finger bones in here now, "a certain required bone"
-    # is not something a user can act on.
+    # missing. Fingers are deliberately NOT in here -- see present_finger_digits.
     REQUIRED_BONES = {
         "ORG_Shoulder.L": ORG_Shoulder_Left,
         "ORG_Arm.L": ORG_Arm_Left,
@@ -1078,7 +1091,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         "ORG_Forearm_Distal.L": ORG_Forearm_Distal_Left,
         "ORG_Hand.L": ORG_Hand_Left,
         "Root": Root,
-        **{f"ORG_{key}.L": bone for key, bone in ORG_Fingers_Left.items()},
     }
 
     missing = [name for name, bone in REQUIRED_BONES.items() if bone is None]
@@ -1180,10 +1192,10 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     FK_Hand_Left = create_bone(edit_bones, "FK_Hand.L", head=ORG_Hand_Left.head, tail=ORG_Hand_Left.tail, roll=ORG_Hand_Left.roll, parent=FK_Forearm_Left)
 
     # ---------- ALL HAND BONES ---------------
-    finger_tweak_bones = []
-    finger_widget_bones = []
+    # present_finger_digits only -- a digit missing any segment was already
+    # excluded above, so every lookup here is guaranteed to find a real bone.
     finger_tweak_size = 0.005
-    for digit, segments in FINGER_SEGMENTS.items():
+    for digit, segments in present_finger_digits.items():
         #-- Parent the finger roots to the hand tip tweak
         finger_root = ORG_Fingers_Left[f"{digit}_{segments[0]}"]
         finger_root.use_connect = False
@@ -1197,29 +1209,22 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
             previous_wgt = WGT_Bone
 
             # -- Palm bones are not tweaked, they are parented to the hand tip tweak directly
-            if segment == "Palm": 
-                continue 
+            if segment == "Palm":
+                continue
 
             Tweak_Bone = create_bone(edit_bones, f"{digit}_Tweak_{segment}.L", head=org_bone.head, tail=org_bone.tail, roll=org_bone.roll, length=finger_tweak_size, parent=WGT_Bone)
             org_bone.parent = Tweak_Bone
             org_bone.use_connect = False #<--- this should already be fales, but just in case someone does something funky, this slightly guards...
 
             if segment == "03":
-                extra_tweaker = create_bone(edit_bones, f"{digit}_Tip_Tweak_{segment}.L", head=org_bone.tail, tail=(org_bone.tail + Vector((0.1, 0, 0))), align_to=org_bone, length=finger_tweak_size, parent=WGT_Bone) 
-            
+                extra_tweaker = create_bone(edit_bones, f"{digit}_Tip_Tweak_{segment}.L", head=org_bone.tail, tail=(org_bone.tail + Vector((0.1, 0, 0))), align_to=org_bone, length=finger_tweak_size, parent=WGT_Bone)
+
             # --- make some constraints now ---
 
-
-    changed.append(f"{len(FINGER_DIGITS)} finger chains parented to Hand_Tip_Tweak.L")
-
-#     FINGER_SEGMENTS = {
-#     "Thumb": ("01", "02", "03"),
-#     "Index_Finger": ("Palm", "01", "02", "03"),
-#     "Middle_Finger": ("Palm", "01", "02", "03"),
-#     "Ring_Finger": ("Palm", "01", "02", "03"),
-#     "Pinky_Finger": ("Palm", "01", "02", "03"),
-# }
-    
+    if present_finger_digits:
+        changed.append(f"{len(present_finger_digits)} finger chain(s) parented to Hand_Tip_Tweak.L")
+    if missing_finger_digits:
+        changed.append(f"skipped finger(s) missing from the ORG chain: {', '.join(missing_finger_digits)}")
 
 
     # ============================= IK BONES ===========================================================================================================================================
@@ -1339,8 +1344,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # ---- stretch targets ----
     stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = stretch_vis_pole_link.target = armature_obj
 
-    # --- finger stretch constraints ---
-    for digit, segments in FINGER_SEGMENTS.items():
+    # --- finger stretch constraints (present_finger_digits only) ---
+    for digit, segments in present_finger_digits.items():
         for i, segment in enumerate(segments):
             finger_stretch = pose_bones[f"ORG_{digit}_{segment}.L"].constraints.new("STRETCH_TO")
             finger_stretch.target = armature_obj
@@ -1526,10 +1531,10 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # --- shoulder assignment 
     widgets.assign_widget(pose_bones["WGT_Shoulder.L"], "WGT_Shoulder_Pad", wire_width=2, color="#58D1FF")
 
-    # --- finger widgets treated like FK widgets ---
+    # --- finger widgets treated like FK widgets (present_finger_digits only) ---
     FINGER_WGT_SIZE = 0.5
     FINGER_TWEAK_SIZE = 0.005
-    for digit, segments in FINGER_SEGMENTS.items():
+    for digit, segments in present_finger_digits.items():
 
         for i, segment in enumerate(segments):
             # -- fk widgets for fingers as it is essentially fk controls ---
