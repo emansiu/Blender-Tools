@@ -659,7 +659,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Parent_Foot_IK_Master_Left = create_bone(edit_bones, "MCH_Parent_Foot_IK_Master.L", head=foot_ik_master_head, tail=(foot_ik_master_head + foot_ik_master_tail) / 2)
 
     # ---IK Master Left Foot Control ---------------------------------------------------------
-    WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=MCH_Heel_Left.head, parent=MCH_Parent_Foot_IK_Master_Left)
+    WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, parent=MCH_Parent_Foot_IK_Master_Left)
 
     # ---MCH Foot Roll - Left ---------------------------------------------------------
     # align_roll here recalculates the bone roll to global z+
@@ -756,6 +756,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ---IK Left Toe WGT Control ---------------------------------------------------------
     WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
+    WGT_Foot_IK_Master_Left.align_orientation(WGT_IK_Toe_Left)
+    WGT_Foot_IK_Master_Left.align_roll(Vector((0,0,1)))
+    WGT_Foot_IK_Master_Left.tail[0] = WGT_Foot_IK_Master_Left.head[0] - (WGT_Foot_IK_Master_Left.tail[0]-WGT_Foot_IK_Master_Left.head[0]) # <--- flip it around after aligning with toe
+    WGT_Foot_IK_Master_Left.tail[1] = WGT_Foot_IK_Master_Left.head[1] - (WGT_Foot_IK_Master_Left.tail[1]-WGT_Foot_IK_Master_Left.head[1]) # <--- flip it around after aligning with toe
 
     # ------- Final Property Bones ---------------
 
