@@ -659,7 +659,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     MCH_Parent_Foot_IK_Master_Left = create_bone(edit_bones, "MCH_Parent_Foot_IK_Master.L", head=foot_ik_master_head, tail=(foot_ik_master_head + foot_ik_master_tail) / 2)
 
     # ---IK Master Left Foot Control ---------------------------------------------------------
-    WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=foot_ik_master_tail, parent=MCH_Parent_Foot_IK_Master_Left)
+    WGT_Foot_IK_Master_Left = create_bone(edit_bones, "WGT_Foot_IK_Master.L", head=foot_ik_master_head, tail=MCH_Heel_Left.head, parent=MCH_Parent_Foot_IK_Master_Left)
 
     # ---MCH Foot Roll - Left ---------------------------------------------------------
     # align_roll here recalculates the bone roll to global z+
@@ -715,7 +715,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # --- TWEAK MCH Left Toe TIP  ---------------------------------------------------------
     Toe_Tip_Tweak_Left = create_bone(
-        edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, tweaker_bone_length, 0.0)), parent=MCH_SWITCH_Toe_Left, roll=ORG_Toe_Left.roll
+        edit_bones, "Toe_Tip_Tweak.L", head=ORG_Toe_Left.tail, tail=ORG_Toe_Left.tail - Vector((0.00, tweaker_bone_length, 0.0)), parent=MCH_SWITCH_Toe_Left, align_to=MCH_SWITCH_Toe_Left
     )
 
     # ============================= FK CHAIN ============================================================================================================================
@@ -742,6 +742,8 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ---IK Pole Target Visualization bone ---------------------------------------------------------
     VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
+
+    IK_Pole_Left.align_orientation(VIS_IK_Pole_Left)
 
     # ---IK Left Shin---------------------------------------------------------
     IK_Shin_Left = create_bone(edit_bones, "IK_Shin.L", head=ORG_Shin_Left.head, tail=ORG_Shin_Left.tail, parent=IK_Thigh_Left, roll=ORG_Shin_Left.roll, connect=True)
@@ -990,7 +992,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="#58D1FF")
 
     # --------- IK Pole Controller ----------
-    widgets.assign_widget(pose_bones["WGT_IK_Pole.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_y=-1, wire_width=2, color="#58D1FF")
+    widgets.assign_widget(pose_bones["WGT_IK_Pole.L"], "WGT_Bottom_Face_Centered_Pyramid", wire_width=2, color="#58D1FF")
 
     # --------- Left Leg IK Master ----------
     widgets.assign_widget(pose_bones["WGT_Foot_IK_Master.L"], "WGT_Bottom_Face_Centered_Cube", scale_y=0.5, rotation_x=90, wire_width=2, color="THEME04")
