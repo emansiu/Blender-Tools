@@ -8,21 +8,19 @@ NAMES = naming.register_tool(
     "rigging_tools",
     label="Rigging Tools",
     owner=__name__,
-    description="Container panel for the rig-creation tools: build the switchable FK/IK rig, symmetrize it onto the right side, wire drivers, and organize bone collections",
+    description="Container panel for the rig-creation tools: build the switchable FK/IK rig and organize bone collections",
     order=20,
 )
 
-NAMES_LEG_RIG = naming.register_tool("generate_leg_rig", label="Generate Leg Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik legs.")
-NAMES_ARM_RIG = naming.register_tool("generate_arm_rig", label="Generate Arm Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik arms.")
-NAMES_SPINE_RIG = naming.register_tool("generate_spine_rig", label="Generate Spine Rig", owner=__name__, description="Creates flexible rig with switchable fk/ik spine.")
-NAMES_SYMMETRIZE_RIG = naming.register_tool(
-    "symmetrize_rig", label="Symmetrize Rig", owner=__name__, description="Mirrors every bone ending in .L onto the right side -- the whole rig, not just the deformation skeleton"
-)
-NAMES_ADD_DRIVERS = naming.register_tool(
-    "add_all_drivers",
-    label="Add All Drivers",
+NAMES_GENERATE_RIG = naming.register_tool(
+    "generate_rig",
+    label="Generate Rig",
     owner=__name__,
-    description="Wires every driven constraint in the rig, both sides, to its properties controller slider. Safe to re-run, and meant to be run after mirroring -- symmetrize copies constraints but not drivers",
+    description=(
+        "Runs the full rig-generation pipeline in one pass: generates ORG bones, "
+        "builds the switchable FK/IK leg/arm/spine rigs, symmetrizes the whole rig "
+        "onto the right side, wires every driver, and organizes bone collections"
+    ),
 )
 NAMES_ORGANIZE_COLLECTIONS = naming.register_tool(
     "organize_bone_collections", label="Organize Bone Collections", owner=__name__, description="Sorts MCH_/FK_/IK_/ORG_/Tweak/WGT_/VIS_/PRPT_ bones into matching bone collections"
@@ -335,6 +333,258 @@ def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_to=N
         bone.length = length
 
     return bone
+
+
+# ---------------------------------------------------------------------------
+# ORG bone generation -- mirrors every DEF_ bone as an ORG_ bone and wires a
+# copy-transforms constraint from each DEF bone back onto its ORG twin.
+#
+# Moved here from pre_rig_tools.py: this used to be its own "Generate ORG
+# Bones" button, but it is now just the first stage of generate_rig() below,
+# so it lives with the rest of the rig-generation pipeline instead.
+# ---------------------------------------------------------------------------
+
+# ------ Naming convention this section works to ---------------------------
+ORG_DEF_PREFIX = deform_cleanup.DEF_PREFIX
+ORG_PREFIX = "ORG_"
+
+# Naming the constraint lets a second run recognise its own work instead of
+# stacking a duplicate constraint on every DEF bone.
+ORG_CONSTRAINT_NAME = "ORG Copy Transforms"
+ORG_CONSTRAINT_TYPE = "COPY_TRANSFORMS"
+
+# Bone collections the two sets get sorted into.
+ORG_DEFORM_COLLECTION = "DEFORMATION"
+ORG_ORIGINAL_COLLECTION = "ORIGINAL"
+
+# DEF bones built as one piece that have to end up as two halves before the
+# ORG pass runs, keyed by the whole bone's name: (root half, tip half).
+ORG_BONES_TO_SUBDIVIDE = {
+    "DEF_Forearm.L": ("DEF_Forearm_Proximal.L", "DEF_Forearm_Distal.L"),
+}
+# ---------------------------------------------------------------------------
+
+
+def org_name_for(def_bone_name):
+    """DEF_base -> ORG_base. Only the prefix changes; the rest is untouched."""
+    return ORG_PREFIX + def_bone_name[len(ORG_DEF_PREFIX):]
+
+
+def subdivide_def_bones(armature_obj):
+    """Split each bone in ORG_BONES_TO_SUBDIVIDE in two. Must be called in EDIT mode.
+
+    The whole bone does not survive: subdivide leaves the root half under the
+    original name and a new tip half carrying the children, and both are then
+    renamed. Returns the list of names created.
+    """
+    edit_bones = armature_obj.data.edit_bones
+    created = []
+
+    for bone_name, (proximal_name, distal_name) in ORG_BONES_TO_SUBDIVIDE.items():
+        source = edit_bones.get(bone_name)
+        if source is None:
+            # Either the rig never had it or a previous run already split it.
+            continue
+
+        for bone in edit_bones:
+            bone.select = bone.select_head = bone.select_tail = False
+        source.select = source.select_head = source.select_tail = True
+        edit_bones.active = source
+
+        before = {bone.name for bone in edit_bones}
+        bpy.ops.armature.subdivide(number_cuts=1)
+        new_names = [bone.name for bone in edit_bones if bone.name not in before]
+        if not new_names:
+            continue
+
+        # Subdivide keeps the root half under the original name and gives the
+        # half towards the tail -- the one that carries the children -- a name
+        # of its own choosing, so that is the one to call distal.
+        edit_bones[bone_name].name = proximal_name
+        edit_bones[new_names[0]].name = distal_name
+        edit_bones[distal_name].use_connect = edit_bones[proximal_name].use_connect
+        created += [proximal_name, distal_name]
+
+    return created
+
+
+def create_org_bones(armature_obj):
+    """Mirror every DEF_ bone as an ORG_ bone. Must be called in EDIT mode.
+
+    Returns (pairs, created, reused) where pairs is a list of
+    (def_name, org_name) covering every DEF bone, whether or not its ORG
+    counterpart had to be built this run.
+    """
+    edit_bones = armature_obj.data.edit_bones
+
+    # Split first so the halves are picked up by the sweep below and get ORG
+    # twins of their own.
+    subdivide_def_bones(armature_obj)
+
+    source_bones = [eb for eb in edit_bones if eb.name.startswith(ORG_DEF_PREFIX)]
+
+    pairs = []
+    created = []
+    reused = []
+
+    # --- pass one: create the bones -------------------------------------
+    # Parenting is deferred to pass two because a bone's ORG parent may not
+    # exist yet when the bone itself is created.
+    for source in source_bones:
+        org_name = org_name_for(source.name)
+        pairs.append((source.name, org_name))
+
+        if org_name in edit_bones:
+            # Already generated by a previous run. Leave it as the user left
+            # it -- overwriting would throw away any edits they made.
+            reused.append(org_name)
+            continue
+
+        new_bone = edit_bones.new(org_name)
+        new_bone.head = source.head
+        new_bone.tail = source.tail
+        new_bone.roll = source.roll
+        new_bone.use_deform = False
+        new_bone.inherit_scale = source.inherit_scale
+
+        # Deliberately NOT copying the source bone's collection membership:
+        # organize_org_bone_collections() below files this bone under ORIGINAL,
+        # and inheriting DEF's membership would drag it into the hidden
+        # DEFORMATION collection too.
+        created.append(org_name)
+
+    # --- pass two: rebuild the hierarchy --------------------------------
+    def_to_org = dict(pairs)
+
+    for def_name, org_name in pairs:
+        if org_name not in created:
+            continue
+
+        source_parent = edit_bones[def_name].parent
+        if source_parent is None:
+            continue
+
+        # A DEF parent maps to its ORG twin, so the ORG chain stands alone.
+        # Any other parent (a control bone, say) is kept as-is, which is what
+        # Blender's own duplicate does.
+        parent_name = def_to_org.get(source_parent.name, source_parent.name)
+        org_bone = edit_bones[org_name]
+        org_bone.parent = edit_bones[parent_name]
+        org_bone.use_connect = edit_bones[def_name].use_connect
+
+    return pairs, created, reused
+
+
+def organize_org_bone_collections(armature_obj, pairs):
+    """File DEF bones under DEFORMATION and ORG bones under ORIGINAL (both visible).
+
+    Must be called in EDIT mode -- it works through edit_bones, which is the
+    only view of the bones that is valid there.
+
+    Deliberately does NOT hide the DEFORMATION collection the way the old
+    standalone "Generate ORG Bones" button used to: generate_rig() still has
+    to run symmetrize_rig() on this same armature later in the same pass, and
+    a bone sitting in a hidden collection cannot be selected by
+    bpy.ops.armature.symmetrize() -- the DEF_*.L bones would never get their
+    .R mirror. Final visibility (DEFORMATION included) is decided once, at
+    the end of the whole pipeline, by organize_bone_collections().
+
+    Returns a list of description strings.
+    """
+    armature = armature_obj.data
+    changes = []
+
+    deform, was_created = bone_collections.get_or_create_collection(armature, ORG_DEFORM_COLLECTION)
+    if was_created:
+        changes.append(f"created collection {ORG_DEFORM_COLLECTION}")
+    moved = bone_collections.move_bones_to_collection(armature, [d for d, _ in pairs], deform)
+    changes.append(f"{moved} bone(s) -> {ORG_DEFORM_COLLECTION}")
+
+    original, was_created = bone_collections.get_or_create_collection(armature, ORG_ORIGINAL_COLLECTION)
+    if was_created:
+        changes.append(f"created collection {ORG_ORIGINAL_COLLECTION}")
+    moved = bone_collections.move_bones_to_collection(armature, [o for _, o in pairs], original)
+    changes.append(f"{moved} bone(s) -> {ORG_ORIGINAL_COLLECTION}")
+    original.is_visible = True
+
+    return changes
+
+
+def add_copy_transforms(armature_obj, pairs):
+    """Constrain each DEF bone to its ORG bone. Must be called in POSE mode.
+
+    Returns (added, skipped) as lists of DEF bone names.
+    """
+    added = []
+    skipped = []
+
+    for def_name, org_name in pairs:
+        pose_bone = armature_obj.pose.bones.get(def_name)
+        if pose_bone is None:
+            continue
+
+        # Re-runs must not stack constraints. Match on what the constraint
+        # does (type + target) rather than on its name, so a renamed one is
+        # still recognised.
+        already_there = any(
+            con.type == ORG_CONSTRAINT_TYPE
+            and con.target == armature_obj
+            and con.subtarget == org_name
+            for con in pose_bone.constraints
+        )
+        if already_there:
+            skipped.append(def_name)
+            continue
+
+        constraint = pose_bone.constraints.new(ORG_CONSTRAINT_TYPE)
+        constraint.name = ORG_CONSTRAINT_NAME
+        constraint.target = armature_obj
+        constraint.subtarget = org_name
+        added.append(def_name)
+
+    return added, skipped
+
+
+def generate_org_bones(context, armature_obj=None):
+    """Mirror every DEF_ bone as an ORG_ bone and constrain DEF back onto it.
+
+    The first stage of generate_rig() below (see EMANATE_OT_generate_rig).
+    Returns a list of what changed, or an empty list if armature_obj has no
+    DEF_ bones to mirror -- the same "nothing to do" signal every other stage
+    in this file returns, so the caller can tell a real failure apart from
+    "already up to date".
+    """
+    changed = []
+
+    if armature_obj is None:
+        armature_obj = context.object
+    if armature_obj is None or armature_obj.type != "ARMATURE":
+        return changed
+
+    starting_mode = armature_obj.mode
+    if armature_obj.mode != "EDIT":
+        context.view_layer.objects.active = armature_obj
+        bpy.ops.object.mode_set(mode="EDIT")
+
+    pairs, created, reused = create_org_bones(armature_obj)
+    if not pairs:
+        bpy.ops.object.mode_set(mode=starting_mode)
+        return changed
+
+    # Still in edit mode, which is where collection membership has to be set
+    # -- armature.bones is not valid until edit mode is left.
+    changed += organize_org_bone_collections(armature_obj, pairs)
+
+    # Constraints live on pose bones, and pose bones for freshly created edit
+    # bones only exist once edit mode has been left.
+    bpy.ops.object.mode_set(mode="POSE")
+    added, skipped = add_copy_transforms(armature_obj, pairs)
+    changed.append(
+        f"{len(created)} ORG bone(s) created, {len(reused)} reused; "
+        f"{len(added)} constraint(s) added, {len(skipped)} already present"
+    )
+
+    return changed
 
 
 def generate_leg_ik_fk_rig(context, armature_obj=None):
@@ -2180,11 +2430,24 @@ def organize_bone_collections(context, armature_obj=None):
     return changed
 
 
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Leg Rig" BUTTON IS CLICKED =========
-class EMANATE_OT_generate_leg_rig(bpy.types.Operator):
-    bl_idname = NAMES_LEG_RIG.operator_idname
-    bl_label = NAMES_LEG_RIG.label
-    bl_description = NAMES_LEG_RIG.description
+# Stages generate_rig() runs after generate_org_bones(), in order. Each is one
+# of the (context, armature_obj) -> changed builders defined above; label is
+# only used for the aggregated report/console log.
+GENERATE_RIG_STAGES = (
+    ("Generate Leg Rig", generate_leg_ik_fk_rig),
+    ("Generate Arm Rig", generate_arm_ik_fk_rig),
+    ("Generate Spine Rig", generate_spine_rig),
+    ("Symmetrize Rig", symmetrize_rig),
+    ("Add All Drivers", add_all_drivers),
+    ("Organize Bone Collections", organize_bone_collections),
+)
+
+
+# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Rig" BUTTON IS CLICKED =========
+class EMANATE_OT_generate_rig(bpy.types.Operator):
+    bl_idname = NAMES_GENERATE_RIG.operator_idname
+    bl_label = NAMES_GENERATE_RIG.label
+    bl_description = NAMES_GENERATE_RIG.description
     bl_options = {"REGISTER", "UNDO"}
 
     @classmethod
@@ -2200,166 +2463,29 @@ class EMANATE_OT_generate_leg_rig(bpy.types.Operator):
             self.report({"ERROR"}, "Select an armature first")
             return {"CANCELLED"}
 
-        changed = generate_leg_ik_fk_rig(context, armature_obj)
+        changed = []
 
-        if not changed:
-            self.report({"WARNING"}, f"{armature_obj.name} has no ORG_Hips bone -- run the ORG bone generator first")
+        # Everything else parents or constrains onto the ORG chain, so unlike
+        # the stages below, no DEF_ bones here is a hard stop rather than a skip.
+        org_changed = generate_org_bones(context, armature_obj)
+        if not org_changed:
+            self.report({"WARNING"}, f"{armature_obj.name} has no DEF_ bones -- run Make DEF Skeleton first")
             return {"CANCELLED"}
+        changed += org_changed
+
+        for label, stage in GENERATE_RIG_STAGES:
+            stage_changed = stage(context, armature_obj)
+            if not stage_changed:
+                changed.append(f"{label}: no changes")
+                continue
+            changed += stage_changed
 
         changed += deform_cleanup.sync_deform_flags(armature_obj)
 
         for change in changed:
-            print(f"[generate-leg-rig] {change}")
+            print(f"[generate-rig] {change}")
 
-        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
-        return {"FINISHED"}
-
-
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Arm Rig" BUTTON IS CLICKED =========
-class EMANATE_OT_generate_arm_rig(bpy.types.Operator):
-    bl_idname = NAMES_ARM_RIG.operator_idname
-    bl_label = NAMES_ARM_RIG.label
-    bl_description = NAMES_ARM_RIG.description
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return context.object is not None and context.object.type == "ARMATURE"
-
-    def execute(self, context):
-        armature_obj = context.object
-
-        # poll() covers the button, but an operator can still be called from a
-        # script or the search menu, where poll is not guaranteed to have run.
-        if armature_obj is None or armature_obj.type != "ARMATURE":
-            self.report({"ERROR"}, "Select an armature first")
-            return {"CANCELLED"}
-
-        changed = generate_arm_ik_fk_rig(context, armature_obj)
-
-        if not changed:
-            self.report({"WARNING"}, f"{armature_obj.name} has no ORG arm bones -- run the ORG bone generator first")
-            return {"CANCELLED"}
-
-        changed += deform_cleanup.sync_deform_flags(armature_obj)
-
-        for change in changed:
-            print(f"[generate-arm-rig] {change}")
-
-        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
-        return {"FINISHED"}
-
-
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Generate Spine Rig" BUTTON IS CLICKED =========
-class EMANATE_OT_generate_spine_rig(bpy.types.Operator):
-    bl_idname = NAMES_SPINE_RIG.operator_idname
-    bl_label = NAMES_SPINE_RIG.label
-    bl_description = NAMES_SPINE_RIG.description
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return context.object is not None and context.object.type == "ARMATURE"
-
-    def execute(self, context):
-        armature_obj = context.object
-
-        # poll() covers the button, but an operator can still be called from a
-        # script or the search menu, where poll is not guaranteed to have run.
-        if armature_obj is None or armature_obj.type != "ARMATURE":
-            self.report({"ERROR"}, "Select an armature first")
-            return {"CANCELLED"}
-
-        changed = generate_spine_rig(context, armature_obj)
-
-        if not changed:
-            self.report({"WARNING"}, f"{armature_obj.name}: spine rig generator is having issues - check this function for further debugging")
-            return {"CANCELLED"}
-
-        changed += deform_cleanup.sync_deform_flags(armature_obj)
-
-        for change in changed:
-            print(f"[generate-spine-rig] {change}")
-
-        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
-        return {"FINISHED"}
-
-
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Symmetrize Rig" BUTTON IS CLICKED =========
-class EMANATE_OT_symmetrize_rig(bpy.types.Operator):
-    bl_idname = NAMES_SYMMETRIZE_RIG.operator_idname
-    bl_label = NAMES_SYMMETRIZE_RIG.label
-    bl_description = NAMES_SYMMETRIZE_RIG.description
-    bl_options = {"REGISTER", "UNDO"}
-
-    # Greys the button out unless there is an armature to act on, so the user
-    # gets a disabled button instead of an error after the fact.
-    @classmethod
-    def poll(cls, context):
-        return context.object is not None and context.object.type == "ARMATURE"
-
-    def execute(self, context):
-        # context.object is the active object -- the one the header and the
-        # properties editor are pointing at, which is what the user thinks of
-        # as "the selected armature".
-        armature_obj = context.object
-
-        # poll() covers the button, but an operator can still be called from a
-        # script or the search menu, where poll is not guaranteed to have run.
-        if armature_obj is None or armature_obj.type != "ARMATURE":
-            self.report({"ERROR"}, "Select an armature first")
-            return {"CANCELLED"}
-
-        changed = symmetrize_rig(context, armature_obj)
-
-        if not changed:
-            self.report({"WARNING"}, f"{armature_obj.name} has no .L bones to mirror")
-            return {"CANCELLED"}
-
-        changed += deform_cleanup.sync_deform_flags(armature_obj)
-
-        for change in changed:
-            print(f"[symmetrize-rig] {change}")
-
-        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
-        return {"FINISHED"}
-
-
-# ========= THIS IS THE OPERATOR THAT RUNS WHEN THE "Add All Drivers" BUTTON IS CLICKED =========
-class EMANATE_OT_add_all_drivers(bpy.types.Operator):
-    bl_idname = NAMES_ADD_DRIVERS.operator_idname
-    bl_label = NAMES_ADD_DRIVERS.label
-    bl_description = NAMES_ADD_DRIVERS.description
-    bl_options = {"REGISTER", "UNDO"}
-
-    @classmethod
-    def poll(cls, context):
-        return context.object is not None and context.object.type == "ARMATURE"
-
-    def execute(self, context):
-        armature_obj = context.object
-
-        # poll() covers the button, but an operator can still be called from a
-        # script or the search menu, where poll is not guaranteed to have run.
-        if armature_obj is None or armature_obj.type != "ARMATURE":
-            self.report({"ERROR"}, "Select an armature first")
-            return {"CANCELLED"}
-
-        # Both sides every time. Run before the mirror and the right side is
-        # simply skipped; run after and this is the pass that gives the
-        # mirrored limbs the drivers symmetrize could not copy.
-        changed = add_all_drivers(context, armature_obj)
-
-        if not changed:
-            self.report({"WARNING"}, f"{armature_obj.name} has no properties controller to drive from -- run the rig generator first")
-            return {"CANCELLED"}
-
-        changed += deform_cleanup.sync_deform_flags(armature_obj)
-
-        for change in changed:
-            print(f"[add-all-drivers] {change}")
-
-        self.report({"INFO"}, f"{armature_obj.name}: {'; '.join(changed)}")
+        self.report({"INFO"}, f"{armature_obj.name}: rig generated -- {len(changed)} change(s), see console for detail")
         return {"FINISHED"}
 
 
@@ -2410,31 +2536,19 @@ class EMANATE_PT_rigging_tools(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator(NAMES_LEG_RIG.operator_idname)
-        layout.operator(NAMES_ARM_RIG.operator_idname)
-        layout.operator(NAMES_SPINE_RIG.operator_idname)
-        layout.operator(NAMES_SYMMETRIZE_RIG.operator_idname)
-        layout.operator(NAMES_ADD_DRIVERS.operator_idname)
+        layout.operator(NAMES_GENERATE_RIG.operator_idname)
         layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
 
 _classes = (
-    EMANATE_OT_generate_leg_rig,
-    EMANATE_OT_generate_arm_rig,
-    EMANATE_OT_generate_spine_rig,
-    EMANATE_OT_symmetrize_rig,
-    EMANATE_OT_add_all_drivers,
+    EMANATE_OT_generate_rig,
     EMANATE_OT_organize_bone_collections,
     EMANATE_PT_rigging_tools,
 )
 
 
 def register():
-    naming.check_classes((EMANATE_OT_generate_leg_rig,), NAMES_LEG_RIG)
-    naming.check_classes((EMANATE_OT_generate_arm_rig,), NAMES_ARM_RIG)
-    naming.check_classes((EMANATE_OT_generate_spine_rig,), NAMES_SPINE_RIG)
-    naming.check_classes((EMANATE_OT_symmetrize_rig,), NAMES_SYMMETRIZE_RIG)
-    naming.check_classes((EMANATE_OT_add_all_drivers,), NAMES_ADD_DRIVERS)
+    naming.check_classes((EMANATE_OT_generate_rig,), NAMES_GENERATE_RIG)
     naming.check_classes((EMANATE_OT_organize_bone_collections,), NAMES_ORGANIZE_COLLECTIONS)
     naming.check_classes((EMANATE_PT_rigging_tools,), NAMES)
     for cls in _classes:
