@@ -1,15 +1,12 @@
 ﻿import bpy
 from mathutils import Vector
+import math
 
 from ..helpers import bone_collections, deform_cleanup, widgets
 from ..helpers import naming_unity as naming
 
 NAMES = naming.register_tool(
-    "rigging_tools",
-    label="Rigging Tools",
-    owner=__name__,
-    description="Container panel for the rig-creation tools: build the switchable FK/IK rig and organize bone collections",
-    order=20,
+    "rigging_tools", label="Rigging Tools", owner=__name__, description="Container panel for the rig-creation tools: build the switchable FK/IK rig and organize bone collections", order=20
 )
 
 NAMES_GENERATE_RIG = naming.register_tool(
@@ -289,11 +286,7 @@ def finger_bones(edit_bones, side, prefix="ORG_"):
     what lets the caller report every missing bone at once instead of dying on
     the first one.
     """
-    return {
-        f"{digit}_{segment}": edit_bones.get(f"{prefix}{digit}_{segment}.{side}")
-        for digit, segments in FINGER_SEGMENTS.items()
-        for segment in segments
-    }
+    return {f"{digit}_{segment}": edit_bones.get(f"{prefix}{digit}_{segment}.{side}") for digit, segments in FINGER_SEGMENTS.items() for segment in segments}
 
 
 def create_bone(edit_bones, name, head, tail, parent=None, roll=None, align_to=None, align_roll=None, length=None, connect=False):
@@ -359,15 +352,13 @@ ORG_ORIGINAL_COLLECTION = "ORIGINAL"
 
 # DEF bones built as one piece that have to end up as two halves before the
 # ORG pass runs, keyed by the whole bone's name: (root half, tip half).
-ORG_BONES_TO_SUBDIVIDE = {
-    "DEF_Forearm.L": ("DEF_Forearm_Proximal.L", "DEF_Forearm_Distal.L"),
-}
+ORG_BONES_TO_SUBDIVIDE = {"DEF_Forearm.L": ("DEF_Forearm_Proximal.L", "DEF_Forearm_Distal.L")}
 # ---------------------------------------------------------------------------
 
 
 def org_name_for(def_bone_name):
     """DEF_base -> ORG_base. Only the prefix changes; the rest is untouched."""
-    return ORG_PREFIX + def_bone_name[len(ORG_DEF_PREFIX):]
+    return ORG_PREFIX + def_bone_name[len(ORG_DEF_PREFIX) :]
 
 
 def subdivide_def_bones(armature_obj):
@@ -526,12 +517,7 @@ def add_copy_transforms(armature_obj, pairs):
         # Re-runs must not stack constraints. Match on what the constraint
         # does (type + target) rather than on its name, so a renamed one is
         # still recognised.
-        already_there = any(
-            con.type == ORG_CONSTRAINT_TYPE
-            and con.target == armature_obj
-            and con.subtarget == org_name
-            for con in pose_bone.constraints
-        )
+        already_there = any(con.type == ORG_CONSTRAINT_TYPE and con.target == armature_obj and con.subtarget == org_name for con in pose_bone.constraints)
         if already_there:
             skipped.append(def_name)
             continue
@@ -579,10 +565,7 @@ def generate_org_bones(context, armature_obj=None):
     # bones only exist once edit mode has been left.
     bpy.ops.object.mode_set(mode="POSE")
     added, skipped = add_copy_transforms(armature_obj, pairs)
-    changed.append(
-        f"{len(created)} ORG bone(s) created, {len(reused)} reused; "
-        f"{len(added)} constraint(s) added, {len(skipped)} already present"
-    )
+    changed.append(f"{len(created)} ORG bone(s) created, {len(reused)} reused; {len(added)} constraint(s) added, {len(skipped)} already present")
 
     return changed
 
@@ -613,6 +596,16 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     ORG_Shin_Left = edit_bones.get("ORG_Shin.L")
     ORG_Foot_Left = edit_bones.get("ORG_Foot.L")
     ORG_Toe_Left = edit_bones.get("ORG_Toe.L")
+    #---- small edit to ensure all toes are aligned properly for feeet ----
+    ORG_Toe_Left.align_roll(Vector((1, 0, 0)))
+    toe_up_axis_left = ORG_Toe_Left.z_axis.copy()
+    ORG_Foot_Left.align_roll(toe_up_axis_left)
+    ORG_Shin_Left.align_roll(toe_up_axis_left)
+    ORG_Thigh_Left.align_roll(toe_up_axis_left)
+    edit_bones.get("DEF_Foot.L").align_roll(toe_up_axis_left)
+    edit_bones.get("DEF_Shin.L").align_roll(toe_up_axis_left)
+    edit_bones.get("DEF_Thigh.L").align_roll(toe_up_axis_left)
+    # --------------------------------------------------------------------
     Root = edit_bones.get("Root")
     # These bones below are manually placed during def skeleton, before ORG one generation
     MCH_Heel_Left = edit_bones.get("MCH_Heel.L")
@@ -756,10 +749,27 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # ---IK Left Toe WGT Control ---------------------------------------------------------
     WGT_IK_Toe_Left = create_bone(edit_bones, "WGT_IK_Toe.L", head=ORG_Toe_Left.head, tail=ORG_Toe_Left.tail, parent=MCH_Toe_IK_Left, roll=ORG_Toe_Left.roll)
+
+    # ---- some dynamic gymnastics to properly orient the master foot control and the roll bone controller
     WGT_Foot_IK_Master_Left.align_orientation(WGT_IK_Toe_Left)
-    WGT_Foot_IK_Master_Left.align_roll(Vector((0,0,1)))
-    WGT_Foot_IK_Master_Left.tail[0] = WGT_Foot_IK_Master_Left.head[0] - (WGT_Foot_IK_Master_Left.tail[0]-WGT_Foot_IK_Master_Left.head[0]) # <--- flip it around after aligning with toe
-    WGT_Foot_IK_Master_Left.tail[1] = WGT_Foot_IK_Master_Left.head[1] - (WGT_Foot_IK_Master_Left.tail[1]-WGT_Foot_IK_Master_Left.head[1]) # <--- flip it around after aligning with toe
+    WGT_Foot_IK_Master_Left.align_roll(Vector((0, 0, 1)))
+    WGT_Foot_IK_Master_Left.tail[0] = WGT_Foot_IK_Master_Left.head[0] - (WGT_Foot_IK_Master_Left.tail[0] - WGT_Foot_IK_Master_Left.head[0])  # <--- flip it around after aligning with toe
+    WGT_Foot_IK_Master_Left.tail[1] = WGT_Foot_IK_Master_Left.head[1] - (WGT_Foot_IK_Master_Left.tail[1] - WGT_Foot_IK_Master_Left.head[1])  # <--- flip it around after aligning with toe
+
+    temp_master_extender = create_bone(edit_bones, "temp_bone", head=WGT_Foot_IK_Master_Left.tail, tail=WGT_Foot_IK_Master_Left.tail + Vector((0, 0.1, 0)), align_to=WGT_IK_Toe_Left)
+    old_head = temp_master_extender.head.copy()
+    old_tail = temp_master_extender.tail.copy()
+    old_z_axis = temp_master_extender.z_axis.copy()
+
+    temp_master_extender.head = old_tail
+    temp_master_extender.tail = old_head
+    temp_master_extender.align_roll(old_z_axis)
+    temp_master_extender.length = temp_master_extender.length * 3
+
+    WGT_Foot_Roll_Left.head = temp_master_extender.tail
+    WGT_Foot_Roll_Left.tail = temp_master_extender.tail + Vector((0, 0, 0.1))
+    WGT_Foot_Roll_Left.roll = -(math.pi/2) + ( math.atan2((temp_master_extender.tail.y - temp_master_extender.head.y), (temp_master_extender.tail.x - temp_master_extender.head.x)) )
+    edit_bones.remove(temp_master_extender)
 
     # ------- Final Property Bones ---------------
 
@@ -1081,11 +1091,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # rather than half-built. Computed once here and reused by every finger
     # loop below (creation, stretch constraints, widgets) so they can never
     # disagree about which digits exist.
-    present_finger_digits = {
-        digit: segments
-        for digit, segments in FINGER_SEGMENTS.items()
-        if all(ORG_Fingers_Left.get(f"{digit}_{segment}") is not None for segment in segments)
-    }
+    present_finger_digits = {digit: segments for digit, segments in FINGER_SEGMENTS.items() if all(ORG_Fingers_Left.get(f"{digit}_{segment}") is not None for segment in segments)}
     missing_finger_digits = [digit for digit in FINGER_SEGMENTS if digit not in present_finger_digits]
 
     # Checked by name rather than with any(), so the report says WHICH bone is
@@ -1105,9 +1111,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         return changed
 
     # --- quick shoulder widget control assignment ---
-    WGT_Shoulder_Left = create_bone(
-        edit_bones, "WGT_Shoulder.L", head=ORG_Shoulder_Left.head, tail=ORG_Shoulder_Left.tail, roll=ORG_Shoulder_Left.roll, parent=ORG_Chest
-    )
+    WGT_Shoulder_Left = create_bone(edit_bones, "WGT_Shoulder.L", head=ORG_Shoulder_Left.head, tail=ORG_Shoulder_Left.tail, roll=ORG_Shoulder_Left.roll, parent=ORG_Chest)
     ORG_Shoulder_Left.parent = WGT_Shoulder_Left
     # ============================= MCH BONES  ============================================================================================================
     # ------------- mch socket bones -------
@@ -1202,7 +1206,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     # excluded above, so every lookup here is guaranteed to find a real bone.
     finger_tweak_size = 0.005
     for digit, segments in present_finger_digits.items():
-        #-- Parent the finger roots to the hand tip tweak
+        # -- Parent the finger roots to the hand tip tweak
         finger_root = ORG_Fingers_Left[f"{digit}_{segments[0]}"]
         finger_root.use_connect = False
         finger_root.parent = Hand_Tip_Tweak_Left
@@ -1220,10 +1224,12 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
             Tweak_Bone = create_bone(edit_bones, f"{digit}_Tweak_{segment}.L", head=org_bone.head, tail=org_bone.tail, roll=org_bone.roll, length=finger_tweak_size, parent=WGT_Bone)
             org_bone.parent = Tweak_Bone
-            org_bone.use_connect = False #<--- this should already be fales, but just in case someone does something funky, this slightly guards...
+            org_bone.use_connect = False  # <--- this should already be fales, but just in case someone does something funky, this slightly guards...
 
             if segment == "03":
-                extra_tweaker = create_bone(edit_bones, f"{digit}_Tip_Tweak_{segment}.L", head=org_bone.tail, tail=(org_bone.tail + Vector((0.1, 0, 0))), align_to=org_bone, length=finger_tweak_size, parent=WGT_Bone)
+                extra_tweaker = create_bone(
+                    edit_bones, f"{digit}_Tip_Tweak_{segment}.L", head=org_bone.tail, tail=(org_bone.tail + Vector((0.1, 0, 0))), align_to=org_bone, length=finger_tweak_size, parent=WGT_Bone
+                )
 
             # --- make some constraints now ---
 
@@ -1231,7 +1237,6 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
         changed.append(f"{len(present_finger_digits)} finger chain(s) parented to Hand_Tip_Tweak.L")
     if missing_finger_digits:
         changed.append(f"skipped finger(s) missing from the ORG chain: {', '.join(missing_finger_digits)}")
-
 
     # ============================= IK BONES ===========================================================================================================================================
 
@@ -1299,12 +1304,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     )
 
     PRPT_Right_Hand_Controller = create_bone(
-        edit_bones,
-        "PRPT_Right_Hand_Controller",
-        head=PRPT_Right_Hand_Container.head,
-        tail=PRPT_Right_Hand_Container.tail,
-        length=PROPERTIES_CONTROLLER_LENGTH,
-        parent=PRPT_Right_Hand_Container,
+        edit_bones, "PRPT_Right_Hand_Controller", head=PRPT_Right_Hand_Container.head, tail=PRPT_Right_Hand_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Right_Hand_Container
     )
 
     changed.append("Created Property bones to complete all bone creations")
@@ -1534,27 +1534,45 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["PRPT_Left_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
     widgets.assign_widget(pose_bones["PRPT_Right_Hand_Navigation"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, color="#5CFF55")
 
-    # --- shoulder assignment 
+    # --- shoulder assignment
     widgets.assign_widget(pose_bones["WGT_Shoulder.L"], "WGT_Shoulder_Pad", wire_width=2, color="#58D1FF")
 
     # --- finger widgets treated like FK widgets (present_finger_digits only) ---
     FINGER_WGT_SIZE = 0.5
     FINGER_TWEAK_SIZE = 0.005
     for digit, segments in present_finger_digits.items():
-
         for i, segment in enumerate(segments):
             # -- fk widgets for fingers as it is essentially fk controls ---
 
-            widgets.assign_widget(pose_bones[f"WGT_{digit}_{segment}.L"], "WGT_Bottom_Face_Centered_Cube",scale_x=FINGER_WGT_SIZE, scale_y=1, scale_z=FINGER_WGT_SIZE, use_bone_size=True, wire_width=2, color="THEME09")
+            widgets.assign_widget(
+                pose_bones[f"WGT_{digit}_{segment}.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=FINGER_WGT_SIZE, scale_y=1, scale_z=FINGER_WGT_SIZE, use_bone_size=True, wire_width=2, color="THEME09"
+            )
             if i < 1:
                 continue
 
             # -- tweak widgets --
-            widgets.assign_widget(pose_bones[f"{digit}_Tweak_{segment}.L"], "WGT_Centered_IcoSphere",scale_x=FINGER_TWEAK_SIZE, scale_y=FINGER_TWEAK_SIZE, scale_z=FINGER_TWEAK_SIZE, use_bone_size=False, wire_width=2, color="THEME09")
+            widgets.assign_widget(
+                pose_bones[f"{digit}_Tweak_{segment}.L"],
+                "WGT_Centered_IcoSphere",
+                scale_x=FINGER_TWEAK_SIZE,
+                scale_y=FINGER_TWEAK_SIZE,
+                scale_z=FINGER_TWEAK_SIZE,
+                use_bone_size=False,
+                wire_width=2,
+                color="THEME09",
+            )
             # -- tip tweak widget --
             if i == len(segments) - 1:
-                widgets.assign_widget(pose_bones[f"{digit}_Tip_Tweak_{segment}.L"], "WGT_Centered_IcoSphere",scale_x=FINGER_TWEAK_SIZE, scale_y=FINGER_TWEAK_SIZE, scale_z=FINGER_TWEAK_SIZE, use_bone_size=False, wire_width=2, color="THEME09")
-
+                widgets.assign_widget(
+                    pose_bones[f"{digit}_Tip_Tweak_{segment}.L"],
+                    "WGT_Centered_IcoSphere",
+                    scale_x=FINGER_TWEAK_SIZE,
+                    scale_y=FINGER_TWEAK_SIZE,
+                    scale_z=FINGER_TWEAK_SIZE,
+                    use_bone_size=False,
+                    wire_width=2,
+                    color="THEME09",
+                )
 
     changed.append("Added arm widgets/icons")
     return changed
@@ -1652,16 +1670,16 @@ def generate_spine_rig(context, armature_obj=None):
     PRPT_Neck_Navigator = create_bone(
         edit_bones,
         "PRPT_Neck_Navigation",
-        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
-        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, PROPERTIES_CONTAINER_LENGTH / 2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 3.2, (PROPERTIES_CONTAINER_LENGTH / 2) * 1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
         length=0.03,
         parent=PRPT_Master_Container,
     )
     PRPT_Neck_Container = create_bone(
         edit_bones,
         "PRPT_Neck_Container",
-        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 2, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 7)),
-        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 2,(PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 2, PROPERTIES_CONTAINER_LENGTH / 2, PROPERTIES_CONTAINER_LENGTH * 7)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 2, (PROPERTIES_CONTAINER_LENGTH / 2) * 1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
         parent=PRPT_Neck_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
@@ -1675,8 +1693,8 @@ def generate_spine_rig(context, armature_obj=None):
     PRPT_Head_Navigator = create_bone(
         edit_bones,
         "PRPT_Head_Navigation",
-        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
-        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, PROPERTIES_CONTAINER_LENGTH / 2, PROPERTIES_CONTAINER_LENGTH * 8.8)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 4.8, (PROPERTIES_CONTAINER_LENGTH / 2) * 1.1, PROPERTIES_CONTAINER_LENGTH * 8.8)),
         length=0.03,
         parent=PRPT_Master_Container,
     )
@@ -1684,12 +1702,12 @@ def generate_spine_rig(context, armature_obj=None):
     PRPT_Head_Container = create_bone(
         edit_bones,
         "PRPT_Head_Container",
-        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 5, PROPERTIES_CONTAINER_LENGTH/2, PROPERTIES_CONTAINER_LENGTH * 7)),
-        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 5, (PROPERTIES_CONTAINER_LENGTH/2)*1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
+        head=PRPT_Master_Container.head + Vector((PROPERTIES_CONTAINER_LENGTH * 5, PROPERTIES_CONTAINER_LENGTH / 2, PROPERTIES_CONTAINER_LENGTH * 7)),
+        tail=PRPT_Master_Container.tail + Vector((PROPERTIES_CONTAINER_LENGTH * 5, (PROPERTIES_CONTAINER_LENGTH / 2) * 1.1, PROPERTIES_CONTAINER_LENGTH * 7)),
         parent=PRPT_Head_Navigator,
         length=PROPERTIES_CONTAINER_LENGTH,
     )
-    
+
     PRPT_Head_Controller = create_bone(
         edit_bones, "PRPT_Head_Controller", head=PRPT_Head_Container.head, tail=PRPT_Head_Container.tail, length=PROPERTIES_CONTROLLER_LENGTH, parent=PRPT_Head_Container
     )
@@ -2551,11 +2569,7 @@ class EMANATE_PT_rigging_tools(bpy.types.Panel):
         layout.operator(NAMES_ORGANIZE_COLLECTIONS.operator_idname)
 
 
-_classes = (
-    EMANATE_OT_generate_rig,
-    EMANATE_OT_organize_bone_collections,
-    EMANATE_PT_rigging_tools,
-)
+_classes = (EMANATE_OT_generate_rig, EMANATE_OT_organize_bone_collections, EMANATE_PT_rigging_tools)
 
 
 def register():
