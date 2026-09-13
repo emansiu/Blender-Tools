@@ -118,12 +118,12 @@ FOOT_ROLL_SPLIT_DRIVERS = (
 # directly rather than through a separate WGT_ bone, so they are the mirror
 # of IK_VISIBILITY_BONES even though the naming does not match it. See
 # add_leg_drivers.
-IK_VISIBILITY_BONES = ("WGT_Foot_IK_Master", "WGT_IK_Pole", "VIS_IK_Pole", "WGT_IK_Toe", "WGT_Foot_Roll")
+IK_VISIBILITY_BONES = ("WGT_Foot_IK_Master", "WGT_IK_Leg_Pole_Target", "VIS_IK_Leg_Pole", "WGT_IK_Toe", "WGT_Foot_Roll")
 FK_VISIBILITY_BONES = ("FK_Thigh", "FK_Shin", "FK_Foot", "FK_Toe")
 
 # Same idea as IK_VISIBILITY_BONES/FK_VISIBILITY_BONES, for the arm. See
 # add_hand_drivers.
-ARM_IK_VISIBILITY_BONES = ("WGT_IK_Hand", "VIS_IK_Pole_Link", "WGT_IK_Pole_Target")
+ARM_IK_VISIBILITY_BONES = ("WGT_IK_Hand", "VIS_IK_Arm_Pole", "WGT_IK_Arm_Pole_Target")
 ARM_FK_VISIBILITY_BONES = ("FK_Arm", "FK_Forearm", "FK_Hand")
 
 # (properties controller bone, target MCH bone that blends into its parent,
@@ -731,10 +731,10 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     # ---IK Pole Target left leg ---------------------------------------------------------
     pole_distance = 0.4
     pole_head = ORG_Thigh_Left.tail + (ORG_Thigh_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
-    IK_Pole_Left = create_bone(edit_bones, "WGT_IK_Pole.L", head=pole_head, tail=pole_head + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0)))
+    IK_Pole_Left = create_bone(edit_bones, "WGT_IK_Leg_Pole_Target.L", head=pole_head, tail=pole_head + Vector((0.0, 0.075, 0.0)), parent=WGT_Foot_IK_Master_Left, align_roll=Vector((0.0, 0.0, 1.0)))
 
     # ---IK Pole Target Visualization bone ---------------------------------------------------------
-    VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
+    VIS_IK_Pole_Left = create_bone(edit_bones, "VIS_IK_Leg_Pole.L", head=IK_Thigh_Left.tail, tail=IK_Pole_Left.head, parent=IK_Thigh_Left)
 
     IK_Pole_Left.align_orientation(VIS_IK_Pole_Left)
 
@@ -977,14 +977,14 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
 
     # -------------ik subtargets -------------
     shin_IK.subtarget = "IK_Foot.L"
-    shin_IK.pole_subtarget = "WGT_IK_Pole.L"
+    shin_IK.pole_subtarget = "WGT_IK_Leg_Pole_Target.L"
 
     # ============================= stretch to constraints ==========================================================
     stretch_toe = pose_bones["ORG_Toe.L"].constraints.new("STRETCH_TO")
     stretch_foot = pose_bones["ORG_Foot.L"].constraints.new("STRETCH_TO")
     stretch_shin = pose_bones["ORG_Shin.L"].constraints.new("STRETCH_TO")
     stretch_thigh = pose_bones["ORG_Thigh.L"].constraints.new("STRETCH_TO")
-    stretch_pole_visualizer = pose_bones["VIS_IK_Pole.L"].constraints.new("STRETCH_TO")
+    stretch_pole_visualizer = pose_bones["VIS_IK_Leg_Pole.L"].constraints.new("STRETCH_TO")
 
     # ------------- stretch targets -------------
     stretch_toe.target = stretch_foot.target = stretch_shin.target = stretch_thigh.target = stretch_pole_visualizer.target = armature_obj
@@ -994,7 +994,7 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     stretch_foot.subtarget = "Toe_Tweak.L"
     stretch_shin.subtarget = "Foot_Tweak.L"
     stretch_thigh.subtarget = "Shin_Tweak.L"
-    stretch_pole_visualizer.subtarget = "WGT_IK_Pole.L"
+    stretch_pole_visualizer.subtarget = "WGT_IK_Leg_Pole_Target.L"
 
     # ========================================================================================================================
     # -------------------------------  WIDGET ASSIGNMENTS --------------------------------------------------------------------
@@ -1003,10 +1003,14 @@ def generate_leg_ik_fk_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["Root"], "WGT_Four_Arrow_Centered_Circle", wire_width=2, rotation_x=90, scale_x=2.0, scale_y=2.0, scale_z=2.0, color="THEME11")
 
     # --------- IK Pole Line Visualizer ----------
-    widgets.assign_widget(pose_bones["VIS_IK_Pole.L"], "VIS_Line", wire_width=2, color="#58D1FF")
+    widgets.assign_widget(pose_bones["VIS_IK_Leg_Pole.L"], "VIS_Line", wire_width=2, color="#58D1FF")
+    # A visualizer line, not a control -- nothing to grab, so keep it from
+    # stealing clicks meant for the bones around it. symmetrize carries this
+    # over onto .R along with the rest of the bone data.
+    pose_bones["VIS_IK_Leg_Pole.L"].bone.hide_select = True
 
     # --------- IK Pole Controller ----------
-    widgets.assign_widget(pose_bones["WGT_IK_Pole.L"], "WGT_Bottom_Face_Centered_Pyramid", wire_width=2, color="#58D1FF")
+    widgets.assign_widget(pose_bones["WGT_IK_Leg_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", wire_width=2, color="#58D1FF")
 
     # --------- Left Leg IK Master ----------
     widgets.assign_widget(pose_bones["WGT_Foot_IK_Master.L"], "WGT_Bottom_Face_Centered_Cube", scale_y=0.5, rotation_x=90, wire_width=2, color="THEME04")
@@ -1249,8 +1253,8 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     pole_distance = 0.4
     pole_head = ORG_Arm_Left.tail + (ORG_Arm_Left.matrix.to_3x3() @ Vector((pole_distance, 0.0, 0.0)))
-    WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
-    VIS_IK_Pole_Link_Left = create_bone(edit_bones, "VIS_IK_Pole_Link.L", head=MCH_IK_Arm_Left.tail, tail=pole_head, parent=MCH_IK_Arm_Left)
+    WGT_IK_Pole_Target_Left = create_bone(edit_bones, "WGT_IK_Arm_Pole_Target.L", head=pole_head, tail=(pole_head + Vector((0.0, 0.075, 0.0))), align_roll=Vector((0.0, 0.0, 1.0)), parent=Root)
+    VIS_IK_Pole_Link_Left = create_bone(edit_bones, "VIS_IK_Arm_Pole.L", head=MCH_IK_Arm_Left.tail, tail=pole_head, parent=MCH_IK_Arm_Left)
 
     # ---- now we can parent ORG Bones to tweakers
     ORG_Arm_Left.parent = Arm_Tweak_Left
@@ -1345,7 +1349,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     stretch_proximal_forearm = pose_bones["ORG_Forearm_Proximal.L"].constraints.new("STRETCH_TO")
     stretch_distal_forearm = pose_bones["ORG_Forearm_Distal.L"].constraints.new("STRETCH_TO")
     stretch_hand = pose_bones["ORG_Hand.L"].constraints.new("STRETCH_TO")
-    stretch_vis_pole_link = pose_bones["VIS_IK_Pole_Link.L"].constraints.new("STRETCH_TO")
+    stretch_vis_pole_link = pose_bones["VIS_IK_Arm_Pole.L"].constraints.new("STRETCH_TO")
 
     # ---- stretch targets ----
     stretch_arm.target = stretch_proximal_forearm.target = stretch_distal_forearm.target = stretch_hand.target = stretch_vis_pole_link.target = armature_obj
@@ -1366,7 +1370,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
     stretch_proximal_forearm.subtarget = "Forearm_Distal_Tweak.L"
     stretch_distal_forearm.subtarget = "Hand_Tweak.L"
     stretch_hand.subtarget = "Hand_Tip_Tweak.L"
-    stretch_vis_pole_link.subtarget = "WGT_IK_Pole_Target.L"
+    stretch_vis_pole_link.subtarget = "WGT_IK_Arm_Pole_Target.L"
 
     # ============================= LOCATION CONSTRAINTS =======================================================================================
     arm_follow_socket_copy_location = pose_bones["MCH_Intermediary_Arm_Socket.L"].constraints.new("COPY_LOCATION")
@@ -1445,7 +1449,7 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # -------------ik subtargets -------------
     arm_IK.subtarget = "WGT_IK_Hand.L"
-    arm_IK.pole_subtarget = "WGT_IK_Pole_Target.L"
+    arm_IK.pole_subtarget = "WGT_IK_Arm_Pole_Target.L"
 
     # ============================= IK LIMIT LOCATION CONSTRAINTS ==========================================================
     # --- hand properties control limits ----
@@ -1508,12 +1512,12 @@ def generate_arm_ik_fk_rig(context, armature_obj=None):
 
     # --- IK Arm Shapes -----------------------------------------------------------------------------------
     widgets.assign_widget(pose_bones["WGT_IK_Hand.L"], "WGT_Bottom_Face_Centered_Cube", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="THEME04")
-    widgets.assign_widget(pose_bones["WGT_IK_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
-    widgets.assign_widget(pose_bones["VIS_IK_Pole_Link.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
+    widgets.assign_widget(pose_bones["WGT_IK_Arm_Pole_Target.L"], "WGT_Bottom_Face_Centered_Pyramid", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
+    widgets.assign_widget(pose_bones["VIS_IK_Arm_Pole.L"], "VIS_Line", scale_x=1, scale_y=1, scale_z=1, use_bone_size=True, color="#58D1FF")
     # A visualizer line, not a control -- nothing to grab, so keep it from
     # stealing clicks meant for the bones around it. symmetrize carries this
     # over onto .R along with the rest of the bone data.
-    pose_bones["VIS_IK_Pole_Link.L"].bone.hide_select = True
+    pose_bones["VIS_IK_Arm_Pole.L"].bone.hide_select = True
 
     # --- Arm Properties Shapes -----------------------------------------------------------------------------------
     controller_scale = 1
@@ -1611,8 +1615,8 @@ def generate_spine_rig(context, armature_obj=None):
 
     # ---WGT Torso Bone---------------------------------------------------------
     WGT_COG_Torso = create_bone(edit_bones, "WGT_COG_Torso", head=ORG_Spine_01.tail, tail=(ORG_Spine_01.tail + Vector((0, 0.5, 0))), parent=Root)
-    Chest_Master = create_bone(edit_bones, "Chest_Master", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length=WGT_COG_Torso.length * 0.75)
-    Hips_Master = create_bone(edit_bones, "Hips_Master", head=Chest_Master.head, tail=Chest_Master.tail, parent=WGT_COG_Torso, length=Chest_Master.length * 0.75)
+    WGT_Chest_Master = create_bone(edit_bones, "WGT_Chest_Master", head=WGT_COG_Torso.head, tail=WGT_COG_Torso.tail, parent=WGT_COG_Torso, length=WGT_COG_Torso.length * 0.75)
+    WGT_Hips_Master = create_bone(edit_bones, "WGT_Hips_Master", head=WGT_Chest_Master.head, tail=WGT_Chest_Master.tail, parent=WGT_COG_Torso, length=WGT_Chest_Master.length * 0.75)
 
     # ==================================================  WIDGET AND FK CONTROLLER BONES   ====================================================================================================
     # ==================================================  MECHANISM Bones sprinkled in. They all depend on one another   ====================================================================================================
@@ -1781,10 +1785,10 @@ def generate_spine_rig(context, armature_obj=None):
     )
     # ------------- copy transform subtargets -------------
     copy_spine_01_fk_transforms.subtarget = "FK_Spine_01"
-    copy_mch_chest_fk_transforms.subtarget = "Chest_Master"
-    copy_mch_spine_02_fk_transforms.subtarget = "Chest_Master"
-    copy_mch_hips_fk_transforms.subtarget = "Hips_Master"
-    copy_mch_spine_01_fk_transforms.subtarget = "Hips_Master"
+    copy_mch_chest_fk_transforms.subtarget = "WGT_Chest_Master"
+    copy_mch_spine_02_fk_transforms.subtarget = "WGT_Chest_Master"
+    copy_mch_hips_fk_transforms.subtarget = "WGT_Hips_Master"
+    copy_mch_spine_01_fk_transforms.subtarget = "WGT_Hips_Master"
 
     # ============================= COPY LOCATION CONSTRAINTS ==========================================================
     copy_int_neck_location = pose_bones["MCH_Intermediary_Neck"].constraints.new("COPY_LOCATION")
@@ -1873,10 +1877,10 @@ def generate_spine_rig(context, armature_obj=None):
     widgets.assign_widget(pose_bones["WGT_COG_Torso"], "WGT_Center_Of_Gravity_Hip", wire_width=2, rotation_y=90, scale_x=COG_scale, scale_y=COG_scale, scale_z=COG_scale, color="THEME04")
     # --------- Torso HIPS Master ----------
     hips_scale = 0.9
-    widgets.assign_widget(pose_bones["Hips_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=-90, scale_x=hips_scale, scale_y=hips_scale, scale_z=hips_scale, color="THEME01")
+    widgets.assign_widget(pose_bones["WGT_Hips_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=-90, scale_x=hips_scale, scale_y=hips_scale, scale_z=hips_scale, color="THEME01")
     # --------- Torso CHEST Master ----------
     chest_scale = 0.9
-    widgets.assign_widget(pose_bones["Chest_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=90, scale_x=chest_scale, scale_y=chest_scale, scale_z=chest_scale, color="THEME01")
+    widgets.assign_widget(pose_bones["WGT_Chest_Master"], "WGT_Bottom_Face_Centered_Cube", wire_width=2, rotation_x=90, scale_x=chest_scale, scale_y=chest_scale, scale_z=chest_scale, color="THEME01")
     # --------- Head Master ----------
     head_scale = 2.0
     widgets.assign_widget(pose_bones["WGT_Head"], "WGT_Curved_Quadruple_Arrows", wire_width=2, rotation_x=90, scale_x=head_scale, scale_y=head_scale, scale_z=head_scale, color="THEME01")
