@@ -5,10 +5,15 @@ import bpy
 from . import widgets_shape_points as shape_points
 
 
-def get_widget(name):
-    """Return the widget object called `name`, building it if it doesn't exist."""
+def get_widget_curve(name):
+    """Return the curve datablock for widget `name`, building it if it doesn't exist.
+
+    Split out from get_widget so a caller that needs its own *object* around the
+    shape -- the ruler arrows, which are dragged individually in the viewport --
+    can share one curve instead of duplicating the point data per object.
+    """
     # Without this guard a second run appends WGT_Cube.001, .002, and so on.
-    existing = bpy.data.objects.get(name)
+    existing = bpy.data.curves.get(name)
     if existing is not None:
         return existing
 
@@ -22,9 +27,18 @@ def get_widget(name):
             point.co = (*co, 1.0)
         spline.use_cyclic_u = cyclic
 
+    return curve
+
+
+def get_widget(name):
+    """Return the widget object called `name`, building it if it doesn't exist."""
+    existing = bpy.data.objects.get(name)
+    if existing is not None:
+        return existing
+
     # Deliberately not linked to a collection: custom_shape counts as a user, so
     # the object survives save/reload while staying out of the outliner.
-    return bpy.data.objects.new(name, curve)
+    return bpy.data.objects.new(name, get_widget_curve(name))
 
 
 def hex_to_rgb(value):
