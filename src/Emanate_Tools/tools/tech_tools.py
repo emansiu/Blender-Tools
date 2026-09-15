@@ -116,6 +116,10 @@ Scale, then wrapped in its prefix and suffix. Which unit a *distance* is in
 depends on the scene's unit scale (the Pre-Rig tools put this file on 0.01 =
 centimetres), so the suffix is where you name it: prefix "R= ", suffix "mm" and
 Unit Scale 10 in a centimetre scene reads "R= 30.00mm" across 3 units.
+
+Unitless drops the number entirely and leaves the prefix and suffix, so the text
+never changes again however the handles move -- for when a set of arrows is
+there to point something out rather than to say how far apart it is.
 """
 
 import math
@@ -288,6 +292,7 @@ MEASURE_PROP = naming.prop_name("ruler")
 # can read differently, and typing up the next one disturbs neither.
 SCENE_PREFIX_PROP = naming.prop_name("ruler_prefix")
 SCENE_SUFFIX_PROP = naming.prop_name("ruler_suffix")
+SCENE_UNITLESS_PROP = naming.prop_name("ruler_unitless")
 SCENE_DECIMALS_PROP = naming.prop_name("ruler_decimals")
 SCENE_UNIT_SCALE_PROP = naming.prop_name("ruler_unit_scale")
 
@@ -466,7 +471,14 @@ def _viewer_rotation(scene=None):
 
 
 def format_measurement(settings, value):
-    """The full string a label should be showing: prefix + number + suffix."""
+    """The full string a label should be showing: prefix + number + suffix.
+
+    Or just prefix and suffix, when the measurement is unitless. The handles
+    still aim, the arc still sweeps and the text still faces you -- there is
+    simply no number in it, and nothing the handles do will change it.
+    """
+    if settings.unitless:
+        return f"{settings.prefix}{settings.suffix}"
     return f"{settings.prefix}{value * settings.unit_scale:.{settings.decimals}f}{settings.suffix}"
 
 
@@ -938,7 +950,7 @@ def _camera_only(self, obj):
 
 
 def _apply_authored_text(scene, settings):
-    """Copy the panel's four formatting fields onto one measurement.
+    """Copy the panel's formatting fields onto one measurement.
 
     The only route from those fields to a measurement: taken once when a
     measurement is built, and again whenever the Update Prefix/Suffix button is
@@ -947,6 +959,7 @@ def _apply_authored_text(scene, settings):
     """
     settings.prefix = getattr(scene, SCENE_PREFIX_PROP)
     settings.suffix = getattr(scene, SCENE_SUFFIX_PROP)
+    settings.unitless = getattr(scene, SCENE_UNITLESS_PROP)
     settings.decimals = getattr(scene, SCENE_DECIMALS_PROP)
     settings.unit_scale = getattr(scene, SCENE_UNIT_SCALE_PROP)
 
@@ -964,6 +977,12 @@ class EMANATE_PG_ruler(bpy.types.PropertyGroup):
     )
     prefix: bpy.props.StringProperty(name="Prefix", description='Text before the measurement, e.g. "R= "', update=_settings_changed)
     suffix: bpy.props.StringProperty(name="Suffix", description='Text after the measurement, e.g. "mm"', update=_settings_changed)
+    unitless: bpy.props.BoolProperty(
+        name="Unitless",
+        description="Leave the number out and show only the prefix and suffix, so the text stays put however the handles move",
+        default=False,
+        update=_settings_changed,
+    )
     decimals: bpy.props.IntProperty(
         name="Decimals",
         description='Digits after the decimal point. 0 reads "3" instead of "3.00"',
@@ -1327,8 +1346,13 @@ class EMANATE_PT_tech_tools(bpy.types.Panel):
         strings = layout.column(align=True)
         strings.prop(scene, SCENE_PREFIX_PROP)
         strings.prop(scene, SCENE_SUFFIX_PROP)
+        strings.prop(scene, SCENE_UNITLESS_PROP)
+
         layout.separator(factor=UI_GAP)
         numbers = layout.column(align=True)
+        # Greyed rather than hidden: they are still what the next measurement
+        # will use, they just have no number to format while Unitless is on.
+        numbers.active = not getattr(scene, SCENE_UNITLESS_PROP)
         numbers.prop(scene, SCENE_DECIMALS_PROP)
         numbers.prop(scene, SCENE_UNIT_SCALE_PROP)
 
@@ -1384,6 +1408,18 @@ def register():
         bpy.types.Scene,
         SCENE_SUFFIX_PROP,
         bpy.props.StringProperty(name="Suffix", description='Text placed after the measurement on the next one you add, e.g. "mm"', default=""),
+    )
+    setattr(
+        bpy.types.Scene,
+        SCENE_UNITLESS_PROP,
+        bpy.props.BoolProperty(
+            name="Unitless",
+            description=(
+                "Leave the measurement out of the next one you add, and show only the prefix "
+                "and suffix. A static caption on a set of handles rather than a live reading"
+            ),
+            default=False,
+        ),
     )
     setattr(
         bpy.types.Scene,
@@ -1457,6 +1493,7 @@ def unregister():
     delattr(bpy.types.Scene, SCENE_CAMERA_PROP)
     delattr(bpy.types.Scene, SCENE_UNIT_SCALE_PROP)
     delattr(bpy.types.Scene, SCENE_DECIMALS_PROP)
+    delattr(bpy.types.Scene, SCENE_UNITLESS_PROP)
     delattr(bpy.types.Scene, SCENE_SUFFIX_PROP)
     delattr(bpy.types.Scene, SCENE_PREFIX_PROP)
     delattr(bpy.types.Object, MEASURE_PROP)
