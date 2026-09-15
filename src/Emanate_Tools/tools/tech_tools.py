@@ -7,8 +7,8 @@ THE RULER -- "Add Ruler"
 ------------------------
 Three objects:
 
-    RULER_Arrow_A   an Arrows_For_Rulers curve, tip on one measured point
-    RULER_Arrow_B   the same curve, tip on the other measured point
+    RULER_Arrow_A   a cone-and-cylinder arrow, tip on one measured point
+    RULER_Arrow_B   the same mesh, tip on the other measured point
     RULER_Label     a text object floating over the middle
 
 Grab either arrow, move it anywhere, and the label follows: it re-centres, it
@@ -86,6 +86,28 @@ And there is one thing the depsgraph handler cannot see at all: orbiting the
 viewport changes no data, so it schedules no update. Keeping the text square to
 the view therefore needs a clock of its own -- see _install_timer.
 
+RENDERING
+---------
+A curve with no bevel has no surface, so Cycles draws nothing for it -- a
+measurement built out of bare wireframes is a viewport-only thing. So every part
+of one carries real geometry: LINE_THICKNESS of bevel on the curves, and an
+emission material, flat-coloured rather than lit, because an annotation is not
+scene geometry and should not read as though it were.
+
+The arrows are modelled rather than drawn -- see new_arrow_mesh. An outline is
+a wireframe, and a wireframe beveled into tubes reads as a hollow chevron once
+there is real geometry in the shot, so the head is a cone and the shaft is a
+cylinder, on the silhouette the outline had.
+
+The vertex widget is COPIED before being beveled. WGT_Centered_IcoSphere is the
+tweak and PRPT bone widget all through rig_creation_tools.py, and beveling the
+curve every one of those bones shares would turn each of their wireframes into
+a solid tube.
+
+Each part is also taken out of every ray type but the camera, so the labels
+appear in the render without their emission lighting the model or casting
+shadows across it -- see _render_visibility.
+
 THE NUMBER
 ----------
 A ruler reads the distance between its two arrow origins in Blender units; an
@@ -98,6 +120,7 @@ Unit Scale 10 in a centimetre scene reads "R= 30.00mm" across 3 units.
 
 import math
 
+import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
@@ -146,14 +169,13 @@ NAMES_UPDATE_TEXT = naming.register_tool(
 )
 
 # ------ What a measurement is built out of ---------------------------------
-ARROW_WIDGET = "Arrows_For_Rulers"
 VERTEX_WIDGET = "WGT_Centered_IcoSphere"
 MEASURE_COLLECTION = "RULERS"
 
 # Arm length / arrow separation on a fresh measurement, in Blender units.
 DEFAULT_SPAN = 1.0
 
-# The arrow curve is drawn 1 unit long, which is the height of half a character
+# The arrow is modelled 1 unit long, which is the height of half a character
 # next to a rig -- far too big to read as an arrowhead. These are all
 # object-level, so any measurement can still be scaled by hand afterwards.
 # Scaling an arrow scales it about its tip, which is where its origin sits, so
@@ -190,6 +212,46 @@ ARC_SEGMENTS = 32
 # Panel breathing room, as a fraction of separator()'s full row. Enough to read
 # as a break between two groups of fields without opening a real gap.
 UI_GAP = 0.35
+
+# ------ How a measurement renders ------------------------------------------
+# Radius of the tube every measurement line becomes, in WORLD units -- the
+# per-shape bevel is this divided by the object scale it is drawn at, so an
+# arrow and an arc come out the same weight on screen. Change it here for
+# everything, or per object in Curve Properties > Geometry > Bevel > Depth.
+LINE_THICKNESS = 0.005
+
+# Subdivisions of the round bevel profile. 2 is a 12-sided tube: smooth enough
+# at this thickness, and these curves are 33 points at their largest.
+BEVEL_RESOLUTION = 2
+
+# The arrow's proportions, in its own units, where the whole arrow is 1 long
+# from the tip at the origin to the tail at -X. Head radius three times the
+# shaft's is what makes an arrowhead read as one; these are the numbers the
+# outline shape drew, kept so the silhouette does not change.
+ARROW_HEAD_LENGTH = 0.3
+ARROW_HEAD_RADIUS = 0.15
+ARROW_SHAFT_RADIUS = 0.05
+
+# Sides on the cone and the cylinder. At the size an arrowhead draws, more than
+# this is polygons nobody sees.
+ARROW_SEGMENTS = 16
+
+# The four parts a measurement is made of, each with its own material and its
+# own colour swatch in the panel: (part, panel label, default colour).
+#
+# The part name is both the material's name, as MEASURE_<part>, and the tail of
+# its scene colour property. Arms and arc share one, since both are lines.
+# Defaults are saturated on purpose. A white or near-white annotation is the
+# obvious choice right up until it is rendered over a pale model or onto a
+# transparent film, where it disappears; orange and blue read against both a
+# light and a dark background.
+PARTS = (
+    ("Arrow", "Arrows", (0.95, 0.40, 0.05)),
+    ("Vertex", "Vertex", (0.15, 0.60, 1.00)),
+    ("Line", "Lines", (0.75, 0.32, 0.04)),
+    ("Text", "Text", (0.95, 0.40, 0.05)),
+)
+PART_ARROW, PART_VERTEX, PART_LINE, PART_TEXT = (part for part, _label, _default in PARTS)
 
 # Below this, a vector has no direction worth using -- an arm of zero length, or
 # three collinear points with no plane between them. Squared, to compare against
@@ -232,6 +294,17 @@ SCENE_UNIT_SCALE_PROP = naming.prop_name("ruler_unit_scale")
 # The camera every angle's text lines up to. Empty -- the default -- means the
 # text follows whatever viewport it is being looked at through instead.
 SCENE_CAMERA_PROP = naming.prop_name("ruler_camera")
+
+
+def color_prop(part):
+    """Name of the scene colour property for one part of a measurement."""
+    return naming.prop_name(f"ruler_color_{part.lower()}")
+
+
+def material_name(part):
+    """Name of the material for one part. Also the name of its curve, where it
+    has one of its own -- different ID namespaces, and the same thing named."""
+    return f"MEASURE_{part}"
 
 RULER = "RULER"
 ANGLE = "ANGLE"
@@ -505,6 +578,154 @@ def _billboard(label, scene=None):
 
 
 # ---------------------------------------------------------------------------
+# Rendering
+# ---------------------------------------------------------------------------
+
+
+def _paint(material, color):
+    """Write `color` into both the render shader and the solid-mode swatch."""
+    for node in material.node_tree.nodes:
+        if node.type == "EMISSION":
+            node.inputs["Color"].default_value = (*color, 1.0)
+    # Solid shading reads diffuse_color, Cycles reads the node. One swatch in
+    # the panel has to move both or the viewport and the render disagree.
+    material.diffuse_color = (*color, 1.0)
+
+
+def measure_material(part, scene=None):
+    """The emission material for one part of a measurement, built on first use.
+
+    Emission, not a lit shader: an annotation is not scene geometry, and should
+    come out the colour it was given instead of picking up the lighting of
+    whatever it is measuring.
+    """
+    name = material_name(part)
+    material = bpy.data.materials.get(name)
+    if material is not None:
+        return material
+
+    material = bpy.data.materials.new(name)
+    material.use_nodes = True
+    tree = material.node_tree
+    tree.nodes.clear()
+    emission = tree.nodes.new("ShaderNodeEmission")
+    output = tree.nodes.new("ShaderNodeOutputMaterial")
+    output.location = (200.0, 0.0)
+    tree.links.new(emission.outputs["Emission"], output.inputs["Surface"])
+
+    scene = _resolve_scene(scene)
+    color = getattr(scene, color_prop(part), None) if scene else None
+    _paint(material, tuple(color) if color is not None else dict((p, d) for p, _l, d in PARTS)[part])
+    return material
+
+
+def _colors_changed(self, context):
+    """Push the panel's swatches into the materials that have been built."""
+    for part, _label, _default in PARTS:
+        material = bpy.data.materials.get(material_name(part))
+        if material is not None:
+            _paint(material, tuple(getattr(self, color_prop(part))))
+
+
+def _render_visibility(obj):
+    """Camera rays only.
+
+    A measurement should show up in the render without its emission lighting the
+    model, bouncing off it, or casting a shadow across the thing being measured.
+    """
+    obj.visible_diffuse = False
+    obj.visible_glossy = False
+    obj.visible_transmission = False
+    obj.visible_volume_scatter = False
+    obj.visible_shadow = False
+
+
+def _make_renderable(curve, part, bevel_depth, scene=None):
+    """Give `curve` a surface Cycles can see, and the colour of its part."""
+    curve.bevel_depth = bevel_depth
+    curve.bevel_resolution = BEVEL_RESOLUTION
+    # Open curves -- the arms, the arc -- are hollow pipes without this.
+    curve.use_fill_caps = True
+    curve.materials.append(measure_material(part, scene))
+    return curve
+
+
+def new_arrow_mesh(scene=None):
+    """The arrow: a cone for the head, a cylinder for the shaft, built once.
+
+    Tip on the origin and body trailing down -X -- the same pivot, length and
+    silhouette as the outline it replaces, so it aims, scales and lands on a
+    measured point exactly as before. Solid, because a beveled outline reads as
+    a hollow chevron next to real geometry.
+
+    Shared by every arrow in the file, the way the widget curves are: the mesh
+    is identical for all of them, and only the object transform differs.
+    """
+    name = material_name(PART_ARROW)
+    existing = bpy.data.meshes.get(name)
+    if existing is not None:
+        return existing
+
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+
+    # create_cone builds around the origin along +Z, so each piece is turned
+    # onto +X and then slid back down the shaft to where it belongs.
+    onto_x = Matrix.Rotation(math.radians(90.0), 4, "Y")
+
+    # Head: apex at the origin, base ARROW_HEAD_LENGTH behind it. radius2 = 0 is
+    # what makes the +Z end a point rather than a cap.
+    bmesh.ops.create_cone(
+        bm,
+        cap_ends=True,
+        cap_tris=False,
+        segments=ARROW_SEGMENTS,
+        radius1=ARROW_HEAD_RADIUS,
+        radius2=0.0,
+        depth=ARROW_HEAD_LENGTH,
+        matrix=Matrix.Translation((-ARROW_HEAD_LENGTH / 2.0, 0.0, 0.0)) @ onto_x,
+    )
+
+    # Shaft: from the back of the head to the tail at -1.
+    shaft_length = 1.0 - ARROW_HEAD_LENGTH
+    bmesh.ops.create_cone(
+        bm,
+        cap_ends=True,
+        cap_tris=False,
+        segments=ARROW_SEGMENTS,
+        radius1=ARROW_SHAFT_RADIUS,
+        radius2=ARROW_SHAFT_RADIUS,
+        depth=shaft_length,
+        matrix=Matrix.Translation((-ARROW_HEAD_LENGTH - shaft_length / 2.0, 0.0, 0.0)) @ onto_x,
+    )
+
+    bm.to_mesh(mesh)
+    bm.free()
+    mesh.materials.append(measure_material(PART_ARROW, scene))
+    return mesh
+
+
+def measure_curve(widget, part, size, scene=None):
+    """A renderable copy of widget shape `widget`, shared by every part like it.
+
+    A copy, because the widget curve belongs to the bones that use it as a
+    custom shape -- WGT_Centered_IcoSphere is every tweak in the rig -- and
+    beveling it would turn all of them into tubes.
+
+    `size` is the object scale the copy will be drawn at, and the bevel is
+    divided by it so one LINE_THICKNESS covers parts drawn at different scales.
+    """
+    name = material_name(part)
+    existing = bpy.data.curves.get(name)
+    if existing is not None:
+        return existing
+
+    curve = widgets.get_widget_curve(widget).copy()
+    curve.name = name
+    return _make_renderable(curve, part, LINE_THICKNESS / size, scene)
+
+
+# ---------------------------------------------------------------------------
 # The curves the handler draws into
 #
 # An angle's arms and arc are not shapes with a transform, they are drawings:
@@ -513,11 +734,12 @@ def _billboard(label, scene=None):
 # ---------------------------------------------------------------------------
 
 
-def new_drawing_curve(name, point_counts):
+def new_drawing_curve(name, point_counts, scene=None):
     """A curve of open poly splines, one per entry in `point_counts`.
 
     Not shared between measurements the way the arrow curve is: every angle
-    draws a different sweep.
+    draws a different sweep. Drawn at object scale 1, so it takes the line
+    thickness as it is.
     """
     curve = bpy.data.curves.new(name, "CURVE")
     curve.dimensions = "3D"
@@ -525,7 +747,7 @@ def new_drawing_curve(name, point_counts):
         spline = curve.splines.new("POLY")
         # A new spline arrives with one point already in it.
         spline.points.add(count - 1)
-    return curve
+    return _make_renderable(curve, PART_LINE, LINE_THICKNESS, scene)
 
 
 def _drawing_splines(obj, strokes):
@@ -608,8 +830,8 @@ def _refresh_ruler(label, settings, depsgraph=None, scene=None):
 
     # Each arrow aims its +X -- which is where the tip is -- away from the other
     # one, so the two heads end up back to back, <--- --->, the way a dimension
-    # is drawn. The tip is the origin of the Arrows_For_Rulers shape, so each
-    # head lands exactly on its measured point and the shaft trails inward.
+    # is drawn. The tip is the arrow mesh's origin, so each head lands exactly
+    # on its measured point and the shaft trails inward.
     _aim(settings.point_a, point_a - point_b)
     _aim(settings.point_b, point_b - point_a)
 
@@ -788,17 +1010,18 @@ def measure_collection(scene):
     return collection
 
 
-def _add_handle(name, widget, size, location, collection):
-    """A draggable handle: its own object around a shared widget curve.
+def _add_handle(name, data, size, location, collection):
+    """A draggable handle: its own object around shared, renderable data.
 
     No constraints, by design -- see the module docstring. The handles are the
     only objects in a measurement the user ever grabs.
     """
-    handle = bpy.data.objects.new(name, widgets.get_widget_curve(widget))
+    handle = bpy.data.objects.new(name, data)
     handle.location = location
     handle.scale = (size, size, size)
     # A measurement you cannot see behind the model is no measurement.
     handle.show_in_front = True
+    _render_visibility(handle)
     collection.objects.link(handle)
     return handle
 
@@ -812,8 +1035,11 @@ def _add_label(name, collection, kind, scene):
     text.align_x = "CENTER"
     text.align_y = "BOTTOM"
 
+    text.materials.append(measure_material(PART_TEXT, scene))
+
     label = bpy.data.objects.new(name, text)
     label.show_in_front = True
+    _render_visibility(label)
     # The label is not a handle. Making it unselectable means a click-drag near
     # it still grabs the handle the user was aiming for.
     label.hide_select = True
@@ -825,10 +1051,11 @@ def _add_label(name, collection, kind, scene):
     return label
 
 
-def _add_drawing(name, collection, point_counts):
+def _add_drawing(name, collection, point_counts, scene):
     """A curve object the handler redraws. Its points are written every refresh."""
-    drawing = bpy.data.objects.new(name, new_drawing_curve(name, point_counts))
+    drawing = bpy.data.objects.new(name, new_drawing_curve(name, point_counts, scene))
     drawing.show_in_front = True
+    _render_visibility(drawing)
     # Unselectable for the same reason as the label, and additionally because
     # its points are stored in its own space: dragging it would take the drawing
     # with it and leave the picture sitting off the corner it belongs to.
@@ -857,8 +1084,9 @@ def add_ruler(context):
     collection = measure_collection(context.scene)
     origin = Vector(context.scene.cursor.location)
 
-    arrow_a = _add_handle("RULER_Arrow_A", ARROW_WIDGET, ARROW_SIZE, origin, collection)
-    arrow_b = _add_handle("RULER_Arrow_B", ARROW_WIDGET, ARROW_SIZE, origin + Vector((DEFAULT_SPAN, 0.0, 0.0)), collection)
+    arrow = new_arrow_mesh(context.scene)
+    arrow_a = _add_handle("RULER_Arrow_A", arrow, ARROW_SIZE, origin, collection)
+    arrow_b = _add_handle("RULER_Arrow_B", arrow, ARROW_SIZE, origin + Vector((DEFAULT_SPAN, 0.0, 0.0)), collection)
 
     label = _add_label("RULER_Label", collection, RULER, context.scene)
     settings = measure_settings(label)
@@ -889,11 +1117,13 @@ def add_angle(context):
 
     # Opened in XZ: the plane the widget shapes are drawn in, and the one the
     # front view looks straight at.
-    vertex = _add_handle("ANGLE_Vertex", VERTEX_WIDGET, VERTEX_SIZE, origin, collection)
-    arrow_a = _add_handle("ANGLE_Arrow_A", ARROW_WIDGET, ARROW_SIZE, origin + Vector((DEFAULT_SPAN, 0.0, 0.0)), collection)
-    arrow_b = _add_handle("ANGLE_Arrow_B", ARROW_WIDGET, ARROW_SIZE, origin + Vector((0.0, 0.0, DEFAULT_SPAN)), collection)
-    arms = _add_drawing("ANGLE_Arms", collection, (2, 2))
-    arc = _add_drawing("ANGLE_Arc", collection, (ARC_SEGMENTS + 1,))
+    scene = context.scene
+    arrow = new_arrow_mesh(scene)
+    vertex = _add_handle("ANGLE_Vertex", measure_curve(VERTEX_WIDGET, PART_VERTEX, VERTEX_SIZE, scene), VERTEX_SIZE, origin, collection)
+    arrow_a = _add_handle("ANGLE_Arrow_A", arrow, ARROW_SIZE, origin + Vector((DEFAULT_SPAN, 0.0, 0.0)), collection)
+    arrow_b = _add_handle("ANGLE_Arrow_B", arrow, ARROW_SIZE, origin + Vector((0.0, 0.0, DEFAULT_SPAN)), collection)
+    arms = _add_drawing("ANGLE_Arms", collection, (2, 2), scene)
+    arc = _add_drawing("ANGLE_Arc", collection, (ARC_SEGMENTS + 1,), scene)
 
     label = _add_label("ANGLE_Label", collection, ANGLE, context.scene)
     settings = measure_settings(label)
@@ -1117,6 +1347,16 @@ class EMANATE_PT_tech_tools(bpy.types.Panel):
 
         layout.operator(NAMES_UPDATE_TEXT.operator_idname, icon="FILE_REFRESH")
 
+        # Collapsed by default, and a layout panel rather than a class of its
+        # own: naming_unity wants every registered panel parented to the root,
+        # and this is a section of this one rather than a panel in its own right.
+        header, body = layout.panel("emanate_measure_colors", default_closed=True)
+        header.label(text="Colors")
+        if body:
+            for part, _label, _default in PARTS:
+                body.prop(scene, color_prop(part))
+            body.label(text=f"= emission on {material_name('*')} materials", icon="MATERIAL")
+
 
 # EMANATE_PG_ruler is deliberately left out of check_classes: it only knows the
 # _OT_ and _PT_ tags, and reports a _PG_ class as untagged.
@@ -1187,6 +1427,22 @@ def register():
         ),
     )
 
+    for part, label, default in PARTS:
+        setattr(
+            bpy.types.Scene,
+            color_prop(part),
+            bpy.props.FloatVectorProperty(
+                name=label,
+                description=f"Colour of every measurement's {label.lower()}, in the viewport and in a render",
+                subtype="COLOR",
+                size=3,
+                min=0.0,
+                max=1.0,
+                default=default,
+                update=_colors_changed,
+            ),
+        )
+
     _install_handlers()
     _install_timer()
 
@@ -1194,6 +1450,9 @@ def register():
 def unregister():
     _remove_timer()
     _remove_handlers()
+
+    for part, _label, _default in PARTS:
+        delattr(bpy.types.Scene, color_prop(part))
 
     delattr(bpy.types.Scene, SCENE_CAMERA_PROP)
     delattr(bpy.types.Scene, SCENE_UNIT_SCALE_PROP)
