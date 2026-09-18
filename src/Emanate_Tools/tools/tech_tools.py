@@ -133,7 +133,7 @@ from ..helpers import widgets
 
 NAMES = naming.register_tool(
     "tech_tools",
-    label="Tech Tools",
+    label="Measurements",
     owner=__name__,
     description="Measuring and annotation objects that live in the scene rather than on a rig",
     # Last of the sub-panels: this one is not part of the rigging flow above it.
@@ -1365,9 +1365,9 @@ class EMANATE_PT_tech_tools(bpy.types.Panel):
         # pointer as a search field with an eyedropper of its own, so picking
         # from the viewport or the outliner comes for free.
         angle = layout.column(align=True)
-        angle.prop(scene, SCENE_CAMERA_PROP, text="Camera to Look At")
-        angle.separator(factor=UI_GAP)
         angle.operator(NAMES_ADD_ANGLE.operator_idname, icon="DRIVER_ROTATIONAL_DIFFERENCE")
+        angle.separator(factor=UI_GAP)
+        angle.prop(scene, SCENE_CAMERA_PROP, text="Camera to Look At")
 
         layout.operator(NAMES_UPDATE_TEXT.operator_idname, icon="FILE_REFRESH")
 
