@@ -5,3 +5,6 @@ __pycache__/
 # can resolve `import bpy`. The add-on itself runs on Blender's own Python.
 .venv/
 .vscode/
+# HDRI source images -- ~2.9 GB of .hdr/.jpg, kept out of git and out of the
+# extension zip. The add-on finds them via its preferences / asset libraries.
+assets/HDRI_COLLECTION/

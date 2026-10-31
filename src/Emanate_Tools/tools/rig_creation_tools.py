@@ -1,6 +1,7 @@
-﻿import bpy
+﻿import math
+
+import bpy
 from mathutils import Vector
-import math
 
 from ..helpers import bone_collections, deform_cleanup, widgets
 from ..helpers import naming_unity as naming
