@@ -6,6 +6,7 @@ fresh rig scene.
 """
 
 import difflib
+import math
 import os
 import re
 
@@ -70,6 +71,30 @@ NAMES_COMPOSITOR_SETUP = naming.register_tool(
 
 COMP_DENOISE_PROP = naming.prop_name("comp_denoise")
 COMP_OUTPUT_MODE_PROP = naming.prop_name("comp_output_mode")
+
+NAMES_GRADIENT_BG = naming.register_tool(
+    "gradient_bg",
+    label="Create Gradient BG",
+    owner=__name__,
+    description=(
+        "Composite a linear or radial gradient behind everything, at the end of the "
+        "rebuilt beauty (needs a transparent render, which this turns on)"
+    ),
+)
+
+NAMES_GRADIENT_BG_REMOVE = naming.register_tool(
+    "gradient_bg_remove",
+    label="Remove Gradient BG",
+    owner=__name__,
+    description="Take the gradient background out of the compositor",
+)
+
+GRADIENT_ENABLED_PROP = naming.prop_name("gradient_enabled")
+GRADIENT_TYPE_PROP = naming.prop_name("gradient_type")
+GRADIENT_COLOR_1_PROP = naming.prop_name("gradient_color_1")
+GRADIENT_COLOR_2_PROP = naming.prop_name("gradient_color_2")
+GRADIENT_ANGLE_PROP = naming.prop_name("gradient_angle")
+GRADIENT_SIZE_PROP = naming.prop_name("gradient_size")
 
 # ------ Cinema Base preset ---------------------------------------------------
 # One (attribute, value) pair per field in Render Properties > Cycles.
@@ -521,8 +546,13 @@ def get_hdri_world_nodes():
 COMP_TREE_NAME = "Emanate_Compositor"
 COMP_EXR_DIR = "//render/exr/"
 COMP_MOVIE_DIR = "//render/movie/"
+COMP_FINAL_DIR = "//render/final/"
 COMP_FILE_OUTPUT_NODE = "EMANATE_EXR_Passes"
 COMP_DENOISE_TAG = "EMANATE_Denoise"   # node name prefix, so the checkbox can find them
+COMP_SET_ALPHA_NODE = "EMANATE_SetAlpha"
+COMP_GROUP_OUTPUT_NODE = "EMANATE_GroupOutput"
+COMP_VIEWER_NODE = "EMANATE_Viewer"
+COMP_GRADIENT_TAG = "EMANATE_Gradient"  # node name prefix for everything the gradient adds
 
 PRODUCTION_VIEW_LAYER_PASSES = (
     "use_pass_combined",
@@ -581,6 +611,7 @@ COMP_LAYOUT = {
         "frame": (1413.6666, 258.4667),
         "first_add": (28.9119, -35.8658),   # each further Add steps +200 in x
         "set_alpha": (1028.9117, -35.8658),
+        "env_gate": (628.9116, -235.8658),  # under the Add that takes Environment
     },
     "cryptomatte": {
         "frame": (-3864.3333, -209.5333),
@@ -590,6 +621,20 @@ COMP_LAYOUT = {
     "lightgroups": {
         "frame": (-639.0, -1000.0),
         "first_add": (28.7, -35.9),
+    },
+    # Gradient BG: frame under Beauty; Alpha Over in the gap before Group Output.
+    "gradient": {
+        "frame": (1413.6666, -150.0),
+        "coords": (28.9, -35.9),
+        "lin_center": (260.0, -35.9),
+        "lin_dot": (460.0, -35.9),
+        "lin_flip": (660.0, -35.9),
+        "rad_length": (260.0, -235.9),
+        "rad_range": (460.0, -235.9),
+        "type_mix": (880.0, -135.9),
+        "clamp": (1080.0, -135.9),
+        "color_mix": (1280.0, -135.9),
+        "alpha_over": (2800.0, 292.8671),   # absolute, not in the frame
     },
 }
 COMP_ADD_STEP_X = 200.0
@@ -679,6 +724,37 @@ def _sum_chain(tree, sockets, start, parent=None, label="Add"):
     return total
 
 
+def _gate_environment(tree, scene, environment, location, parent, missing):
+    """Environment x (1 - film_transparent), driven live. Returns the gated socket.
+
+    With Film > Transparent on, Cycles leaves the camera-visible world out of
+    Combined, but the Environment pass still holds it. Summed in ungated, the
+    "transparent" background would carry the world color at alpha 0 -- which
+    then gets added on top of anything composited behind it (Gradient BG).
+    """
+    gate, a, b, result = _mix(tree, "MIX", location, parent, "Environment (off when Film Transparent)")
+    gate.name = "EMANATE_EnvGate"
+    tree.links.new(environment, b)   # A stays black
+    factor = gate.inputs["Factor"]
+    factor.default_value = 0.0 if scene.render.film_transparent else 1.0
+    try:
+        fcurve = factor.driver_add("default_value")
+        driver = fcurve.driver
+        driver.type = "SCRIPTED"
+        # A "simple expression": evaluated natively, so it works even with
+        # Python auto-run disabled.
+        driver.expression = "1 - t"
+        var = driver.variables.new()
+        var.name = "t"
+        var.type = "SINGLE_PROP"
+        var.targets[0].id_type = "SCENE"
+        var.targets[0].id = scene
+        var.targets[0].data_path = "render.film_transparent"
+    except (TypeError, RuntimeError, AttributeError):
+        missing.append("Environment driver (gate fixed at build time instead)")
+    return result
+
+
 def _get_comp_tree(scene):
     """The add-on's compositor node group, assigned to `scene`. Returns (tree, changed)."""
     changed = []
@@ -705,6 +781,10 @@ def build_compositor(scene, view_layer):
     denoise_on = bool(getattr(scene, COMP_DENOISE_PROP, False))
 
     tree.nodes.clear()
+    # Drivers live on the tree, not the nodes -- drop the old Environment gate's
+    # so rebuilds don't pile up dead driver F-curves.
+    if tree.animation_data is not None:
+        tree.animation_data_clear()
     tree.interface.clear()
     tree.interface.new_socket("Image", in_out="OUTPUT", socket_type="NodeSocketColor")
 
@@ -751,17 +831,21 @@ def build_compositor(scene, view_layer):
             light = result
         beauty_terms.append(light)
 
+    beauty_layout = COMP_LAYOUT["beauty"]
+    beauty_frame = _frame(tree, "Beauty (rebuilt)", beauty_layout["frame"])
+
     for extra in ("Emission", "Environment"):
         socket = _output(render_layers, extra)
         if socket is None:
             missing.append(f"{extra} pass")
+        elif extra == "Environment":
+            socket = _gate_environment(tree, scene, socket, beauty_layout["env_gate"], beauty_frame, missing)
         beauty_terms.append(socket)
 
-    beauty_layout = COMP_LAYOUT["beauty"]
-    beauty_frame = _frame(tree, "Beauty (rebuilt)", beauty_layout["frame"])
     beauty = _sum_chain(tree, beauty_terms, beauty_layout["first_add"], beauty_frame, "Beauty Add")
 
     set_alpha = tree.nodes.new("CompositorNodeSetAlpha")
+    set_alpha.name = COMP_SET_ALPHA_NODE
     _place(set_alpha, beauty_layout["set_alpha"], beauty_frame)
     # Replace, not Apply Mask: the light-pass sum carries no alpha of its own,
     # so the render's alpha is attached as-is rather than multiplied in.
@@ -776,10 +860,12 @@ def build_compositor(scene, view_layer):
         tree.links.new(alpha, set_alpha.inputs["Alpha"])
 
     group_output = tree.nodes.new("NodeGroupOutput")
+    group_output.name = COMP_GROUP_OUTPUT_NODE
     group_output.location = COMP_LAYOUT["group_output"]
     tree.links.new(set_alpha.outputs["Image"], group_output.inputs["Image"])
 
     viewer = tree.nodes.new("CompositorNodeViewer")
+    viewer.name = COMP_VIEWER_NODE
     viewer.location = COMP_LAYOUT["viewer"]
     tree.links.new(set_alpha.outputs["Image"], viewer.inputs["Image"])
 
@@ -822,10 +908,12 @@ def build_compositor(scene, view_layer):
             _place(reroute, (first_x + max(len(sockets) - 1, 0) * COMP_ADD_STEP_X, first_y), lg_frame)
             tree.links.new(lg_sum, reroute.inputs[0])
 
-    # ---- EXR Passes file output (used in Movie mode) ----
+    # ---- EXR Passes file output: always on, in both output modes ----
+    # Blender 5.x's main multilayer output only holds the composite while the
+    # compositor runs, so this node is the ONLY thing that writes the passes.
     file_output = tree.nodes.new("CompositorNodeOutputFile")
     file_output.name = COMP_FILE_OUTPUT_NODE
-    file_output.label = "EXR Passes (Movie mode)"
+    file_output.label = "EXR Passes"
     file_output.location = COMP_LAYOUT["file_output"]
     file_output.directory = COMP_EXR_DIR
     _set(file_output.format, "media_type", "MULTI_LAYER_IMAGE", [], missing)
@@ -848,6 +936,10 @@ def build_compositor(scene, view_layer):
     for name, socket in lightgroup_sockets:
         add_input(name, socket)
 
+    if getattr(scene, GRADIENT_ENABLED_PROP, False):
+        missing += insert_gradient_bg(tree, scene)
+        changed.append("restored gradient background")
+
     changed.append("rebuilt compositor tree")
     return changed, missing, lightgroup_names
 
@@ -860,11 +952,12 @@ def _comp_tree_nodes(scene):
 
 
 def apply_output_mode(scene, mode):
-    """Point the main render output at multilayer EXR or an H.264 movie. Returns (changed, missing).
+    """Point the main render output at the final picture: EXR or H.264 movie. Returns (changed, missing).
 
-    EXR: the main output already saves every pass + the composite, so the
-    EXR Passes node is muted (no double write). MOVIE: the main output can only
-    hold the beauty, so the EXR Passes node is unmuted to keep the passes.
+    The main output only ever carries the composite in Blender 5.x (a
+    multilayer main output drops the passes while the compositor runs), so it
+    is set to the final picture alone -- //render/final/ or //render/movie/.
+    The passes always come from the EXR Passes node, in both modes.
     """
     changed = []
     missing = []
@@ -879,16 +972,18 @@ def apply_output_mode(scene, mode):
         _set(render.ffmpeg, "constant_rate_factor", "HIGH", changed, missing)
         _set(render, "filepath", COMP_MOVIE_DIR, changed, missing)
     else:
-        _set(image_settings, "media_type", "MULTI_LAYER_IMAGE", changed, missing)
-        _set(image_settings, "file_format", "OPEN_EXR_MULTILAYER", changed, missing)
+        _set(image_settings, "media_type", "IMAGE", changed, missing)
+        _set(image_settings, "file_format", "OPEN_EXR", changed, missing)
+        _set(image_settings, "color_mode", "RGBA", changed, missing)
         _set(image_settings, "color_depth", "32", changed, missing)
         _set(image_settings, "exr_codec", "ZIP", changed, missing)
-        _set(render, "filepath", COMP_EXR_DIR, changed, missing)
+        _set(render, "filepath", COMP_FINAL_DIR, changed, missing)
 
+    # Trees built before the passes node went always-on had it muted in EXR mode.
     nodes = _comp_tree_nodes(scene)
     file_output = nodes.get(COMP_FILE_OUTPUT_NODE) if nodes is not None else None
     if file_output is not None:
-        _set(file_output, "mute", mode != "MOVIE", changed, missing)
+        _set(file_output, "mute", False, changed, missing)
     return changed, missing
 
 
@@ -911,6 +1006,192 @@ def _comp_denoise_update(self, context):
 
 def _comp_output_mode_update(self, context):
     apply_output_mode(self, getattr(self, COMP_OUTPUT_MODE_PROP))
+
+
+# ------ Gradient BG --------------------------------------------------------------
+# A gradient Alpha-Overed behind the rebuilt beauty, between Set Alpha and the
+# Group Output / Viewer. The factor t runs 0 at Color 1 to 1 at Color 2:
+#
+#   linear: t = 0.5 - dot(Normalized - (0.5, 0.5), (sin a, cos a))
+#           (a = 0 puts Color 1 at the top)
+#   radial: t = smoothstep(0, size, |Uniform|)   (Uniform is centered and
+#           aspect-correct, so the falloff is a circle, not an ellipse)
+#
+# Both are always built; a float Mix picks one, so switching type, colors,
+# angle or size only writes node values -- no rebuild. The settings live on
+# the scene, so a Compositor Setup rebuild puts the same gradient back.
+#
+# The EXR Passes "Beauty" stays wired to Set Alpha -- the clean transparent
+# beauty for external comp; only the final composite gets the gradient.
+
+def _gradient_node(tree, bl_idname, key, location, parent=None, label=""):
+    node = tree.nodes.new(bl_idname)
+    node.name = f"{COMP_GRADIENT_TAG}_{key}"
+    node.label = label
+    _place(node, location, parent)
+    return node
+
+
+def _gradient_nodes(tree):
+    return [node for node in tree.nodes if node.name.startswith(COMP_GRADIENT_TAG)]
+
+
+def _beauty_endpoints(tree):
+    """(Set Alpha, Group Output, Viewer). Falls back to node type for trees built before these were named."""
+    def find(name, bl_idname):
+        node = tree.nodes.get(name)
+        if node is None:
+            node = next((n for n in tree.nodes if n.bl_idname == bl_idname and not n.name.startswith(COMP_GRADIENT_TAG)), None)
+        return node
+    return (
+        find(COMP_SET_ALPHA_NODE, "CompositorNodeSetAlpha"),
+        find(COMP_GROUP_OUTPUT_NODE, "NodeGroupOutput"),
+        find(COMP_VIEWER_NODE, "CompositorNodeViewer"),
+    )
+
+
+GRADIENT_EXR_LAYERS = ("GradientBG", "Final")
+
+
+def _remove_gradient_exr_layers(tree):
+    file_output = tree.nodes.get(COMP_FILE_OUTPUT_NODE)
+    if file_output is None:
+        return
+    # Look each one up fresh: removing an item invalidates Python references to
+    # the items after it, so a list collected up front goes stale.
+    for name in GRADIENT_EXR_LAYERS:
+        item = next((i for i in file_output.file_output_items if i.name == name), None)
+        if item is not None:
+            file_output.file_output_items.remove(item)
+
+
+def remove_gradient_bg(tree):
+    """Delete the gradient nodes and its EXR layers, and wire Set Alpha straight back to the outputs."""
+    _remove_gradient_exr_layers(tree)
+    for node in _gradient_nodes(tree):
+        tree.nodes.remove(node)
+    set_alpha, group_output, viewer = _beauty_endpoints(tree)
+    if set_alpha is not None:
+        if group_output is not None:
+            tree.links.new(set_alpha.outputs["Image"], group_output.inputs["Image"])
+        if viewer is not None:
+            tree.links.new(set_alpha.outputs["Image"], viewer.inputs["Image"])
+
+
+def apply_gradient_settings(scene):
+    """Push the scene's gradient props into the existing nodes (no rebuild)."""
+    tree = getattr(scene, "compositing_node_group", None)
+    if tree is None:
+        return
+    nodes = tree.nodes
+    type_mix = nodes.get(f"{COMP_GRADIENT_TAG}_TypeMix")
+    if type_mix is None:
+        return
+    type_mix.inputs["Factor"].default_value = 1.0 if getattr(scene, GRADIENT_TYPE_PROP) == "RADIAL" else 0.0
+
+    angle = getattr(scene, GRADIENT_ANGLE_PROP)
+    dot = nodes.get(f"{COMP_GRADIENT_TAG}_LinDot")
+    if dot is not None:
+        dot.inputs[1].default_value = (math.sin(angle), math.cos(angle), 0.0)
+
+    rad_range = nodes.get(f"{COMP_GRADIENT_TAG}_RadRange")
+    if rad_range is not None:
+        rad_range.inputs["From Max"].default_value = max(getattr(scene, GRADIENT_SIZE_PROP), 1e-4)
+
+    color_mix = nodes.get(f"{COMP_GRADIENT_TAG}_ColorMix")
+    if color_mix is not None:
+        a = next(s for s in color_mix.inputs if s.identifier == "A_Color")
+        b = next(s for s in color_mix.inputs if s.identifier == "B_Color")
+        a.default_value = (*getattr(scene, GRADIENT_COLOR_1_PROP), 1.0)
+        b.default_value = (*getattr(scene, GRADIENT_COLOR_2_PROP), 1.0)
+
+
+def insert_gradient_bg(tree, scene):
+    """(Re)build the gradient behind the beauty in `tree`. Returns a list of what was missing."""
+    missing = []
+    remove_gradient_bg(tree)
+    set_alpha, group_output, viewer = _beauty_endpoints(tree)
+    if set_alpha is None:
+        return ["Set Alpha node (run Compositor Setup first)"]
+
+    layout = COMP_LAYOUT["gradient"]
+    frame = _frame(tree, "Gradient BG", layout["frame"])
+    frame.name = f"{COMP_GRADIENT_TAG}_Frame"
+    links = tree.links
+
+    coords = _gradient_node(tree, "CompositorNodeImageCoordinates", "Coords", layout["coords"], frame, "Image Coordinates")
+    links.new(set_alpha.outputs["Image"], coords.inputs["Image"])
+
+    # linear: 0.5 - dot(Normalized - 0.5, direction)
+    center = _gradient_node(tree, "ShaderNodeVectorMath", "LinCenter", layout["lin_center"], frame, "Center")
+    center.operation = "SUBTRACT"
+    center.inputs[1].default_value = (0.5, 0.5, 0.0)
+    links.new(coords.outputs["Normalized"], center.inputs[0])
+
+    dot = _gradient_node(tree, "ShaderNodeVectorMath", "LinDot", layout["lin_dot"], frame, "Direction (Angle)")
+    dot.operation = "DOT_PRODUCT"
+    links.new(center.outputs["Vector"], dot.inputs[0])
+
+    flip = _gradient_node(tree, "ShaderNodeMath", "LinFlip", layout["lin_flip"], frame, "Linear")
+    flip.operation = "SUBTRACT"
+    flip.inputs[0].default_value = 0.5
+    links.new(dot.outputs["Value"], flip.inputs[1])
+
+    # radial: smoothstep(0, size, |Uniform|)
+    length = _gradient_node(tree, "ShaderNodeVectorMath", "RadLength", layout["rad_length"], frame, "Distance")
+    length.operation = "LENGTH"
+    links.new(coords.outputs["Uniform"], length.inputs[0])
+
+    rad_range = _gradient_node(tree, "ShaderNodeMapRange", "RadRange", layout["rad_range"], frame, "Radial (Size)")
+    rad_range.interpolation_type = "SMOOTHSTEP"
+    rad_range.clamp = True
+    rad_range.inputs["From Min"].default_value = 0.0
+    links.new(length.outputs["Value"], rad_range.inputs["Value"])
+
+    # pick linear/radial, clamp, color
+    type_mix = _gradient_node(tree, "ShaderNodeMix", "TypeMix", layout["type_mix"], frame, "Linear / Radial")
+    type_mix.data_type = "FLOAT"
+    type_mix.clamp_factor = True
+    links.new(flip.outputs["Value"], next(s for s in type_mix.inputs if s.identifier == "A_Float"))
+    links.new(rad_range.outputs["Result"], next(s for s in type_mix.inputs if s.identifier == "B_Float"))
+
+    clamp = _gradient_node(tree, "ShaderNodeMapRange", "Clamp", layout["clamp"], frame, "Clamp 0-1")
+    clamp.clamp = True
+    links.new(next(s for s in type_mix.outputs if s.identifier == "Result_Float"), clamp.inputs["Value"])
+
+    color_mix, _a, _b, color = _mix(tree, "MIX", layout["color_mix"], frame, "Color 1 -> Color 2")
+    color_mix.name = f"{COMP_GRADIENT_TAG}_ColorMix"
+    links.new(clamp.outputs["Result"], color_mix.inputs["Factor"])
+
+    # composite: beauty over gradient. Straight Alpha off -- the rebuilt
+    # beauty is premultiplied (light passes are already coverage-weighted).
+    alpha_over = _gradient_node(tree, "CompositorNodeAlphaOver", "AlphaOver", layout["alpha_over"], None, "Over Gradient BG")
+    alpha_over.inputs["Straight Alpha"].default_value = False
+    links.new(color, alpha_over.inputs["Background"])
+    links.new(set_alpha.outputs["Image"], alpha_over.inputs["Foreground"])
+    if group_output is not None:
+        links.new(alpha_over.outputs["Image"], group_output.inputs["Image"])
+    else:
+        missing.append("Group Output node")
+    if viewer is not None:
+        links.new(alpha_over.outputs["Image"], viewer.inputs["Image"])
+
+    # Passes file: Beauty stays the clean transparent beauty; add the gradient
+    # on its own (to rebuild/swap the BG in comp) and the final picture.
+    file_output = tree.nodes.get(COMP_FILE_OUTPUT_NODE)
+    if file_output is None:
+        missing.append("EXR Passes node (gradient layers not saved)")
+    else:
+        for name, socket in (("GradientBG", color), ("Final", alpha_over.outputs["Image"])):
+            file_output.file_output_items.new("RGBA", name)
+            links.new(socket, file_output.inputs[name])
+
+    apply_gradient_settings(scene)
+    return missing
+
+
+def _gradient_settings_update(self, context):
+    apply_gradient_settings(self)
 
 
 # ---------------------------------------------------------------------------
@@ -1039,6 +1320,57 @@ class EMANATE_OT_compositor_setup(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EMANATE_OT_gradient_bg(bpy.types.Operator):
+    bl_idname = NAMES_GRADIENT_BG.operator_idname
+    bl_label = NAMES_GRADIENT_BG.label
+    bl_description = NAMES_GRADIENT_BG.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        changed = []
+        missing = []
+
+        tree = getattr(scene, "compositing_node_group", None)
+        if tree is None or tree.name != COMP_TREE_NAME:
+            # No Emanate compositor yet -- build it, exactly as Compositor Setup would.
+            pass_changed, pass_missing = enable_production_passes(context.view_layer)
+            comp_changed, comp_missing, _groups = build_compositor(scene, context.view_layer)
+            out_changed, out_missing = apply_output_mode(scene, getattr(scene, COMP_OUTPUT_MODE_PROP))
+            changed += pass_changed + comp_changed + out_changed
+            missing += pass_missing + comp_missing + out_missing
+            tree = scene.compositing_node_group
+
+        # The gradient only shows where the render is transparent.
+        _set(scene.render, "film_transparent", True, changed, missing)
+        setattr(scene, GRADIENT_ENABLED_PROP, True)
+        missing += insert_gradient_bg(tree, scene)
+        changed.append(f"gradient background ({getattr(scene, GRADIENT_TYPE_PROP).lower()})")
+
+        if missing:
+            self.report({"WARNING"}, f"Create Gradient BG: skipped {', '.join(missing)}")
+        for line in changed:
+            print(f"[gradient-bg] {line}")
+        self.report({"INFO"}, "Gradient background added behind the beauty")
+        return {"FINISHED"}
+
+
+class EMANATE_OT_gradient_bg_remove(bpy.types.Operator):
+    bl_idname = NAMES_GRADIENT_BG_REMOVE.operator_idname
+    bl_label = NAMES_GRADIENT_BG_REMOVE.label
+    bl_description = NAMES_GRADIENT_BG_REMOVE.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        setattr(scene, GRADIENT_ENABLED_PROP, False)
+        tree = getattr(scene, "compositing_node_group", None)
+        if tree is not None and tree.name == COMP_TREE_NAME:
+            remove_gradient_bg(tree)
+        self.report({"INFO"}, "Gradient background removed")
+        return {"FINISHED"}
+
+
 class EMANATE_OT_hdri_refresh(bpy.types.Operator):
     bl_idname = NAMES_HDRI_REFRESH.operator_idname
     bl_label = NAMES_HDRI_REFRESH.label
@@ -1091,6 +1423,22 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         box.prop(context.scene, COMP_DENOISE_PROP)
         box.row().prop(context.scene, COMP_OUTPUT_MODE_PROP, expand=True)
 
+        scene = context.scene
+        box.separator()
+        if not getattr(scene, GRADIENT_ENABLED_PROP):
+            box.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
+        else:
+            header = box.row(align=True)
+            header.label(text="Gradient BG", icon="IMAGE_BACKGROUND")
+            header.operator(NAMES_GRADIENT_BG.operator_idname, text="", icon="FILE_REFRESH")
+            header.operator(NAMES_GRADIENT_BG_REMOVE.operator_idname, text="", icon="X")
+            box.row().prop(scene, GRADIENT_TYPE_PROP, expand=True)
+            col = box.column(align=True)
+            radial = getattr(scene, GRADIENT_TYPE_PROP) == "RADIAL"
+            col.prop(scene, GRADIENT_COLOR_1_PROP, text="Center" if radial else "Top")
+            col.prop(scene, GRADIENT_COLOR_2_PROP, text="Edge" if radial else "Bottom")
+            col.prop(scene, GRADIENT_SIZE_PROP if radial else GRADIENT_ANGLE_PROP)
+
 
 _classes = (
     EMANATE_AP_preferences,
@@ -1099,8 +1447,53 @@ _classes = (
     EMANATE_OT_hdri_lighting,
     EMANATE_OT_hdri_refresh,
     EMANATE_OT_compositor_setup,
+    EMANATE_OT_gradient_bg,
+    EMANATE_OT_gradient_bg_remove,
     EMANATE_PT_render_tools,
 )
+
+_GRADIENT_PROPS = (
+    GRADIENT_ENABLED_PROP, GRADIENT_TYPE_PROP, GRADIENT_COLOR_1_PROP,
+    GRADIENT_COLOR_2_PROP, GRADIENT_ANGLE_PROP, GRADIENT_SIZE_PROP,
+)
+
+
+def _register_gradient_props():
+    scene = bpy.types.Scene
+    setattr(scene, GRADIENT_ENABLED_PROP, bpy.props.BoolProperty(
+        name="Gradient BG Enabled",
+        description="Set by Create Gradient BG; a Compositor Setup rebuild puts the gradient back while this is on",
+        default=False,
+    ))
+    setattr(scene, GRADIENT_TYPE_PROP, bpy.props.EnumProperty(
+        name="Gradient Type",
+        items=(
+            ("LINEAR", "Linear", "Straight gradient from Color 1 to Color 2 across the frame"),
+            ("RADIAL", "Radial", "Circular gradient from Color 1 in the center to Color 2 at the edge"),
+        ),
+        default="LINEAR",
+        update=_gradient_settings_update,
+    ))
+    setattr(scene, GRADIENT_COLOR_1_PROP, bpy.props.FloatVectorProperty(
+        name="Color 1", description="Top (linear) or center (radial) color",
+        subtype="COLOR", size=3, min=0.0, soft_max=1.0, default=(0.30, 0.30, 0.32),
+        update=_gradient_settings_update,
+    ))
+    setattr(scene, GRADIENT_COLOR_2_PROP, bpy.props.FloatVectorProperty(
+        name="Color 2", description="Bottom (linear) or edge (radial) color",
+        subtype="COLOR", size=3, min=0.0, soft_max=1.0, default=(0.02, 0.02, 0.025),
+        update=_gradient_settings_update,
+    ))
+    setattr(scene, GRADIENT_ANGLE_PROP, bpy.props.FloatProperty(
+        name="Angle", description="Direction of a linear gradient; 0 puts Color 1 at the top",
+        subtype="ANGLE", default=0.0, min=-math.pi, max=math.pi,
+        update=_gradient_settings_update,
+    ))
+    setattr(scene, GRADIENT_SIZE_PROP, bpy.props.FloatProperty(
+        name="Size", description="Radius of a radial gradient, where it fully reaches Color 2",
+        default=1.0, min=0.01, soft_max=3.0,
+        update=_gradient_settings_update,
+    ))
 
 
 def register():
@@ -1110,6 +1503,8 @@ def register():
     naming.check_classes((EMANATE_OT_hdri_lighting,), NAMES_HDRI_LIGHTING)
     naming.check_classes((EMANATE_OT_hdri_refresh,), NAMES_HDRI_REFRESH)
     naming.check_classes((EMANATE_OT_compositor_setup,), NAMES_COMPOSITOR_SETUP)
+    naming.check_classes((EMANATE_OT_gradient_bg,), NAMES_GRADIENT_BG)
+    naming.check_classes((EMANATE_OT_gradient_bg_remove,), NAMES_GRADIENT_BG_REMOVE)
     naming.check_classes((EMANATE_PT_render_tools,), NAMES)
     # EMANATE_AP_preferences isn't checked: naming_unity has no AddonPreferences tag.
     for cls in _classes:
@@ -1145,17 +1540,20 @@ def register():
         bpy.props.EnumProperty(
             name="Output",
             items=(
-                ("EXR", "Multilayer EXR", "Every pass + the rebuilt beauty in one 32-bit EXR per frame"),
-                ("MOVIE", "Movie (MP4)", "Beauty encoded to H.264 MP4; passes still saved to EXR by the compositor"),
+                ("EXR", "EXR", "Final picture to a 32-bit EXR in //render/final/; all passes always saved to //render/exr/"),
+                ("MOVIE", "Movie (MP4)", "Final picture to H.264 MP4 in //render/movie/; passes still saved to //render/exr/"),
             ),
             default="EXR",
             update=_comp_output_mode_update,
         ),
     )
+    _register_gradient_props()
 
 
 def unregister():
     global _previews
+    for prop in reversed(_GRADIENT_PROPS):
+        delattr(bpy.types.Scene, prop)
     delattr(bpy.types.Scene, COMP_OUTPUT_MODE_PROP)
     delattr(bpy.types.Scene, COMP_DENOISE_PROP)
     delattr(bpy.types.Scene, HDRI_CHOICE_PROP)
