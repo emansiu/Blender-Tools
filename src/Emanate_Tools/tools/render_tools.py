@@ -527,16 +527,19 @@ def get_hdri_world_nodes():
 # ------ Compositor Setup -------------------------------------------------------
 # Rebuilds the beauty from Cycles light passes:
 #
-#   (DiffDir + DiffInd) * DiffCol
-# + (GlossDir + GlossInd) * GlossCol
-# + (TransDir + TransInd) * TransCol
-# + VolumeDir + VolumeInd + Emission + Environment      == Combined
+#   ( (DiffDir + DiffInd) * DiffCol
+#   + (GlossDir + GlossInd) * GlossCol
+#   + (TransDir + TransInd) * TransCol
+#   + VolumeDir + VolumeInd + Emission ) * AO
 #
 # There is no Subsurface term: since Blender 3.0 Cycles folds subsurface into
 # the Diffuse passes (the use_pass_subsurface_* flags still exist, but Cycles
-# never produces the sockets). Volume and Environment are what make the sum
-# match Combined. Alpha is copied back from the render at the end, since the
-# sum has none -- HDRI Lighting relies on a transparent background.
+# never produces the sockets). The Environment pass is switched OFF, so the
+# camera-visible world is not in the sum -- with Film > Transparent on (what
+# HDRI Lighting uses) that matches Combined; with it off the background comes
+# out black. AO is multiplied over the whole sum by the "Ambient Occlusion"
+# Mix node; drop its Factor to fade it out. Alpha is copied back from the
+# render at the end, since the sum has none.
 #
 # Denoising: scene.cycles.use_denoising (the render denoiser) is never touched.
 # denoising_store_passes only *saves* albedo/normal guide passes. The per-pass
@@ -553,15 +556,22 @@ COMP_SET_ALPHA_NODE = "EMANATE_SetAlpha"
 COMP_GROUP_OUTPUT_NODE = "EMANATE_GroupOutput"
 COMP_VIEWER_NODE = "EMANATE_Viewer"
 COMP_GRADIENT_TAG = "EMANATE_Gradient"  # node name prefix for everything the gradient adds
+COMP_AO_NODE = "EMANATE_AO"
+# The Render Layers socket for the AO pass; older builds named it in full.
+AO_SOCKET_NAMES = ("AO", "Ambient Occlusion")
 
 PRODUCTION_VIEW_LAYER_PASSES = (
     "use_pass_combined",
     "use_pass_diffuse_direct", "use_pass_diffuse_indirect", "use_pass_diffuse_color",
     "use_pass_glossy_direct", "use_pass_glossy_indirect", "use_pass_glossy_color",
     "use_pass_transmission_direct", "use_pass_transmission_indirect", "use_pass_transmission_color",
-    "use_pass_emit", "use_pass_environment",
+    "use_pass_emit", "use_pass_ambient_occlusion",
     "use_pass_z", "use_pass_normal", "use_pass_vector",
     "use_pass_cryptomatte_object", "use_pass_cryptomatte_material", "use_pass_cryptomatte_asset",
+)
+# Passes Compositor Setup actively switches off.
+DISABLED_VIEW_LAYER_PASSES = (
+    "use_pass_environment",
 )
 PRODUCTION_CYCLES_PASSES = (
     "use_pass_volume_direct", "use_pass_volume_indirect",
@@ -610,8 +620,8 @@ COMP_LAYOUT = {
     "beauty": {
         "frame": (1413.6666, 258.4667),
         "first_add": (28.9119, -35.8658),   # each further Add steps +200 in x
+        "ao": (828.9117, -35.8658),          # one step past the last Beauty Add
         "set_alpha": (1028.9117, -35.8658),
-        "env_gate": (628.9116, -235.8658),  # under the Add that takes Environment
     },
     "cryptomatte": {
         "frame": (-3864.3333, -209.5333),
@@ -645,7 +655,7 @@ EXR_PASS_SOCKETS = (
     "Diffuse Direct", "Diffuse Indirect", "Diffuse Color",
     "Glossy Direct", "Glossy Indirect", "Glossy Color",
     "Transmission Direct", "Transmission Indirect", "Transmission Color",
-    "Volume Direct", "Volume Indirect", "Emission", "Environment",
+    "Volume Direct", "Volume Indirect", "Emission",
     "Depth", "Normal", "Vector",
     "Denoising Albedo", "Denoising Normal", "Denoising Depth",
 )
@@ -653,11 +663,13 @@ CRYPTO_PREFIXES = ("CryptoObject", "CryptoMaterial", "CryptoAsset")
 
 
 def enable_production_passes(view_layer):
-    """Turn on every pass the compositor uses. Returns (changed, missing)."""
+    """Turn on every pass the compositor uses, off the ones it doesn't. Returns (changed, missing)."""
     changed = []
     missing = []
     for attr in PRODUCTION_VIEW_LAYER_PASSES:
         _set(view_layer, attr, True, changed, missing)
+    for attr in DISABLED_VIEW_LAYER_PASSES:
+        _set(view_layer, attr, False, changed, missing)
     cycles = getattr(view_layer, "cycles", None)
     if cycles is None:
         missing.append("view_layer.cycles (Cycles add-on not enabled)")
@@ -671,6 +683,15 @@ def _output(node, name):
     """An enabled output socket by name, or None (passes can be switched off)."""
     socket = node.outputs.get(name)
     return socket if socket is not None and socket.enabled else None
+
+
+def _ao_output(render_layers):
+    """The enabled AO socket on a Render Layers node, under whichever name this build uses."""
+    for name in AO_SOCKET_NAMES:
+        socket = _output(render_layers, name)
+        if socket is not None:
+            return socket
+    return None
 
 
 def _mix(tree, blend, location, parent=None, label=""):
@@ -724,37 +745,6 @@ def _sum_chain(tree, sockets, start, parent=None, label="Add"):
     return total
 
 
-def _gate_environment(tree, scene, environment, location, parent, missing):
-    """Environment x (1 - film_transparent), driven live. Returns the gated socket.
-
-    With Film > Transparent on, Cycles leaves the camera-visible world out of
-    Combined, but the Environment pass still holds it. Summed in ungated, the
-    "transparent" background would carry the world color at alpha 0 -- which
-    then gets added on top of anything composited behind it (Gradient BG).
-    """
-    gate, a, b, result = _mix(tree, "MIX", location, parent, "Environment (off when Film Transparent)")
-    gate.name = "EMANATE_EnvGate"
-    tree.links.new(environment, b)   # A stays black
-    factor = gate.inputs["Factor"]
-    factor.default_value = 0.0 if scene.render.film_transparent else 1.0
-    try:
-        fcurve = factor.driver_add("default_value")
-        driver = fcurve.driver
-        driver.type = "SCRIPTED"
-        # A "simple expression": evaluated natively, so it works even with
-        # Python auto-run disabled.
-        driver.expression = "1 - t"
-        var = driver.variables.new()
-        var.name = "t"
-        var.type = "SINGLE_PROP"
-        var.targets[0].id_type = "SCENE"
-        var.targets[0].id = scene
-        var.targets[0].data_path = "render.film_transparent"
-    except (TypeError, RuntimeError, AttributeError):
-        missing.append("Environment driver (gate fixed at build time instead)")
-    return result
-
-
 def _get_comp_tree(scene):
     """The add-on's compositor node group, assigned to `scene`. Returns (tree, changed)."""
     changed = []
@@ -781,8 +771,8 @@ def build_compositor(scene, view_layer):
     denoise_on = bool(getattr(scene, COMP_DENOISE_PROP, False))
 
     tree.nodes.clear()
-    # Drivers live on the tree, not the nodes -- drop the old Environment gate's
-    # so rebuilds don't pile up dead driver F-curves.
+    # Drivers live on the tree, not the nodes -- trees built by older versions
+    # carry an Environment-gate driver; drop it so it doesn't linger dead.
     if tree.animation_data is not None:
         tree.animation_data_clear()
     tree.interface.clear()
@@ -834,15 +824,23 @@ def build_compositor(scene, view_layer):
     beauty_layout = COMP_LAYOUT["beauty"]
     beauty_frame = _frame(tree, "Beauty (rebuilt)", beauty_layout["frame"])
 
-    for extra in ("Emission", "Environment"):
-        socket = _output(render_layers, extra)
-        if socket is None:
-            missing.append(f"{extra} pass")
-        elif extra == "Environment":
-            socket = _gate_environment(tree, scene, socket, beauty_layout["env_gate"], beauty_frame, missing)
-        beauty_terms.append(socket)
+    emission = _output(render_layers, "Emission")
+    if emission is None:
+        missing.append("Emission pass")
+    beauty_terms.append(emission)
 
     beauty = _sum_chain(tree, beauty_terms, beauty_layout["first_add"], beauty_frame, "Beauty Add")
+
+    # ---- Ambient Occlusion: multiplied over the whole beauty ----
+    ao = _ao_output(render_layers)
+    if ao is None:
+        missing.append("Ambient Occlusion pass")
+    elif beauty is not None:
+        ao_node, a, b, result = _mix(tree, "MULTIPLY", beauty_layout["ao"], beauty_frame, "Ambient Occlusion")
+        ao_node.name = COMP_AO_NODE
+        tree.links.new(beauty, a)
+        tree.links.new(ao, b)
+        beauty = result
 
     set_alpha = tree.nodes.new("CompositorNodeSetAlpha")
     set_alpha.name = COMP_SET_ALPHA_NODE
@@ -930,6 +928,8 @@ def build_compositor(scene, view_layer):
         if socket is not None:
             kind = "FLOAT" if socket.type == "VALUE" else ("VECTOR" if socket.type == "VECTOR" else "RGBA")
             add_input(name.replace(" ", ""), socket, kind)
+    if ao is not None:
+        add_input("AO", ao, "FLOAT" if ao.type == "VALUE" else "RGBA")
     for socket in render_layers.outputs:
         if socket.enabled and socket.name.startswith(CRYPTO_PREFIXES):
             add_input(socket.name, socket)
