@@ -649,6 +649,10 @@ def get_hdri_world_nodes():
 #   + (TransDir + TransInd) * TransCol
 #   + VolumeDir + VolumeInd + Emission ) * AO
 #
+# then mixed toward a fog color by depth:
+#
+#   mix(beauty, FogColor, Density * MapRange(Mist))
+#
 # There is no Subsurface term: since Blender 3.0 Cycles folds subsurface into
 # the Diffuse passes (the use_pass_subsurface_* flags still exist, but Cycles
 # never produces the sockets). The Environment pass is switched OFF, so the
@@ -657,6 +661,13 @@ def get_hdri_world_nodes():
 # out black. AO is multiplied over the whole sum by the "Ambient Occlusion"
 # Mix node; drop its Factor to fade it out. Alpha is copied back from the
 # render at the end, since the sum has none.
+#
+# Mist fog: the Mist pass is 0 at World > Mist Pass Start and 1 at Start +
+# Depth (shaped by Falloff) -- those need a re-render. Everything after is
+# live in the compositor: "Mist Range" reshapes that 0-1 ramp, "Fog Density"
+# scales it (built at 0, so the fog is wired but invisible until raised) and
+# "Fog Color" is the haze it mixes toward. With Film > Transparent the
+# background has no alpha, so fog only shows on geometry.
 #
 # Denoising: scene.cycles.use_denoising (the render denoiser) is never touched.
 # denoising_store_passes only *saves* albedo/normal guide passes. The per-pass
@@ -674,6 +685,12 @@ COMP_GROUP_OUTPUT_NODE = "EMANATE_GroupOutput"
 COMP_VIEWER_NODE = "EMANATE_Viewer"
 COMP_GRADIENT_TAG = "EMANATE_Gradient"  # node name prefix for everything the gradient adds
 COMP_AO_NODE = "EMANATE_AO"
+COMP_MIST_TAG = "EMANATE_Mist"  # node name prefix for the fog nodes, so the panel can find them
+COMP_MIST_RANGE_NODE = f"{COMP_MIST_TAG}_Range"
+COMP_MIST_DENSITY_NODE = f"{COMP_MIST_TAG}_Density"
+COMP_MIST_COLOR_NODE = f"{COMP_MIST_TAG}_Color"
+COMP_MIST_MIX_NODE = f"{COMP_MIST_TAG}_Mix"
+FOG_DEFAULT_COLOR = (0.6, 0.65, 0.7, 1.0)
 # The Render Layers socket for the AO pass; older builds named it in full.
 AO_SOCKET_NAMES = ("AO", "Ambient Occlusion")
 
@@ -682,7 +699,7 @@ PRODUCTION_VIEW_LAYER_PASSES = (
     "use_pass_diffuse_direct", "use_pass_diffuse_indirect", "use_pass_diffuse_color",
     "use_pass_glossy_direct", "use_pass_glossy_indirect", "use_pass_glossy_color",
     "use_pass_transmission_direct", "use_pass_transmission_indirect", "use_pass_transmission_color",
-    "use_pass_emit", "use_pass_ambient_occlusion",
+    "use_pass_emit", "use_pass_ambient_occlusion", "use_pass_mist",
     "use_pass_z", "use_pass_normal", "use_pass_vector",
     "use_pass_cryptomatte_object", "use_pass_cryptomatte_material", "use_pass_cryptomatte_asset",
 )
@@ -738,7 +755,15 @@ COMP_LAYOUT = {
         "frame": (1413.6666, 258.4667),
         "first_add": (28.9119, -35.8658),   # each further Add steps +200 in x
         "ao": (828.9117, -35.8658),          # one step past the last Beauty Add
-        "set_alpha": (1028.9117, -35.8658),
+        "fog": (1028.9117, -35.8658),
+        "set_alpha": (1228.9117, -35.8658),
+    },
+    # Mist fog controls: frame above Beauty; the Fog mix itself sits in Beauty.
+    "mist": {
+        "frame": (1413.6666, 700.0),
+        "range": (28.9, -35.9),
+        "density": (260.0, -35.9),
+        "color": (28.9, -300.0),
     },
     "cryptomatte": {
         "frame": (-3864.3333, -209.5333),
@@ -773,7 +798,7 @@ EXR_PASS_SOCKETS = (
     "Glossy Direct", "Glossy Indirect", "Glossy Color",
     "Transmission Direct", "Transmission Indirect", "Transmission Color",
     "Volume Direct", "Volume Indirect", "Emission",
-    "Depth", "Normal", "Vector",
+    "Depth", "Mist", "Normal", "Vector",
     "Denoising Albedo", "Denoising Normal", "Denoising Depth",
 )
 CRYPTO_PREFIXES = ("CryptoObject", "CryptoMaterial", "CryptoAsset")
@@ -957,6 +982,43 @@ def build_compositor(scene, view_layer):
         ao_node.name = COMP_AO_NODE
         tree.links.new(beauty, a)
         tree.links.new(ao, b)
+        beauty = result
+
+    # ---- Mist fog: beauty mixed toward Fog Color by Density * remapped Mist ----
+    mist = _output(render_layers, "Mist")
+    if mist is None:
+        missing.append("Mist pass")
+    elif beauty is not None:
+        mist_layout = COMP_LAYOUT["mist"]
+        mist_frame = _frame(tree, "Mist Fog", mist_layout["frame"])
+
+        mist_range = tree.nodes.new("ShaderNodeMapRange")
+        mist_range.name = COMP_MIST_RANGE_NODE
+        mist_range.label = "Mist Range"
+        _place(mist_range, mist_layout["range"], mist_frame)
+        mist_range.clamp = True
+        tree.links.new(mist, mist_range.inputs["Value"])
+
+        density = tree.nodes.new("ShaderNodeMath")
+        density.name = COMP_MIST_DENSITY_NODE
+        density.label = "Fog Density"
+        _place(density, mist_layout["density"], mist_frame)
+        density.operation = "MULTIPLY"
+        density.use_clamp = True
+        density.inputs[1].default_value = 0.0
+        tree.links.new(mist_range.outputs["Result"], density.inputs[0])
+
+        fog_color = tree.nodes.new("CompositorNodeRGB")
+        fog_color.name = COMP_MIST_COLOR_NODE
+        fog_color.label = "Fog Color"
+        _place(fog_color, mist_layout["color"], mist_frame)
+        fog_color.outputs[0].default_value = FOG_DEFAULT_COLOR
+
+        fog_mix, a, b, result = _mix(tree, "MIX", beauty_layout["fog"], beauty_frame, "Mist Fog")
+        fog_mix.name = COMP_MIST_MIX_NODE
+        tree.links.new(density.outputs["Value"], fog_mix.inputs["Factor"])
+        tree.links.new(beauty, a)
+        tree.links.new(fog_color.outputs[0], b)
         beauty = result
 
     set_alpha = tree.nodes.new("CompositorNodeSetAlpha")
@@ -1433,7 +1495,10 @@ class EMANATE_OT_compositor_setup(bpy.types.Operator):
             print(f"[compositor-setup] {line}")
 
         groups = f"{len(lightgroups)} light group(s) wired" if lightgroups else "no light groups found"
-        self.report({"INFO"}, f"Compositor Setup applied ({len(changed)} change(s), {groups})")
+        self.report(
+            {"INFO"},
+            f"Compositor Setup applied ({len(changed)} change(s), {groups}) -- raise Fog Density to add mist",
+        )
         return {"FINISHED"}
 
 
@@ -1605,6 +1670,34 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         box.row().prop(context.scene, COMP_OUTPUT_MODE_PROP, expand=True)
 
         scene = context.scene
+        render = scene.render
+        row = box.row(align=True)
+        row.prop(render, "use_motion_blur", text="Motion Blur")
+        if render.use_motion_blur:
+            row.prop(render, "motion_blur_shutter", text="Shutter")
+
+        # Live fog controls, drawn straight off the nodes Compositor Setup built.
+        nodes = _comp_tree_nodes(scene)
+        density = nodes.get(COMP_MIST_DENSITY_NODE) if nodes is not None else None
+        if density is not None:
+            box.separator()
+            box.label(text="Mist Fog", icon="FORCE_TURBULENCE")
+            col = box.column(align=True)
+            col.prop(density.inputs[1], "default_value", text="Density")
+            fog_color = nodes.get(COMP_MIST_COLOR_NODE)
+            if fog_color is not None:
+                col.prop(fog_color.outputs[0], "default_value", text="")
+            mist_range = nodes.get(COMP_MIST_RANGE_NODE)
+            if mist_range is not None:
+                row = box.row(align=True)
+                row.prop(mist_range.inputs["From Min"], "default_value", text="Range Min")
+                row.prop(mist_range.inputs["From Max"], "default_value", text="Max")
+            mist_settings = scene.world.mist_settings if scene.world is not None else None
+            if mist_settings is not None:
+                col = box.column(align=True)
+                col.prop(mist_settings, "start", text="Mist Start")
+                col.prop(mist_settings, "depth", text="Mist Depth")
+                col.prop(mist_settings, "falloff", text="")
         box.separator()
         if not getattr(scene, GRADIENT_ENABLED_PROP):
             box.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
