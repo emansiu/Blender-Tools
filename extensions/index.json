@@ -3,20 +3,24 @@
   "blocklist": [],
   "data": [
     {
-      "schema_version": "1.0.0",
+      "schema_version": "1.0.1",
       "id": "Emanate_Studios_Tools",
       "name": "Emanate Studios by Emanuel Siu",
       "tagline": "Blender Tools by Emanuel Siu",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "type": "add-on",
       "maintainer": "Emanuel <you@example.com>",
       "license": [
         "SPDX:GPL-3.0-or-later"
       ],
       "blender_version_min": "4.2.0",
-      "archive_url": "./Emanate_Studios_Tools-1.0.0.zip",
-      "archive_size": 5586,
-      "archive_hash": "sha256:85ab95fe33ff9cd607b17fd58f8fe70675e93fa0017c1437945f778c8587f1ec"
+      "permissions": {
+        "network": "Download the HDRI collection from GitHub Releases",
+        "files": "Save downloaded HDRIs to the extension's user folder"
+      },
+      "archive_url": "./Emanate_Studios_Tools-1.1.0.zip",
+      "archive_size": 208712,
+      "archive_hash": "sha256:dfda9ef3035aa5f68ee663958235472551a4f2bd719df6c236a59c7b7510d0c2"
     }
   ]
 }

@@ -1,11 +1,18 @@
 schema_version = "1.0.1"
 
 id = "Emanate_Studios_Tools"
-version = "1.0.0"
+version = "1.1.0"
 name = "Emanate Studios by Emanuel Siu"
 tagline = "Blender Tools by Emanuel Siu"
-maintainer = "Emanuel <you@example.com>"
+maintainer = "Emanuel <e@emanuelsiu.com>"
 type = "add-on"
 
 blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+network = "Download the HDRI collection from GitHub Releases"
+files = "Save downloaded HDRIs to the extension's user folder"
+
+[build]
+paths_exclude_pattern = ["__pycache__/", "*.pyc", ".*"]

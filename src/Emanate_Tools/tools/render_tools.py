@@ -6,9 +6,17 @@ fresh rig scene.
 """
 
 import difflib
+import hashlib
+import json
 import math
 import os
 import re
+import shutil
+import tempfile
+import threading
+import urllib.parse
+import urllib.request
+import zipfile
 
 import bpy
 import bpy.utils.previews
@@ -55,6 +63,16 @@ NAMES_HDRI_REFRESH = naming.register_tool(
     label="Refresh HDRIs",
     owner=__name__,
     description="Rescan the HDRI folder and rebuild the thumbnails",
+)
+
+NAMES_HDRI_DOWNLOAD = naming.register_tool(
+    "hdri_download",
+    label="Download HDRIs",
+    owner=__name__,
+    description=(
+        "Download the HDRI collection from this add-on's GitHub release into the "
+        "extension's user folder (needs Allow Online Access)"
+    ),
 )
 
 HDRI_CHOICE_PROP = naming.prop_name("hdri_choice")
@@ -286,6 +304,12 @@ HDRI_EXTENSIONS = (".hdr", ".exr")
 THUMBNAIL_EXTENSIONS = (".jpg", ".jpeg", ".png")
 HDRI_WORLD_NAME = "Emanate_HDRI_World"
 
+# The collection itself is ~3 GB, so it lives on a GitHub release (one zip per
+# category, built by scripts/package_hdris.py) rather than in git or the
+# extension zip. Download HDRIs pulls it into the extension's user folder.
+HDRI_RELEASE_URL = "https://github.com/emansiu/Blender-Tools/releases/download/hdris-v1/"
+HDRI_MANIFEST_NAME = "hdri_manifest.json"
+
 # Node names inside HDRI_WORLD_NAME, so a re-run can find and reuse them.
 NODE_TEXCOORD = "EMANATE_HDRI_TexCoord"
 NODE_MAPPING = "EMANATE_HDRI_Mapping"
@@ -319,14 +343,28 @@ class EMANATE_AP_preferences(bpy.types.AddonPreferences):
         self.layout.prop(self, "hdri_library_dir")
         found = find_hdri_collection_dir()
         self.layout.label(text=f"Using: {found}" if found else "No HDRI folder found", icon="WORLD")
+        draw_hdri_download(self.layout)
+
+
+def user_hdri_dir(create=False):
+    """HDRI_COLLECTION inside the extension's user folder, or None.
+
+    That folder survives extension updates. It only exists for an add-on
+    installed as an extension; running from source or as a legacy add-on has none.
+    """
+    try:
+        return bpy.utils.extension_path_user(ADDON_PACKAGE, path=HDRI_COLLECTION_DIRNAME, create=create)
+    except (ValueError, AttributeError):
+        return None
 
 
 def find_hdri_collection_dir():
     """The HDRI_COLLECTION folder, or None.
 
-    Order: the add-on preference, then any asset library (Preferences > File
-    Paths) that contains HDRI_COLLECTION, then the repo layout this add-on is
-    developed in (src/Emanate_Tools/ next to assets/), for running from source.
+    Order: the add-on preference, then the folder Download HDRIs fills, then any
+    asset library (Preferences > File Paths) that contains HDRI_COLLECTION, then
+    the repo layout this add-on is developed in (src/Emanate_Tools/ next to
+    assets/), for running from source.
     """
     # The preference may point straight at any folder of HDRI categories, so
     # it's trusted as-is when it exists.
@@ -335,6 +373,12 @@ def find_hdri_collection_dir():
         pref_dir = bpy.path.abspath(addon.preferences.hdri_library_dir)
         if pref_dir and os.path.isdir(pref_dir):
             return os.path.normpath(pref_dir)
+
+    # Only once a download has actually put a category in it; an empty folder
+    # would hide an asset-library copy below.
+    downloaded = user_hdri_dir()
+    if downloaded and os.path.isdir(downloaded) and os.listdir(downloaded):
+        return os.path.normpath(downloaded)
 
     candidates = []
     for library in bpy.context.preferences.filepaths.asset_libraries:
@@ -415,7 +459,10 @@ def hdri_enum_items(self, context):
     collection_dir = find_hdri_collection_dir()
     entries = scan_hdris(collection_dir) if collection_dir else []
     if not entries:
-        _hdri_items = [("NONE", "No HDRIs found", "Set the HDRI folder in the add-on preferences", "ERROR", 0)]
+        _hdri_items = [(
+            "NONE", "No HDRIs found",
+            "Click Download HDRIs, or set the HDRI folder in the add-on preferences", "ERROR", 0,
+        )]
         return _hdri_items
 
     items = []
@@ -434,6 +481,76 @@ def clear_hdri_cache():
     _hdri_items = None
     if _previews is not None:
         _previews.clear()
+
+
+# ------ HDRI download ----------------------------------------------------------
+# Runs on a worker thread so Blender stays responsive through ~3 GB; the modal
+# operator polls _download from a timer. bpy is never touched off the main thread.
+
+_download = {"thread": None, "status": "", "error": None, "cancel": False}
+
+
+def _hdri_url(name):
+    return HDRI_RELEASE_URL + urllib.parse.quote(name)
+
+
+def _fetch_manifest():
+    with urllib.request.urlopen(_hdri_url(HDRI_MANIFEST_NAME), timeout=30) as response:
+        return json.load(response)
+
+
+def _download_file(url, dest, size, label):
+    """Stream url to dest, updating the status line. Returns the sha256 hex digest."""
+    digest = hashlib.sha256()
+    done = 0
+    with urllib.request.urlopen(url, timeout=60) as response, open(dest, "wb") as out:
+        while True:
+            if _download["cancel"]:
+                raise InterruptedError
+            chunk = response.read(1 << 20)
+            if not chunk:
+                break
+            out.write(chunk)
+            digest.update(chunk)
+            done += len(chunk)
+            _download["status"] = f"{label}: {done / 2**20:.0f} / {size / 2**20:.0f} MB"
+    return digest.hexdigest()
+
+
+def _download_worker(target_dir):
+    """Fetch every category in the manifest that isn't already in target_dir."""
+    try:
+        _download["status"] = "Fetching HDRI list..."
+        entries = _fetch_manifest()
+        # A category counts as present once its folder exists; extraction goes
+        # through a temp folder and is moved in last, so a half-done one never is.
+        todo = [e for e in entries if not os.path.isdir(os.path.join(target_dir, e["category"]))]
+        for index, entry in enumerate(todo, start=1):
+            label = f"[{index}/{len(todo)}] {entry['category']}"
+            with tempfile.TemporaryDirectory(dir=target_dir, prefix=".download_") as tmp:
+                zip_path = os.path.join(tmp, entry["file"])
+                sha = _download_file(_hdri_url(entry["file"]), zip_path, entry["size"], label)
+                if sha != entry["sha256"]:
+                    raise ValueError(f"{entry['file']} is corrupt (checksum mismatch), try again")
+                _download["status"] = f"{label}: unpacking"
+                unpack_dir = os.path.join(tmp, "unpacked")
+                with zipfile.ZipFile(zip_path) as archive:
+                    archive.extractall(unpack_dir)
+                shutil.move(os.path.join(unpack_dir, entry["category"]), target_dir)
+        _download["status"] = f"Downloaded {len(todo)} categor{'y' if len(todo) == 1 else 'ies'}"
+    except InterruptedError:
+        _download["error"] = "Download cancelled"
+    except Exception as exc:  # noqa: BLE001 -- surfaced to the user by the operator
+        _download["error"] = f"{type(exc).__name__}: {exc}"
+
+
+def draw_hdri_download(layout):
+    """The Download HDRIs button, or the progress line while one is running."""
+    thread = _download["thread"]
+    if thread is not None and thread.is_alive():
+        layout.label(text=_download["status"] or "Downloading...", icon="IMPORT")
+    else:
+        layout.operator(NAMES_HDRI_DOWNLOAD.operator_idname, icon="IMPORT")
 
 
 def _build_hdri_nodes(world):
@@ -1384,6 +1501,66 @@ class EMANATE_OT_hdri_refresh(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EMANATE_OT_hdri_download(bpy.types.Operator):
+    bl_idname = NAMES_HDRI_DOWNLOAD.operator_idname
+    bl_label = NAMES_HDRI_DOWNLOAD.label
+    bl_description = NAMES_HDRI_DOWNLOAD.description
+    bl_options = {"REGISTER"}
+
+    _timer = None
+
+    def execute(self, context):
+        # Extensions must not touch the network unless the user allowed it.
+        if not bpy.app.online_access:
+            self.report(
+                {"WARNING"},
+                "Download HDRIs: turn on Allow Online Access (Preferences > System > Network) first",
+            )
+            return {"CANCELLED"}
+        if _download["thread"] is not None and _download["thread"].is_alive():
+            self.report({"INFO"}, "Download HDRIs: already running")
+            return {"CANCELLED"}
+        target_dir = user_hdri_dir(create=True)
+        if target_dir is None:
+            self.report(
+                {"WARNING"},
+                "Download HDRIs: only available when installed as an extension -- "
+                "set the HDRI folder in the add-on preferences instead",
+            )
+            return {"CANCELLED"}
+
+        _download.update(status="", error=None, cancel=False)
+        _download["thread"] = threading.Thread(target=_download_worker, args=(target_dir,), daemon=True)
+        _download["thread"].start()
+        self._timer = context.window_manager.event_timer_add(0.5, window=context.window)
+        context.window_manager.modal_handler_add(self)
+        return {"RUNNING_MODAL"}
+
+    def modal(self, context, event):
+        if event.type == "ESC":
+            _download["cancel"] = True
+        if event.type != "TIMER":
+            return {"PASS_THROUGH"}
+
+        if context.workspace is not None:
+            context.workspace.status_text_set(f"Download HDRIs -- {_download['status']}  (Esc to cancel)")
+        for area in context.screen.areas if context.screen else ():
+            if area.type in ("VIEW_3D", "PREFERENCES"):
+                area.tag_redraw()
+        if _download["thread"].is_alive():
+            return {"PASS_THROUGH"}
+
+        context.window_manager.event_timer_remove(self._timer)
+        if context.workspace is not None:
+            context.workspace.status_text_set(None)
+        clear_hdri_cache()
+        if _download["error"]:
+            self.report({"WARNING"}, f"Download HDRIs: {_download['error']}")
+            return {"CANCELLED"}
+        self.report({"INFO"}, _download["status"])
+        return {"FINISHED"}
+
+
 class EMANATE_PT_render_tools(bpy.types.Panel):
     bl_idname = NAMES.panel_idname
     bl_label = NAMES.label
@@ -1402,8 +1579,12 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         header = box.row(align=True)
         header.label(text="HDRI Lighting", icon="WORLD")
         header.operator(NAMES_HDRI_REFRESH.operator_idname, text="", icon="FILE_REFRESH")
-        box.template_icon_view(context.scene, HDRI_CHOICE_PROP, show_labels=True, scale=6.0, scale_popup=6.0)
-        box.operator(NAMES_HDRI_LIGHTING.operator_idname, icon="WORLD")
+        if getattr(context.scene, HDRI_CHOICE_PROP) == "NONE":
+            box.label(text="No HDRIs found", icon="ERROR")
+            draw_hdri_download(box)
+        else:
+            box.template_icon_view(context.scene, HDRI_CHOICE_PROP, show_labels=True, scale=6.0, scale_popup=6.0)
+            box.operator(NAMES_HDRI_LIGHTING.operator_idname, icon="WORLD")
 
         # Live controls, drawn straight off the world's nodes -- only while the
         # scene is actually using the HDRI world.
@@ -1446,6 +1627,7 @@ _classes = (
     EMANATE_OT_fast_clean_static,
     EMANATE_OT_hdri_lighting,
     EMANATE_OT_hdri_refresh,
+    EMANATE_OT_hdri_download,
     EMANATE_OT_compositor_setup,
     EMANATE_OT_gradient_bg,
     EMANATE_OT_gradient_bg_remove,
@@ -1502,6 +1684,7 @@ def register():
     naming.check_classes((EMANATE_OT_fast_clean_static,), NAMES_FAST_CLEAN_STATIC)
     naming.check_classes((EMANATE_OT_hdri_lighting,), NAMES_HDRI_LIGHTING)
     naming.check_classes((EMANATE_OT_hdri_refresh,), NAMES_HDRI_REFRESH)
+    naming.check_classes((EMANATE_OT_hdri_download,), NAMES_HDRI_DOWNLOAD)
     naming.check_classes((EMANATE_OT_compositor_setup,), NAMES_COMPOSITOR_SETUP)
     naming.check_classes((EMANATE_OT_gradient_bg,), NAMES_GRADIENT_BG)
     naming.check_classes((EMANATE_OT_gradient_bg_remove,), NAMES_GRADIENT_BG_REMOVE)

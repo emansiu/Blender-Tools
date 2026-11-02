@@ -24,6 +24,19 @@ blender --command extension build --source-dir src/Emanate_Tools --output-dir ex
 blender --command extension server-generate --repo-dir=extensions
 ```
 
+### Publish the HDRI collection (only when the HDRIs change)
+
+The HDRIs (~3 GB) are gitignored and ship as a GitHub release instead. On the machine that has
+`assets/HDRI_COLLECTION/`:
+
+```bash
+python scripts/package_hdris.py
+gh release create hdris-v1 dist/hdris/* --title "HDRI Collection v1"
+```
+
+For a new set, bump the tag (`hdris-v2`) here **and** in `HDRI_RELEASE_URL` in
+`src/Emanate_Tools/tools/render_tools.py`, then rebuild the extension.
+
 ### Generate asset folders, JSONs and meta
 
 ```bash
@@ -40,6 +53,14 @@ blender -b --factory-startup --command asset_listing generate assets
 | Asset library | <https://emansiu.github.io/Blender-Tools/assets/> |
 
 > Add the `index.json` URL in Blender under **Preferences → Get Extensions → Repositories** to install and receive updates automatically.
+
+### First-time setup for users
+
+1. **Preferences → System → Network → Allow Online Access** on.
+2. **Get Extensions → Repositories → +** → add the `index.json` URL above, then install **Emanate Studios**.
+3. In the 3D Viewport sidebar: **Emanate → Rendering → HDRI Lighting → Download HDRIs**.
+   HDRIs land in the extension's user folder and survive add-on updates. (Already have the
+   collection locally? Point **Add-on Preferences → HDRI Collection Folder** at it instead.)
 
 ---
 
@@ -63,6 +84,7 @@ The project has two halves that are published independently:
 | --- | --- |
 | **Stretchy FK** | Builds a full stretchy FK chain from a selected root bone — duplicates the chain into FK and tweak layers, wires up `STRETCH_TO` constraints, and generates custom bone shape icons. |
 | **UV Checker** | Reports which UDIM tiles the current selection occupies. |
+| **Rendering** | Cinema Base Cycles preset, HDRI Lighting (with in-app HDRI download), Compositor Setup (light-pass rebuild, AO, Cryptomatte, EXR/MP4 output) and gradient backgrounds. |
 
 All tools appear as collapsible sub-panels under a single **Emanate** tab in the 3D Viewport
 sidebar (<kbd>N</kbd>).
