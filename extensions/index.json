@@ -7,7 +7,7 @@
       "id": "Emanate_Studios_Tools",
       "name": "Emanate Studios by Emanuel Siu",
       "tagline": "Blender Tools by Emanuel Siu",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "type": "add-on",
       "maintainer": "Emanuel <e@emanuelsiu.com>",
       "license": [
@@ -15,12 +15,12 @@
       ],
       "blender_version_min": "4.2.0",
       "permissions": {
-        "network": "Download the HDRI collection from GitHub Releases",
+        "network": "Download HDRIs (GitHub) and element data (PubChem)",
         "files": "Save downloaded HDRIs to the extension's user folder"
       },
-      "archive_url": "./Emanate_Studios_Tools-1.1.1.zip",
-      "archive_size": 209729,
-      "archive_hash": "sha256:d9fb5f99d50f889d2881bb63cfc13ddd833acfc4477db769a0cd31522825d4f6"
+      "archive_url": "./Emanate_Studios_Tools-1.1.2.zip",
+      "archive_size": 212046,
+      "archive_hash": "sha256:78416eb4545fd5b5a04c64707505c9917e289cff26c80274c38037ba12c8860d"
     }
   ]
 }

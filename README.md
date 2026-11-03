@@ -85,6 +85,7 @@ The project has two halves that are published independently:
 | **Stretchy FK** | Builds a full stretchy FK chain from a selected root bone — duplicates the chain into FK and tweak layers, wires up `STRETCH_TO` constraints, and generates custom bone shape icons. |
 | **UV Checker** | Reports which UDIM tiles the current selection occupies. |
 | **Rendering** | Cinema Base Cycles preset, HDRI Lighting (with in-app HDRI download), Compositor Setup (light-pass rebuild, AO, Cryptomatte, EXR/MP4 output) and gradient backgrounds. |
+| **Atom Constructor** | Type an element symbol (H, He, C...) and **Generate Atom** makes a sphere sized by its PubChem atomic radius (pm / 100), named after the element, with an `<Element>_Material`. |
 
 All tools appear as collapsible sub-panels under a single **Emanate** tab in the 3D Viewport
 sidebar (<kbd>N</kbd>).
