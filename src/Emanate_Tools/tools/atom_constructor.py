@@ -115,10 +115,20 @@ class EMANATE_OT_generate_atom(bpy.types.Operator):
         for polygon in atom.data.polygons:
             polygon.use_smooth = True
 
-        material = bpy.data.materials.new(f"{name}_Material")
+        # One material per element, shared by every atom of it -- a repeat
+        # generate reuses it rather than piling up Hydrogen_Material.001s.
+        material_name = f"{name}_Material"
+        material = bpy.data.materials.get(material_name)
+        reused = material is not None
+        if material is None:
+            material = bpy.data.materials.new(material_name)
         atom.data.materials.append(material)
 
-        self.report({"INFO"}, f"{atom.name}: radius {radius_pm:g} pm -> {radius:g} m, material {material.name}")
+        self.report(
+            {"INFO"},
+            f"{atom.name}: radius {radius_pm:g} pm -> {radius:g} m, "
+            f"{'reused' if reused else 'new'} material {material.name}",
+        )
         return {"FINISHED"}
 
 

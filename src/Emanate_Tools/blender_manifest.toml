@@ -1,7 +1,7 @@
 schema_version = "1.0.1"
 
 id = "Emanate_Studios_Tools"
-version = "1.1.2"
+version = "1.1.3"
 name = "Emanate Studios by Emanuel Siu"
 tagline = "Blender Tools by Emanuel Siu"
 maintainer = "Emanuel <e@emanuelsiu.com>"
