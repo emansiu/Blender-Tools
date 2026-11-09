@@ -22,6 +22,7 @@ import bpy
 import bpy.utils.previews
 
 from ..helpers import naming_unity as naming
+from ..helpers import vfx_node_groups
 
 NAMES = naming.register_tool(
     "render_tools",
@@ -113,6 +114,25 @@ GRADIENT_COLOR_1_PROP = naming.prop_name("gradient_color_1")
 GRADIENT_COLOR_2_PROP = naming.prop_name("gradient_color_2")
 GRADIENT_ANGLE_PROP = naming.prop_name("gradient_angle")
 GRADIENT_SIZE_PROP = naming.prop_name("gradient_size")
+
+NAMES_VFX_ADD = naming.register_tool(
+    "vfx_add",
+    label="Add VFX",
+    owner=__name__,
+    description=(
+        "Finish the composite with bloom, blue-tinted streaks, lens dispersion and a "
+        "rounded vignette, after the gradient background"
+    ),
+)
+
+NAMES_VFX_REMOVE = naming.register_tool(
+    "vfx_remove",
+    label="Remove VFX",
+    owner=__name__,
+    description="Take the VFX stack out of the compositor",
+)
+
+VFX_ENABLED_PROP = naming.prop_name("vfx_enabled")
 
 # ------ Cinema Base preset ---------------------------------------------------
 # One (attribute, value) pair per field in Render Properties > Cycles.
@@ -691,6 +711,11 @@ COMP_MIST_DENSITY_NODE = f"{COMP_MIST_TAG}_Density"
 COMP_MIST_COLOR_NODE = f"{COMP_MIST_TAG}_Color"
 COMP_MIST_MIX_NODE = f"{COMP_MIST_TAG}_Mix"
 FOG_DEFAULT_COLOR = (0.6, 0.65, 0.7, 1.0)
+COMP_VFX_TAG = "EMANATE_VFX"  # node name prefix for everything Add VFX adds
+COMP_VFX_BLOOM_NODE = f"{COMP_VFX_TAG}_Bloom"
+COMP_VFX_STREAKS_NODE = f"{COMP_VFX_TAG}_Streaks"
+COMP_VFX_LENS_NODE = f"{COMP_VFX_TAG}_LensDist"
+COMP_VFX_VIGNETTE_NODE = f"{COMP_VFX_TAG}_Vignette"
 # The Render Layers socket for the AO pass; older builds named it in full.
 AO_SOCKET_NAMES = ("AO", "Ambient Occlusion")
 
@@ -727,9 +752,10 @@ LIGHT_PASS_GROUPS = (
 # follows from the children.
 COMP_LAYOUT = {
     "render_layers": (-3600.5178, -1019.1476),
-    "group_output": (3087.05, 292.8671),
-    "viewer": (3087.05, 92.8671),
-    "file_output": (3133.4519, -945.5295),
+    # Outputs sit past the VFX frame's slot, so Add VFX never overlaps them.
+    "group_output": (4050.0, 292.8671),
+    "viewer": (4050.0, 92.8671),
+    "file_output": (4096.4, -945.5295),
     # light-pass frames: frame, denoise direct, denoise indirect, add, multiply
     "Diffuse": {
         "frame": (-719.6667, 847.1333),
@@ -787,6 +813,15 @@ COMP_LAYOUT = {
         "clamp": (1080.0, -135.9),
         "color_mix": (1280.0, -135.9),
         "alpha_over": (2800.0, 292.8671),   # absolute, not in the frame
+    },
+    # VFX: frame between the gradient's Alpha Over and the outputs. Child
+    # positions copied from the "vfx" frame in Teaching_File.blend.
+    "vfx": {
+        "frame": (3000.0, 499.1333),
+        "bloom": (28.9085, -47.6697),
+        "streaks": (288.0898, -47.0198),
+        "lens": (509.1237, -45.7229),
+        "vignette": (704.1417, -35.8932),
     },
 }
 COMP_ADD_STEP_X = 200.0
@@ -1118,6 +1153,9 @@ def build_compositor(scene, view_layer):
     if getattr(scene, GRADIENT_ENABLED_PROP, False):
         missing += insert_gradient_bg(tree, scene)
         changed.append("restored gradient background")
+    if getattr(scene, VFX_ENABLED_PROP, False):
+        missing += insert_vfx(tree)
+        changed.append("restored VFX")
 
     changed.append("rebuilt compositor tree")
     return changed, missing, lightgroup_names
@@ -1229,32 +1267,88 @@ def _beauty_endpoints(tree):
     )
 
 
-GRADIENT_EXR_LAYERS = ("GradientBG", "Final")
+GRADIENT_EXR_LAYER = "GradientBG"
+# The finished picture (gradient and/or VFX); "Beauty" stays the clean transparent beauty.
+FINAL_EXR_LAYER = "Final"
 
 
-def _remove_gradient_exr_layers(tree):
+def _remove_exr_layer(tree, name):
     file_output = tree.nodes.get(COMP_FILE_OUTPUT_NODE)
     if file_output is None:
         return
-    # Look each one up fresh: removing an item invalidates Python references to
-    # the items after it, so a list collected up front goes stale.
-    for name in GRADIENT_EXR_LAYERS:
-        item = next((i for i in file_output.file_output_items if i.name == name), None)
-        if item is not None:
-            file_output.file_output_items.remove(item)
+    # Look it up fresh: removing an item invalidates Python references to the
+    # items after it, so one collected earlier may be stale.
+    item = next((i for i in file_output.file_output_items if i.name == name), None)
+    if item is not None:
+        file_output.file_output_items.remove(item)
+
+
+def _set_exr_layer(tree, name, socket):
+    """Add (if needed) an RGBA layer to the EXR Passes node and feed it `socket`. False if there's no node."""
+    file_output = tree.nodes.get(COMP_FILE_OUTPUT_NODE)
+    if file_output is None:
+        return False
+    if not any(item.name == name for item in file_output.file_output_items):
+        file_output.file_output_items.new("RGBA", name)
+    tree.links.new(socket, file_output.inputs[name])
+    return True
+
+
+# ------ Beauty tail ----------------------------------------------------------
+# The end of the picture is a chain, each stage optional:
+#
+#   Set Alpha -> [Gradient Alpha Over] -> [VFX] -> Group Output / Viewer / EXR Final
+#
+# Adding or removing any stage calls _rewire_outputs, which re-links
+# everything after the gradient, so the stages never bypass each other.
+
+def _beauty_tail(tree):
+    """The picture before VFX: the gradient composite if there is one, else Set Alpha. Or None."""
+    alpha_over = tree.nodes.get(f"{COMP_GRADIENT_TAG}_AlphaOver")
+    if alpha_over is not None:
+        return alpha_over.outputs["Image"]
+    set_alpha = _beauty_endpoints(tree)[0]
+    return set_alpha.outputs["Image"] if set_alpha is not None else None
+
+
+def _rewire_outputs(tree):
+    """Link the beauty tail through VFX (if present) into the outputs. Returns a list of what was missing."""
+    tail = _beauty_tail(tree)
+    if tail is None:
+        return ["Set Alpha node (run Compositor Setup first)"]
+
+    end = tail
+    bloom = tree.nodes.get(COMP_VFX_BLOOM_NODE)
+    vignette = tree.nodes.get(COMP_VFX_VIGNETTE_NODE)
+    if bloom is not None and vignette is not None:
+        tree.links.new(tail, bloom.inputs["Image"])
+        end = vignette.outputs["Image"]
+
+    missing = []
+    _set_alpha, group_output, viewer = _beauty_endpoints(tree)
+    if group_output is not None:
+        tree.links.new(end, group_output.inputs["Image"])
+    else:
+        missing.append("Group Output node")
+    if viewer is not None:
+        tree.links.new(end, viewer.inputs["Image"])
+
+    # "Final" only exists while something sits on top of the clean beauty.
+    has_extras = end is not tail or tree.nodes.get(f"{COMP_GRADIENT_TAG}_AlphaOver") is not None
+    if has_extras:
+        if not _set_exr_layer(tree, FINAL_EXR_LAYER, end):
+            missing.append("EXR Passes node (Final layer not saved)")
+    else:
+        _remove_exr_layer(tree, FINAL_EXR_LAYER)
+    return missing
 
 
 def remove_gradient_bg(tree):
-    """Delete the gradient nodes and its EXR layers, and wire Set Alpha straight back to the outputs."""
-    _remove_gradient_exr_layers(tree)
+    """Delete the gradient nodes and its EXR layer, and wire Set Alpha straight back into the chain."""
+    _remove_exr_layer(tree, GRADIENT_EXR_LAYER)
     for node in _gradient_nodes(tree):
         tree.nodes.remove(node)
-    set_alpha, group_output, viewer = _beauty_endpoints(tree)
-    if set_alpha is not None:
-        if group_output is not None:
-            tree.links.new(set_alpha.outputs["Image"], group_output.inputs["Image"])
-        if viewer is not None:
-            tree.links.new(set_alpha.outputs["Image"], viewer.inputs["Image"])
+    _rewire_outputs(tree)
 
 
 def apply_gradient_settings(scene):
@@ -1289,7 +1383,7 @@ def insert_gradient_bg(tree, scene):
     """(Re)build the gradient behind the beauty in `tree`. Returns a list of what was missing."""
     missing = []
     remove_gradient_bg(tree)
-    set_alpha, group_output, viewer = _beauty_endpoints(tree)
+    set_alpha = _beauty_endpoints(tree)[0]
     if set_alpha is None:
         return ["Set Alpha node (run Compositor Setup first)"]
 
@@ -1348,22 +1442,13 @@ def insert_gradient_bg(tree, scene):
     alpha_over.inputs["Straight Alpha"].default_value = False
     links.new(color, alpha_over.inputs["Background"])
     links.new(set_alpha.outputs["Image"], alpha_over.inputs["Foreground"])
-    if group_output is not None:
-        links.new(alpha_over.outputs["Image"], group_output.inputs["Image"])
-    else:
-        missing.append("Group Output node")
-    if viewer is not None:
-        links.new(alpha_over.outputs["Image"], viewer.inputs["Image"])
 
-    # Passes file: Beauty stays the clean transparent beauty; add the gradient
-    # on its own (to rebuild/swap the BG in comp) and the final picture.
-    file_output = tree.nodes.get(COMP_FILE_OUTPUT_NODE)
-    if file_output is None:
-        missing.append("EXR Passes node (gradient layers not saved)")
-    else:
-        for name, socket in (("GradientBG", color), ("Final", alpha_over.outputs["Image"])):
-            file_output.file_output_items.new("RGBA", name)
-            links.new(socket, file_output.inputs[name])
+    # Passes file: Beauty stays the clean transparent beauty; the gradient goes
+    # in on its own (to rebuild/swap the BG in comp), and _rewire_outputs puts
+    # the finished picture in "Final".
+    if not _set_exr_layer(tree, GRADIENT_EXR_LAYER, color):
+        missing.append("EXR Passes node (gradient layer not saved)")
+    missing += _rewire_outputs(tree)
 
     apply_gradient_settings(scene)
     return missing
@@ -1371,6 +1456,101 @@ def insert_gradient_bg(tree, scene):
 
 def _gradient_settings_update(self, context):
     apply_gradient_settings(self)
+
+
+# ------ VFX ----------------------------------------------------------------------
+# The finishing stack from the "vfx" frame in Teaching_File.blend, applied to
+# the whole finished picture (after the gradient background):
+#
+#   Glare Bloom -> Glare Streaks (blue tint) -> Lens Distortion (dispersion only)
+#   -> Emanate_Vignette (rounded-rectangle darkening of HSV value, alpha kept)
+#
+# Values below are exactly what that file used. Inputs are keyed by socket
+# name; MENU sockets take their item identifier ("Bloom", "Medium", ...).
+
+VFX_BLOOM_SETTINGS = (
+    ("Type", "Bloom"), ("Quality", "Medium"),
+    ("Threshold", 1.0), ("Smoothness", 0.1), ("Clamp", False), ("Maximum", 10.0),
+    ("Strength", 0.25), ("Saturation", 1.0), ("Tint", (1.0, 1.0, 1.0, 1.0)), ("Size", 0.5),
+)
+VFX_STREAKS_SETTINGS = (
+    ("Type", "Streaks"), ("Quality", "Medium"),
+    ("Threshold", 1.0), ("Smoothness", 0.1), ("Clamp", False), ("Maximum", 10.0),
+    ("Strength", 0.25), ("Saturation", 1.0), ("Tint", (0.7895829677581787, 0.9648768901824951, 1.0, 1.0)),
+    ("Size", 0.25), ("Streaks", 2), ("Streaks Angle", 0.0), ("Iterations", 3),
+    ("Fade", 0.75), ("Color Modulation", 0.25),
+)
+VFX_LENS_SETTINGS = (
+    ("Type", "Radial"), ("Distortion", 0.0), ("Dispersion", 0.05), ("Jitter", False), ("Fit", True),
+)
+VFX_VIGNETTE_SETTINGS = (
+    ("Factor", 0.37569060921669006), ("Feather", 1.0), ("Corner Roundness", 1.0),
+    ("Scale", (0.95, 0.95)), ("Offset", (0.0, 0.0)), ("Angle", 0.0),
+)
+
+
+def _apply_inputs(node, settings, missing):
+    for name, value in settings:
+        socket = node.inputs.get(name)
+        if socket is None:
+            missing.append(f"{node.label} input {name!r}")
+            continue
+        try:
+            socket.default_value = value
+        except (TypeError, ValueError):
+            missing.append(f"{node.label} {name} = {value!r}")
+
+
+def _vfx_node(tree, bl_idname, name, label, location, parent):
+    node = tree.nodes.new(bl_idname)
+    node.name = name
+    node.label = label
+    _place(node, location, parent)
+    return node
+
+
+def _vfx_nodes(tree):
+    return [node for node in tree.nodes if node.name.startswith(COMP_VFX_TAG)]
+
+
+def remove_vfx(tree):
+    """Delete the VFX nodes and wire the beauty tail straight back to the outputs."""
+    for node in _vfx_nodes(tree):
+        tree.nodes.remove(node)
+    _rewire_outputs(tree)
+
+
+def insert_vfx(tree):
+    """(Re)build the VFX stack at the end of `tree`. Returns a list of what was missing."""
+    remove_vfx(tree)
+    if _beauty_tail(tree) is None:
+        return ["Set Alpha node (run Compositor Setup first)"]
+
+    missing = []
+    layout = COMP_LAYOUT["vfx"]
+    frame = _frame(tree, "VFX", layout["frame"])
+    frame.name = f"{COMP_VFX_TAG}_Frame"
+
+    bloom = _vfx_node(tree, "CompositorNodeGlare", COMP_VFX_BLOOM_NODE, "Bloom", layout["bloom"], frame)
+    _apply_inputs(bloom, VFX_BLOOM_SETTINGS, missing)
+
+    streaks = _vfx_node(tree, "CompositorNodeGlare", COMP_VFX_STREAKS_NODE, "Streaks", layout["streaks"], frame)
+    _apply_inputs(streaks, VFX_STREAKS_SETTINGS, missing)
+
+    lens = _vfx_node(tree, "CompositorNodeLensdist", COMP_VFX_LENS_NODE, "Lens Dispersion", layout["lens"], frame)
+    _apply_inputs(lens, VFX_LENS_SETTINGS, missing)
+
+    vignette = _vfx_node(tree, "CompositorNodeGroup", COMP_VFX_VIGNETTE_NODE, "Vignette", layout["vignette"], frame)
+    vignette.node_tree = vfx_node_groups.ensure_vignette_group()
+    _apply_inputs(vignette, VFX_VIGNETTE_SETTINGS, missing)
+
+    links = tree.links
+    links.new(bloom.outputs["Image"], streaks.inputs["Image"])
+    links.new(streaks.outputs["Image"], lens.inputs["Image"])
+    links.new(lens.outputs["Image"], vignette.inputs["Image"])
+
+    missing += _rewire_outputs(tree)
+    return missing
 
 
 # ---------------------------------------------------------------------------
@@ -1553,6 +1733,56 @@ class EMANATE_OT_gradient_bg_remove(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class EMANATE_OT_vfx_add(bpy.types.Operator):
+    bl_idname = NAMES_VFX_ADD.operator_idname
+    bl_label = NAMES_VFX_ADD.label
+    bl_description = NAMES_VFX_ADD.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        changed = []
+        missing = []
+
+        tree = getattr(scene, "compositing_node_group", None)
+        if tree is None or tree.name != COMP_TREE_NAME:
+            # No Emanate compositor yet -- build it, exactly as Compositor Setup would.
+            # build_compositor restores VFX itself once the prop is on, so set it first.
+            setattr(scene, VFX_ENABLED_PROP, True)
+            pass_changed, pass_missing = enable_production_passes(context.view_layer)
+            comp_changed, comp_missing, _groups = build_compositor(scene, context.view_layer)
+            out_changed, out_missing = apply_output_mode(scene, getattr(scene, COMP_OUTPUT_MODE_PROP))
+            changed += pass_changed + comp_changed + out_changed
+            missing += pass_missing + comp_missing + out_missing
+        else:
+            setattr(scene, VFX_ENABLED_PROP, True)
+            missing += insert_vfx(tree)
+            changed.append("VFX stack")
+
+        if missing:
+            self.report({"WARNING"}, f"Add VFX: skipped {', '.join(missing)}")
+        for line in changed:
+            print(f"[vfx] {line}")
+        self.report({"INFO"}, "VFX added: bloom, streaks, lens dispersion, vignette")
+        return {"FINISHED"}
+
+
+class EMANATE_OT_vfx_remove(bpy.types.Operator):
+    bl_idname = NAMES_VFX_REMOVE.operator_idname
+    bl_label = NAMES_VFX_REMOVE.label
+    bl_description = NAMES_VFX_REMOVE.description
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        scene = context.scene
+        setattr(scene, VFX_ENABLED_PROP, False)
+        tree = getattr(scene, "compositing_node_group", None)
+        if tree is not None and tree.name == COMP_TREE_NAME:
+            remove_vfx(tree)
+        self.report({"INFO"}, "VFX removed")
+        return {"FINISHED"}
+
+
 class EMANATE_OT_hdri_refresh(bpy.types.Operator):
     bl_idname = NAMES_HDRI_REFRESH.operator_idname
     bl_label = NAMES_HDRI_REFRESH.label
@@ -1637,81 +1867,131 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
-        layout.operator(NAMES_CINEMA_BASE.operator_idname, icon="SHADING_RENDERED")
-        layout.operator(NAMES_FAST_CLEAN_STATIC.operator_idname, icon="RENDER_STILL")
+        scene = context.scene
+        render = scene.render
+        # Collapsible sections are layout panels rather than panel classes of
+        # their own -- same reasoning as tech_tools' "Colors" section: naming_unity
+        # wants every registered panel parented to the root.
+        self._draw_presets(layout)
+        self._draw_hdri(layout, scene)
+        nodes = _comp_tree_nodes(scene)
+        self._draw_compositor(layout, scene, render, nodes)
+        self._draw_vfx(layout, scene, nodes)
 
-        box = layout.box()
-        header = box.row(align=True)
+    @staticmethod
+    def _draw_presets(layout):
+        header, body = layout.panel("emanate_render_presets", default_closed=True)
+        header.label(text="Presets", icon="PRESET")
+        if not body:
+            return
+        body.operator(NAMES_CINEMA_BASE.operator_idname, icon="SHADING_RENDERED")
+        body.operator(NAMES_FAST_CLEAN_STATIC.operator_idname, icon="RENDER_STILL")
+
+    @staticmethod
+    def _draw_hdri(layout, scene):
+        header, body = layout.panel("emanate_render_hdri", default_closed=True)
         header.label(text="HDRI Lighting", icon="WORLD")
+        # In the header, so a rescan works with the section collapsed.
         header.operator(NAMES_HDRI_REFRESH.operator_idname, text="", icon="FILE_REFRESH")
-        if getattr(context.scene, HDRI_CHOICE_PROP) == "NONE":
-            box.label(text="No HDRIs found", icon="ERROR")
-            draw_hdri_download(box)
+        if not body:
+            return
+        if getattr(scene, HDRI_CHOICE_PROP) == "NONE":
+            body.label(text="No HDRIs found", icon="ERROR")
+            draw_hdri_download(body)
         else:
-            box.template_icon_view(context.scene, HDRI_CHOICE_PROP, show_labels=True, scale=6.0, scale_popup=6.0)
-            box.operator(NAMES_HDRI_LIGHTING.operator_idname, icon="WORLD")
+            body.template_icon_view(scene, HDRI_CHOICE_PROP, show_labels=True, scale=6.0, scale_popup=6.0)
+            body.operator(NAMES_HDRI_LIGHTING.operator_idname, icon="WORLD")
 
         # Live controls, drawn straight off the world's nodes -- only while the
         # scene is actually using the HDRI world.
-        world = context.scene.world
+        world = scene.world
         if world is not None and world.name == HDRI_WORLD_NAME:
             background, mapping = get_hdri_world_nodes()
-            col = box.column(align=True)
+            col = body.column(align=True)
             if background is not None:
                 col.prop(background.inputs["Strength"], "default_value", text="Strength")
             if mapping is not None:
                 col.prop(mapping.inputs["Rotation"], "default_value", index=2, text="Rotation")
-            col.prop(context.scene.render, "film_transparent", text="Hide from Camera")
+            col.prop(scene.render, "film_transparent", text="Hide from Camera")
 
-        box = layout.box()
-        box.label(text="Compositor", icon="NODE_COMPOSITING")
-        box.operator(NAMES_COMPOSITOR_SETUP.operator_idname, icon="NODE_COMPOSITING")
-        box.prop(context.scene, COMP_DENOISE_PROP)
-        box.row().prop(context.scene, COMP_OUTPUT_MODE_PROP, expand=True)
+    @staticmethod
+    def _draw_compositor(layout, scene, render, nodes):
+        header, body = layout.panel("emanate_render_compositor", default_closed=True)
+        header.label(text="Compositor", icon="NODE_COMPOSITING")
+        if not body:
+            return
+        body.operator(NAMES_COMPOSITOR_SETUP.operator_idname, icon="NODE_COMPOSITING")
+        body.prop(scene, COMP_DENOISE_PROP)
+        body.row().prop(scene, COMP_OUTPUT_MODE_PROP, expand=True)
 
-        scene = context.scene
-        render = scene.render
-        row = box.row(align=True)
+        row = body.row(align=True)
         row.prop(render, "use_motion_blur", text="Motion Blur")
         if render.use_motion_blur:
             row.prop(render, "motion_blur_shutter", text="Shutter")
 
         # Live fog controls, drawn straight off the nodes Compositor Setup built.
-        nodes = _comp_tree_nodes(scene)
         density = nodes.get(COMP_MIST_DENSITY_NODE) if nodes is not None else None
         if density is not None:
-            box.separator()
-            box.label(text="Mist Fog", icon="FORCE_TURBULENCE")
-            col = box.column(align=True)
+            body.separator()
+            body.label(text="Mist Fog", icon="FORCE_TURBULENCE")
+            col = body.column(align=True)
             col.prop(density.inputs[1], "default_value", text="Density")
             fog_color = nodes.get(COMP_MIST_COLOR_NODE)
             if fog_color is not None:
                 col.prop(fog_color.outputs[0], "default_value", text="")
             mist_range = nodes.get(COMP_MIST_RANGE_NODE)
             if mist_range is not None:
-                row = box.row(align=True)
+                row = body.row(align=True)
                 row.prop(mist_range.inputs["From Min"], "default_value", text="Range Min")
                 row.prop(mist_range.inputs["From Max"], "default_value", text="Max")
             mist_settings = scene.world.mist_settings if scene.world is not None else None
             if mist_settings is not None:
-                col = box.column(align=True)
+                col = body.column(align=True)
                 col.prop(mist_settings, "start", text="Mist Start")
                 col.prop(mist_settings, "depth", text="Mist Depth")
                 col.prop(mist_settings, "falloff", text="")
-        box.separator()
+        body.separator()
         if not getattr(scene, GRADIENT_ENABLED_PROP):
-            box.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
+            body.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
         else:
-            header = box.row(align=True)
+            header = body.row(align=True)
             header.label(text="Gradient BG", icon="IMAGE_BACKGROUND")
             header.operator(NAMES_GRADIENT_BG.operator_idname, text="", icon="FILE_REFRESH")
             header.operator(NAMES_GRADIENT_BG_REMOVE.operator_idname, text="", icon="X")
-            box.row().prop(scene, GRADIENT_TYPE_PROP, expand=True)
-            col = box.column(align=True)
+            body.row().prop(scene, GRADIENT_TYPE_PROP, expand=True)
+            col = body.column(align=True)
             radial = getattr(scene, GRADIENT_TYPE_PROP) == "RADIAL"
             col.prop(scene, GRADIENT_COLOR_1_PROP, text="Center" if radial else "Top")
             col.prop(scene, GRADIENT_COLOR_2_PROP, text="Edge" if radial else "Bottom")
             col.prop(scene, GRADIENT_SIZE_PROP if radial else GRADIENT_ANGLE_PROP)
+
+    @staticmethod
+    def _draw_vfx(layout, scene, nodes):
+        enabled = getattr(scene, VFX_ENABLED_PROP)
+        header, body = layout.panel("emanate_render_vfx", default_closed=True)
+        header.label(text="VFX", icon="SHADERFX")
+        if enabled:
+            header.operator(NAMES_VFX_ADD.operator_idname, text="", icon="FILE_REFRESH")
+            header.operator(NAMES_VFX_REMOVE.operator_idname, text="", icon="X")
+        if not body:
+            return
+        if not enabled:
+            body.operator(NAMES_VFX_ADD.operator_idname, icon="SHADERFX")
+            return
+        # Live controls, drawn straight off the nodes Add VFX built.
+        if nodes is not None:
+            col = body.column(align=True)
+            for node_name, socket_name, text in (
+                (COMP_VFX_BLOOM_NODE, "Strength", "Bloom"),
+                (COMP_VFX_STREAKS_NODE, "Strength", "Streaks"),
+                (COMP_VFX_LENS_NODE, "Dispersion", "Dispersion"),
+                (COMP_VFX_VIGNETTE_NODE, "Factor", "Vignette"),
+                (COMP_VFX_VIGNETTE_NODE, "Feather", "Vignette Feather"),
+            ):
+                node = nodes.get(node_name)
+                socket = node.inputs.get(socket_name) if node is not None else None
+                if socket is not None:
+                    col.prop(socket, "default_value", text=text)
 
 
 _classes = (
@@ -1724,6 +2004,8 @@ _classes = (
     EMANATE_OT_compositor_setup,
     EMANATE_OT_gradient_bg,
     EMANATE_OT_gradient_bg_remove,
+    EMANATE_OT_vfx_add,
+    EMANATE_OT_vfx_remove,
     EMANATE_PT_render_tools,
 )
 
@@ -1781,6 +2063,8 @@ def register():
     naming.check_classes((EMANATE_OT_compositor_setup,), NAMES_COMPOSITOR_SETUP)
     naming.check_classes((EMANATE_OT_gradient_bg,), NAMES_GRADIENT_BG)
     naming.check_classes((EMANATE_OT_gradient_bg_remove,), NAMES_GRADIENT_BG_REMOVE)
+    naming.check_classes((EMANATE_OT_vfx_add,), NAMES_VFX_ADD)
+    naming.check_classes((EMANATE_OT_vfx_remove,), NAMES_VFX_REMOVE)
     naming.check_classes((EMANATE_PT_render_tools,), NAMES)
     # EMANATE_AP_preferences isn't checked: naming_unity has no AddonPreferences tag.
     for cls in _classes:
@@ -1824,10 +2108,20 @@ def register():
         ),
     )
     _register_gradient_props()
+    setattr(
+        bpy.types.Scene,
+        VFX_ENABLED_PROP,
+        bpy.props.BoolProperty(
+            name="VFX Enabled",
+            description="Set by Add VFX; a Compositor Setup rebuild puts the VFX stack back while this is on",
+            default=False,
+        ),
+    )
 
 
 def unregister():
     global _previews
+    delattr(bpy.types.Scene, VFX_ENABLED_PROP)
     for prop in reversed(_GRADIENT_PROPS):
         delattr(bpy.types.Scene, prop)
     delattr(bpy.types.Scene, COMP_OUTPUT_MODE_PROP)
