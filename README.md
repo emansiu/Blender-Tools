@@ -86,6 +86,7 @@ The project has two halves that are published independently:
 | **UV Checker** | Reports which UDIM tiles the current selection occupies. |
 | **Rendering** | Cinema Base Cycles preset, HDRI Lighting (with in-app HDRI download), Compositor Setup (light-pass rebuild, AO, Cryptomatte, EXR/MP4 output) and gradient backgrounds. |
 | **Atom Constructor** | Type an element symbol (H, He, C...) and **Generate Atom** makes a sphere sized by its PubChem atomic radius (pm / 100), named after the element, with an `<Element>_Material`. |
+| **LaTeX to Object** | Type math-mode LaTeX and **Create LaTeX Object** adds it at the 3D cursor as a filled 2D curve (extrude, bevel or convert to mesh like text). Built-in TeX-style layout — fractions, radicals, scripts and limits, stretchy `\left…\right`, matrices, `cases`, `\\` / `&` alignment — using the Noto Sans Math font that ships with Blender, so no LaTeX install or network is needed. |
 
 All tools appear as collapsible sub-panels under a single **Emanate** tab in the 3D Viewport
 sidebar (<kbd>N</kbd>).
