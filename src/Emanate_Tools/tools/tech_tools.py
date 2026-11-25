@@ -129,6 +129,7 @@ import bpy
 from mathutils import Matrix, Quaternion, Vector
 
 from ..helpers import naming_unity as naming
+from ..helpers import panel_layout
 from ..helpers import widgets
 
 NAMES = naming.register_tool(
@@ -1377,9 +1378,10 @@ class EMANATE_PT_tech_tools(bpy.types.Panel):
         header, body = layout.panel("emanate_measure_colors", default_closed=True)
         header.label(text="Colors")
         if body:
+            body = panel_layout.indented(body)
             for part, _label, _default in PARTS:
                 body.prop(scene, color_prop(part))
-            body.label(text=f"= emission on {material_name('*')} materials", icon="MATERIAL")
+            body.label(text=f"= {material_name('*')} emission", icon="MATERIAL")
 
 
 # EMANATE_PG_ruler is deliberately left out of check_classes: it only knows the

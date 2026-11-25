@@ -22,7 +22,7 @@ import bpy
 import bpy.utils.previews
 
 from ..helpers import naming_unity as naming
-from ..helpers import vfx_node_groups
+from ..helpers import panel_layout, vfx_node_groups
 
 NAMES = naming.register_tool(
     "render_tools",
@@ -90,6 +90,9 @@ NAMES_COMPOSITOR_SETUP = naming.register_tool(
 
 COMP_DENOISE_PROP = naming.prop_name("comp_denoise")
 COMP_OUTPUT_MODE_PROP = naming.prop_name("comp_output_mode")
+# Camera whose viewport mist limits the Mist Fog section toggles. Empty -- the
+# default -- means the outliner's first camera.
+COMP_MIST_CAMERA_PROP = naming.prop_name("comp_mist_camera")
 
 NAMES_GRADIENT_BG = naming.register_tool(
     "gradient_bg",
@@ -1225,6 +1228,54 @@ def _comp_output_mode_update(self, context):
     apply_output_mode(self, getattr(self, COMP_OUTPUT_MODE_PROP))
 
 
+def _camera_only(self, obj):
+    """Keep the Mist Fog camera field to cameras that are in this scene."""
+    return obj.type == "CAMERA" and self.objects.get(obj.name) == obj
+
+
+def _outliner_key(obj, siblings):
+    """Sort key putting `obj` where the outliner lists it among `siblings` (one collection's objects).
+
+    The outliner nests children under their parent and sorts each level by
+    case-insensitive natural name (Camera.2 before Camera.10).
+    """
+    path = []
+    while obj is not None and siblings.get(obj.name) == obj:
+        parts = re.split(r"(\d+)", obj.name.casefold())
+        path.append([int(part) if i % 2 else part for i, part in enumerate(parts)])
+        obj = obj.parent
+    return path[::-1]
+
+
+def first_outliner_camera(layer_collection):
+    """Topmost camera under `layer_collection` in the outliner, or None.
+
+    Nested collections are listed above a collection's own objects; excluded
+    ones show no contents at all.
+    """
+    if layer_collection.exclude:
+        return None
+    for child in layer_collection.children:
+        camera = first_outliner_camera(child)
+        if camera is not None:
+            return camera
+    objects = layer_collection.collection.objects
+    cameras = [obj for obj in objects if obj.type == "CAMERA"]
+    return min(cameras, key=lambda obj: _outliner_key(obj, objects), default=None)
+
+
+def mist_camera(scene, view_layer):
+    """(camera the Mist Fog section acts on or None, whether it was picked by hand).
+
+    A picked camera deleted from the scene lingers in the pointer, so it only
+    counts while it is still in `scene`.
+    """
+    picked = getattr(scene, COMP_MIST_CAMERA_PROP)
+    if picked is not None and _camera_only(scene, picked):
+        return picked, True
+    return first_outliner_camera(view_layer.layer_collection), False
+
+
 # ------ Gradient BG --------------------------------------------------------------
 # A gradient Alpha-Overed behind the rebuilt beauty, between Set Alpha and the
 # Group Output / Viewer. The factor t runs 0 at Color 1 to 1 at Color 2:
@@ -1874,8 +1925,10 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         # wants every registered panel parented to the root.
         self._draw_presets(layout)
         self._draw_hdri(layout, scene)
+        self._draw_compositor(layout, scene, render)
         nodes = _comp_tree_nodes(scene)
-        self._draw_compositor(layout, scene, render, nodes)
+        self._draw_mist(layout, context, nodes)
+        self._draw_gradient(layout, scene)
         self._draw_vfx(layout, scene, nodes)
 
     @staticmethod
@@ -1884,6 +1937,7 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         header.label(text="Presets", icon="PRESET")
         if not body:
             return
+        body = panel_layout.indented(body)
         body.operator(NAMES_CINEMA_BASE.operator_idname, icon="SHADING_RENDERED")
         body.operator(NAMES_FAST_CLEAN_STATIC.operator_idname, icon="RENDER_STILL")
 
@@ -1895,6 +1949,7 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         header.operator(NAMES_HDRI_REFRESH.operator_idname, text="", icon="FILE_REFRESH")
         if not body:
             return
+        body = panel_layout.indented(body)
         if getattr(scene, HDRI_CHOICE_PROP) == "NONE":
             body.label(text="No HDRIs found", icon="ERROR")
             draw_hdri_download(body)
@@ -1915,11 +1970,12 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
             col.prop(scene.render, "film_transparent", text="Hide from Camera")
 
     @staticmethod
-    def _draw_compositor(layout, scene, render, nodes):
+    def _draw_compositor(layout, scene, render):
         header, body = layout.panel("emanate_render_compositor", default_closed=True)
         header.label(text="Compositor", icon="NODE_COMPOSITING")
         if not body:
             return
+        body = panel_layout.indented(body)
         body.operator(NAMES_COMPOSITOR_SETUP.operator_idname, icon="NODE_COMPOSITING")
         body.prop(scene, COMP_DENOISE_PROP)
         body.row().prop(scene, COMP_OUTPUT_MODE_PROP, expand=True)
@@ -1929,41 +1985,71 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
         if render.use_motion_blur:
             row.prop(render, "motion_blur_shutter", text="Shutter")
 
-        # Live fog controls, drawn straight off the nodes Compositor Setup built.
+    @staticmethod
+    def _draw_mist(layout, context, nodes):
+        scene = context.scene
+        header, body = layout.panel("emanate_render_mist", default_closed=True)
+        header.label(text="Mist Fog", icon="FORCE_TURBULENCE")
+        if not body:
+            return
+        body = panel_layout.indented(body)
         density = nodes.get(COMP_MIST_DENSITY_NODE) if nodes is not None else None
-        if density is not None:
-            body.separator()
-            body.label(text="Mist Fog", icon="FORCE_TURBULENCE")
-            col = body.column(align=True)
-            col.prop(density.inputs[1], "default_value", text="Density")
-            fog_color = nodes.get(COMP_MIST_COLOR_NODE)
-            if fog_color is not None:
-                col.prop(fog_color.outputs[0], "default_value", text="")
-            mist_range = nodes.get(COMP_MIST_RANGE_NODE)
-            if mist_range is not None:
-                row = body.row(align=True)
-                row.prop(mist_range.inputs["From Min"], "default_value", text="Range Min")
-                row.prop(mist_range.inputs["From Max"], "default_value", text="Max")
-            mist_settings = scene.world.mist_settings if scene.world is not None else None
-            if mist_settings is not None:
-                col = body.column(align=True)
-                col.prop(mist_settings, "start", text="Mist Start")
-                col.prop(mist_settings, "depth", text="Mist Depth")
-                col.prop(mist_settings, "falloff", text="")
-        body.separator()
-        if not getattr(scene, GRADIENT_ENABLED_PROP):
-            body.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
-        else:
-            header = body.row(align=True)
-            header.label(text="Gradient BG", icon="IMAGE_BACKGROUND")
+        if density is None:
+            body.label(text="Run Compositor Setup first", icon="INFO")
+            return
+
+        # Live fog controls, drawn straight off the nodes Compositor Setup built.
+        col = body.column(align=True)
+        col.prop(density.inputs[1], "default_value", text="Density")
+        fog_color = nodes.get(COMP_MIST_COLOR_NODE)
+        if fog_color is not None:
+            col.prop(fog_color.outputs[0], "default_value", text="")
+        mist_range = nodes.get(COMP_MIST_RANGE_NODE)
+        if mist_range is not None:
+            col.prop(mist_range.inputs["From Min"], "default_value", text="Range Min")
+            col.prop(mist_range.inputs["From Max"], "default_value", text="Range Max")
+
+        # The Mist pass itself: these need a re-render.
+        mist_settings = scene.world.mist_settings if scene.world is not None else None
+        if mist_settings is None:
+            return
+        body.separator(factor=0.5)
+        col = body.column(align=True)
+        col.prop(mist_settings, "start", text="Mist Start")
+        col.prop(mist_settings, "depth", text="Mist Depth")
+        col.prop(mist_settings, "falloff", text="")
+
+        # Viewport Display > Mist: draws Mist Start/Depth as a line out of the
+        # camera. draw() can't write the default into the field, so an unpicked
+        # camera shows as its placeholder instead.
+        body.separator(factor=0.5)
+        camera, picked = mist_camera(scene, context.view_layer)
+        placeholder = "No camera in scene" if camera is None else camera.name
+        col = body.column(align=True)
+        col.prop(scene, COMP_MIST_CAMERA_PROP, text="Camera", placeholder="" if picked else placeholder)
+        if camera is not None:
+            col.prop(camera.data, "show_mist", text="Show Mist in Viewport")
+
+    @staticmethod
+    def _draw_gradient(layout, scene):
+        enabled = getattr(scene, GRADIENT_ENABLED_PROP)
+        header, body = layout.panel("emanate_render_gradient", default_closed=True)
+        header.label(text="Gradient BG", icon="IMAGE_BACKGROUND")
+        if enabled:
             header.operator(NAMES_GRADIENT_BG.operator_idname, text="", icon="FILE_REFRESH")
             header.operator(NAMES_GRADIENT_BG_REMOVE.operator_idname, text="", icon="X")
-            body.row().prop(scene, GRADIENT_TYPE_PROP, expand=True)
-            col = body.column(align=True)
-            radial = getattr(scene, GRADIENT_TYPE_PROP) == "RADIAL"
-            col.prop(scene, GRADIENT_COLOR_1_PROP, text="Center" if radial else "Top")
-            col.prop(scene, GRADIENT_COLOR_2_PROP, text="Edge" if radial else "Bottom")
-            col.prop(scene, GRADIENT_SIZE_PROP if radial else GRADIENT_ANGLE_PROP)
+        if not body:
+            return
+        body = panel_layout.indented(body)
+        if not enabled:
+            body.operator(NAMES_GRADIENT_BG.operator_idname, icon="IMAGE_BACKGROUND")
+            return
+        body.row().prop(scene, GRADIENT_TYPE_PROP, expand=True)
+        col = body.column(align=True)
+        radial = getattr(scene, GRADIENT_TYPE_PROP) == "RADIAL"
+        col.prop(scene, GRADIENT_COLOR_1_PROP, text="Center" if radial else "Top")
+        col.prop(scene, GRADIENT_COLOR_2_PROP, text="Edge" if radial else "Bottom")
+        col.prop(scene, GRADIENT_SIZE_PROP if radial else GRADIENT_ANGLE_PROP)
 
     @staticmethod
     def _draw_vfx(layout, scene, nodes):
@@ -1975,6 +2061,7 @@ class EMANATE_PT_render_tools(bpy.types.Panel):
             header.operator(NAMES_VFX_REMOVE.operator_idname, text="", icon="X")
         if not body:
             return
+        body = panel_layout.indented(body)
         if not enabled:
             body.operator(NAMES_VFX_ADD.operator_idname, icon="SHADERFX")
             return
@@ -2107,6 +2194,16 @@ def register():
             update=_comp_output_mode_update,
         ),
     )
+    setattr(
+        bpy.types.Scene,
+        COMP_MIST_CAMERA_PROP,
+        bpy.props.PointerProperty(
+            name="Mist Camera",
+            description="Camera to show the mist limits on. Leave it empty to use the first camera in the outliner",
+            type=bpy.types.Object,
+            poll=_camera_only,
+        ),
+    )
     _register_gradient_props()
     setattr(
         bpy.types.Scene,
@@ -2124,6 +2221,7 @@ def unregister():
     delattr(bpy.types.Scene, VFX_ENABLED_PROP)
     for prop in reversed(_GRADIENT_PROPS):
         delattr(bpy.types.Scene, prop)
+    delattr(bpy.types.Scene, COMP_MIST_CAMERA_PROP)
     delattr(bpy.types.Scene, COMP_OUTPUT_MODE_PROP)
     delattr(bpy.types.Scene, COMP_DENOISE_PROP)
     delattr(bpy.types.Scene, HDRI_CHOICE_PROP)
